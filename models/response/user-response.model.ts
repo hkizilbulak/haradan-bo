@@ -1,13 +1,12 @@
-﻿import { BaseResponse } from '@/models/common';
-import { ChannelTypeEnum, EntityStatusEnum } from '@/models/enums';
+import { BaseResponse } from '@/models/common';
 
 export interface UserResponse extends BaseResponse {
-  admin: boolean;
-  channel: ChannelTypeEnum;
   email: string;
+  emailVerified: boolean;
   firstName: string;
   lastName: string;
-  password: string;
-  phoneNumber: string;
-  status: EntityStatusEnum;
+  role: 'admin' | 'user';
+  status: 'ACTIVE' | 'CLOSED' | 'DISABLED';
+  phone?: string;
+  activeSessionCount?: number;
 }

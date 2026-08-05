@@ -1,65 +1,69 @@
 import { Col, Form, Row } from 'react-bootstrap';
-import { BannerTypeEnum, EntityStatusEnum } from '@/models/enums';
 import { useFormik } from 'formik';
-import PrepareOption, { OptionTypes } from '@/components/PrepareOption';
 import { appendOperator } from '@/helpers/HelperUtils';
 
 export type IBannerFilterForm = {
-    type?: BannerTypeEnum;
-    status?: EntityStatusEnum;
+  placement?: 'HOMEPAGE' | 'LISTING_DETAIL' | 'SEARCH';
+  status?: 'ACTIVE' | 'INACTIVE';
 }
 
-const initialValues: IBannerFilterForm = { status: EntityStatusEnum.ACTIVE };
+const initialValues: IBannerFilterForm = { status: 'ACTIVE' };
 
 type IProps = {
-    onFilter: (values: string) => void
+  onFilter: (values: string) => void;
 }
 
 export default function BannerFilter({ onFilter }: IProps) {
+  const formik = useFormik({
+    initialValues,
+    onSubmit: values => {
+      let filter = '';
 
-    const formik = useFormik({
-        initialValues,
-        onSubmit: values => {
-            let filter = '';
-            if (values.type && (values.type as string) !== '') {
-                filter = appendOperator(filter, `type==${values.type}`);
-            }
+      if (values.placement && values.placement !== '') {
+        filter = appendOperator(filter, `placement==${values.placement}`);
+      }
 
-            if (values.status && (values.status as string) !== '') {
-                filter = appendOperator(filter, `status==${values.status}`)
-            }
-            onFilter(filter)
-        },
-    });
+      if (values.status && values.status !== '') {
+        filter = appendOperator(filter, `status==${values.status}`);
+      }
 
+      onFilter(filter);
+    },
+  });
 
-
-    return <Form noValidate onSubmit={formik.handleSubmit}>
-        <Row>
-            <Form.Group as={Col} md={3} className={'mb-3'}>
-                <Form.Select
-                    name="type"
-                    onChange={(e) => {
-                        formik.handleChange(e)
-                        formik.submitForm()
-                    }}
-                    value={formik.values.type}
-                >
-                    <PrepareOption enumType={OptionTypes.BANNER_TYPE_OPTION} />
-                </Form.Select>
-            </Form.Group>
-            <Form.Group as={Col} md={3} className={'mb-3'}>
-                <Form.Select
-                    name="status"
-                    onChange={(e) => {
-                        formik.handleChange(e)
-                        formik.submitForm()
-                    }}
-                    value={formik.values.status}
-                >
-                    <PrepareOption enumType={OptionTypes.ENTITY_STATUS_OPTION} />
-                </Form.Select>
-            </Form.Group>
-        </Row>
+  return (
+    <Form noValidate onSubmit={formik.handleSubmit}>
+      <Row>
+        <Form.Group as={Col} md={6} className={'mb-3'}>
+          <Form.Select
+            name="placement"
+            onChange={(e) => {
+              formik.handleChange(e);
+              formik.submitForm();
+            }}
+            value={formik.values.placement ?? ''}
+          >
+            <option value="">Yerleşim</option>
+            <option value="HOMEPAGE">Ana Sayfa</option>
+            <option value="LISTING_DETAIL">İlan Detay</option>
+            <option value="SEARCH">Arama</option>
+          </Form.Select>
+        </Form.Group>
+        <Form.Group as={Col} md={6} className={'mb-3'}>
+          <Form.Select
+            name="status"
+            onChange={(e) => {
+              formik.handleChange(e);
+              formik.submitForm();
+            }}
+            value={formik.values.status ?? ''}
+          >
+            <option value="">Durum</option>
+            <option value="ACTIVE">Aktif</option>
+            <option value="INACTIVE">Pasif</option>
+          </Form.Select>
+        </Form.Group>
+      </Row>
     </Form>
+  );
 }

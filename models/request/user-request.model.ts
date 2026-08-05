@@ -1,13 +1,8 @@
-﻿import { BaseRequest } from './base-request.model';
-import { ChannelTypeEnum, EntityStatusEnum } from '@/models/enums';
+import { BaseRequest } from './base-request.model';
 
 export interface UserRequest extends BaseRequest {
-  admin: string;
-  channel: ChannelTypeEnum;
-  email: string;
-  firstName: string;
-  lastName: string;
-  password: string;
-  phoneNumber: string;
-  status: EntityStatusEnum;
+  expectedCurrentRole: 'admin' | 'user';
+  newRole: 'admin' | 'user';
+  expectedCurrentStatus: 'ACTIVE' | 'CLOSED' | 'DISABLED';
+  newStatus: 'ACTIVE' | 'CLOSED' | 'DISABLED';
 }

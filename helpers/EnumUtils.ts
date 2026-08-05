@@ -24,3 +24,29 @@ export function getArticleTypeEnumText(searchType: ArticleTypeEnum) {
 export function getChannelTypeEnumText(searchType: ChannelTypeEnum) {
     return getEnumText(CHANNEL_TYPE_TEXTS, searchType)
 }
+
+export function getUserRoleText(searchType?: string) {
+    if (searchType === 'admin') return 'Yönetici';
+    if (searchType === 'user') return 'Kullanıcı';
+    return searchType ?? '-';
+}
+
+export function getUserStatusText(searchType?: string) {
+    if (searchType === 'ACTIVE') return 'Aktif';
+    if (searchType === 'CLOSED') return 'Kapalı';
+    if (searchType === 'DISABLED') return 'Pasif';
+    return searchType ?? '-';
+}
+
+export function getBannerPlacementText(searchType?: string) {
+    if (searchType === 'HOMEPAGE') return 'Ana Sayfa';
+    if (searchType === 'LISTING_DETAIL') return 'İlan Detay';
+    if (searchType === 'SEARCH') return 'Arama';
+    return searchType ?? '-';
+}
+
+export function getBannerStatusText(searchType?: string) {
+    if (searchType === 'ACTIVE') return 'Aktif';
+    if (searchType === 'INACTIVE') return 'Pasif';
+    return searchType ?? '-';
+}

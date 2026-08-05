@@ -1,14 +1,11 @@
-﻿import { BaseRequest } from './base-request.model';
-import { BannerTypeEnum, EntityStatusEnum } from '@/models/enums';
+import { BaseRequest } from './base-request.model';
 
 export interface BannerRequest extends BaseRequest {
-  description: string;
-  type: BannerTypeEnum;
-  startDate: number[];
-  endDate: number[];
-  name: string;
-  orderId: number;
-  price: number;
-  url: string;
-  status: EntityStatusEnum;
+  assetId: string;
+  placement: 'HOMEPAGE' | 'LISTING_DETAIL' | 'SEARCH';
+  title?: string;
+  altText?: string;
+  targetUrl?: string;
+  sortOrder: number;
+  expectedVersion?: number;
 }

@@ -1,15 +1,14 @@
-﻿import { BaseResponse } from '@/models/common';
-import { BannerTypeEnum, EntityStatusEnum } from '@/models/enums';
+import { BaseResponse } from '@/models/common';
 
 export interface BannerResponse extends BaseResponse {
-  description: string;
-  type: BannerTypeEnum;
-  startDate: number[];
-  endDate: number[];
-  name: string;
-  orderId: number;
-  price: number;
-  searchText: string;
-  status: EntityStatusEnum;
-  url: string;
+  assetId: string;
+  assetLifecycleStatus: string;
+  placement: 'HOMEPAGE' | 'LISTING_DETAIL' | 'SEARCH';
+  status: 'ACTIVE' | 'INACTIVE';
+  title?: string;
+  altText?: string;
+  targetUrl?: string;
+  sortOrder: number;
+  imageUrl?: string;
+  version: number;
 }
