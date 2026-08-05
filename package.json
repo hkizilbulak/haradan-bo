@@ -1,0 +1,45 @@
+{
+  "name": "haradan-bo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@nosferatu500/react-sortable-tree": "^4.4.0",
+    "@types/node": "20.4.10",
+    "@types/react": "18.2.20",
+    "@types/react-dom": "18.2.7",
+    "axios": "^1.4.0",
+    "bootstrap": "^5.3.1",
+    "classnames": "^2.3.2",
+    "eslint": "8.47.0",
+    "eslint-config-next": "^13.5.6",
+    "formik": "^2.4.3",
+    "jwt-decode": "^4.0.0",
+    "next": "^13.5.6",
+    "next-auth": "^4.23.0",
+    "react": "18.2.0",
+    "react-bootstrap": "^2.8.0",
+    "react-bootstrap-icons": "^1.10.3",
+    "react-copy-to-clipboard": "^5.1.0",
+    "react-dom": "18.2.0",
+    "react-feather": "^2.0.10",
+    "react-number-format": "^5.3.1",
+    "react-responsive": "^9.0.2",
+    "react-toastify": "^9.1.3",
+    "sass": "^1.65.1",
+    "sass-loader": "^13.3.2",
+    "simplebar": "^6.2.5",
+    "simplebar-react": "^3.2.4",
+    "typescript": "5.1.6",
+    "uuid": "^9.0.0",
+    "yup": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^9.0.2"
+  }
+}
