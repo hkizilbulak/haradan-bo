@@ -1,4 +1,4 @@
-import { v4 as uuid } from 'uuid';
+﻿import { v4 as uuid } from 'uuid';
 
 export const DashboardMenu: IMenuProps[] = [
 	{
@@ -17,8 +17,8 @@ export const DashboardMenu: IMenuProps[] = [
 		title: 'İlanlar',
 		icon: 'database',
 		children: [
-			{ id: uuid(), link: '/adverts', name: 'Tüm İlanlar' },
-			{ id: uuid(), link: '/pages/settings', name: 'İlan Dopingleri' },
+			{ id: uuid(), link: '/listings', name: 'Tüm İlanlar' },
+			{ id: uuid(), link: '/listings', name: 'İlan Dopingleri' },
 		]
 	},
 	{
