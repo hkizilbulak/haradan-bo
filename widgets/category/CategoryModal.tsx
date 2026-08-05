@@ -11,9 +11,9 @@ import { CategoryRequest, CategoryResponse } from '@/models';
 const initialValues: CategoryRequest = {
     identifier: '',
     name: '',
+    slug: '',
     parentId: '',
-    orderId: 0,
-    price: 0,
+    sortOrder: 0,
     status: EntityStatusEnum.ACTIVE,
 };
 
@@ -31,6 +31,8 @@ export default function CategoryModal({ selectedCategory, show = false, onHandle
     const validationSchema = Yup.object().shape({
         name: Yup.string()
             .required('Başlık zorunludur'),
+        slug: Yup.string()
+            .required('Slug zorunludur'),
         status: Yup.string()
             .required('Statü zorunludur')
     });
@@ -73,28 +75,28 @@ export default function CategoryModal({ selectedCategory, show = false, onHandle
                                 <FormTextField
                                     as={Col}
                                     md={6}
-                                    controlId="validationParentId"
-                                    label="Üst Kategori"
+                                    controlId="validationSlug"
+                                    label="Slug"
                                     type="text"
-                                    name="parentId"
+                                    name="slug"
                                 />
                             </Row>
                             <Row>
                                 <FormTextField
                                     as={Col}
                                     md={6}
-                                    controlId="validationOrderId"
-                                    label="Sıra No"
+                                    controlId="validationParentId"
+                                    label="Üst Kategori"
                                     type="text"
-                                    name="orderId"
+                                    name="parentId"
                                 />
                                 <FormTextField
                                     as={Col}
                                     md={6}
-                                    controlId="validationPrice"
-                                    label="Kategori Ücreti"
+                                    controlId="validationSortOrder"
+                                    label="Sıra No"
                                     type="text"
-                                    name="price"
+                                    name="sortOrder"
                                 />
                             </Row>
                             <Row>

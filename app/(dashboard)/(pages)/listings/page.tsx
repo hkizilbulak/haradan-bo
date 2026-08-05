@@ -2,40 +2,38 @@
 import Loading from '@/components/Loading';
 import PrepareTable from '@/components/PrepareTable';
 import StatusBadge from '@/components/StatusBadge';
-import { formatDateForText } from '@/helpers/DateUtils';
 import useApi from '@/hooks/useApi';
-import useModal from '@/hooks/useModal';
-import { AdvertResponse } from '@/models';
+import { ModerationAdvertResponse } from '@/models';
 import { advertService } from '@/services';
 import { PageHeading } from '@/widgets';
 import AdvertFilter from '@/widgets/advert/AdvertFilter';
-import { Col, Row, Table, Container } from 'react-bootstrap';
+import { Col, Row, Container } from 'react-bootstrap';
 
 const headItems = [
-  'İlan Tarihi',
   'Başlık',
-  'İlan No',
-  'Kategori',
-  'İlan Sahibi',
+  'Yayın Tarihi',
+  'Silinme Tarihi',
+  'Kategorı',
+  'Sahip',
   'Durum',
+  'Versiyon',
   ''
 ]
 
 export default function Adverts() {
 
-  const [{ data, isLoading, handleFilter, handlePageChange, }] = useApi<AdvertResponse>({ service: advertService });
-  const { isModalOpen, openModal, closeModal, modalContent } = useModal();
+  const [{ data, isLoading, handleFilter, handlePageChange, }] = useApi<ModerationAdvertResponse>({ service: advertService });
 
   const content = data?.content?.map((advert) => (
     <tr key={advert.identifier}>
-      <td>{formatDateForText(advert.createDate)}</td>
       <td>{advert.title}</td>
-      <td>{advert.advertNo}</td>
-      <td>{advert.category?.name}</td>
-      <td>{advert.user ? `${advert.user.firstName || ''} ${advert.user.lastName || ''}` : ''}</td>
+      <td>{advert.publishedAt ? new Date(advert.publishedAt).toLocaleString('tr-TR') : ''}</td>
+      <td>{advert.deletedAt ? new Date(advert.deletedAt).toLocaleString('tr-TR') : ''}</td>
+      <td>{advert.categoryId}</td>
+      <td>{advert.ownerUserId}</td>
       <td><StatusBadge status={advert.status} /></td>
-      <td>
-      </td>
+      <td>{advert.version}</td>
+      <td></td>
     </tr>));
 
   return (
@@ -48,8 +46,6 @@ export default function Adverts() {
       </Row>
 
       <AdvertFilter onFilter={(values: string) => handleFilter(values)} />
-
-      {isModalOpen && modalContent}
 
       {isLoading && <Loading />}
 

@@ -1,10 +1,7 @@
-import { API_URL } from '@/contants/urls';
-import axiosInstance from '@/helpers/api/axiosInstance';
+import { apiRequest } from '@/helpers/api/openapiClient';
 import { TokenResponse } from '@/models';
-import { AxiosRequestConfig } from 'axios';
+import { AuthLoginRequest } from '@/models/request/auth-login-request.model';
 import { jwtDecode } from "jwt-decode";
-
-const baseUrl = `${API_URL}auth/`;
 
 export const authService = {
     login,
@@ -12,23 +9,15 @@ export const authService = {
 
 async function login(username: string, password: string) {
     try {
-
-        let body = new URLSearchParams({
-            grant_type: 'password',
-            username,
+        const body: AuthLoginRequest = {
+            email: username,
             password,
-        });
+            clientContext: 'ADMIN_BO',
+        };
 
-        let config = {
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Authorization": "Basic aGFyYWRhbjpoYXJhUA=="
-            }
-        } as AxiosRequestConfig
-
-        const response = await axiosInstance.post(`${baseUrl}token`, body, config);
-        const jwt: any = jwtDecode(response.data.access_token);
-        const tokenResponse = response.data as TokenResponse;
+        const response = await apiRequest<TokenResponse>('POST', '/v1/auth/login', body);
+        const jwt: any = jwtDecode(response.accessToken);
+        const tokenResponse = response as TokenResponse;
         tokenResponse.authorities = jwt.authorities;
         return tokenResponse;
     } catch (error) {

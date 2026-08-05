@@ -16,6 +16,8 @@ import { CategoryRequest, CategoryResponse } from "@/models";
 import useApi from "@/hooks/useApi";
 import { SearchParams } from "@/models/common";
 import { EntityStatusEnum } from "@/models/enums";
+import { getErrorMessage } from "@/helpers/HelperUtils";
+import { toast } from "react-toastify";
 
 type GenerateNodePropsParams = {
   node: any;
@@ -39,10 +41,12 @@ type OnMoveNodeParams = {
 
 type TreeItem = {
   identifier?: string;
-  title?: ReactNode | undefined;
-  subtitle?: ReactNode | undefined;
-  expanded?: boolean | undefined;
-  children?: TreeItem[] | GetTreeItemChildrenFn | undefined;
+  name?: ReactNode;
+  slug?: ReactNode;
+  sortOrder?: ReactNode;
+  version?: number;
+  expanded?: boolean;
+  children?: TreeItem[] | GetTreeItemChildrenFn;
   [x: string]: any;
 };
 
@@ -52,10 +56,24 @@ const initialParameters = {
   filter: "status==ACTIVE",
   pageRequest: {
     page: 0,
-    size: 10,
+    size: 50,
     sort: [{ direction: "ASC", property: "name" }],
   },
 } as SearchParams<CategoryResponse>;
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ı/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 export default function Categories() {
   const [{ data, refetch }] = useApi<CategoryResponse>({
@@ -68,162 +86,116 @@ export default function Categories() {
   const [treeData, setTreeData] = useState<TreeItem[]>(seed);
 
   const categoryNameInputRef = useRef<HTMLInputElement>(null);
-  const priceInputRef = useRef<HTMLInputElement>(null);
+  const slugInputRef = useRef<HTMLInputElement>(null);
+  const sortOrderInputRef = useRef<HTMLInputElement>(null);
 
   function getCategoryName() {
     return (categoryNameInputRef.current as any).value;
   }
 
-  function getPrice() {
-    return (priceInputRef.current as any).value;
+  function getSlug() {
+    return (slugInputRef.current as any).value;
+  }
+
+  function getSortOrder() {
+    return (sortOrderInputRef.current as any).value;
   }
 
   function initializeInputs() {
     (categoryNameInputRef.current as any).value = "";
-    (priceInputRef.current as any).value = "";
+    (slugInputRef.current as any).value = "";
+    (sortOrderInputRef.current as any).value = "";
   }
 
-  function createNode() {
-    console.log("createNode rowInfo:");
-
+  function buildRequest(node?: any): CategoryRequest {
     const name = getCategoryName();
-    const price = getPrice();
+    const slug = getSlug() || slugify(name);
+    const sortOrderText = getSortOrder();
+    const sortOrder = sortOrderText !== "" ? Number(sortOrderText) : undefined;
 
+    return {
+      identifier: node?.identifier,
+      expectedVersion: node?.version,
+      name,
+      slug,
+      sortOrder,
+      parentId: node?.parentId,
+      status: EntityStatusEnum.ACTIVE,
+    };
+  }
+
+  async function createNode() {
+    const name = getCategoryName();
     if (name === "") {
       (categoryNameInputRef.current as any).focus();
       return;
     }
 
-    let newTree: FullTree & TreeIndex = addNodeUnderParent({
-      treeData: treeData,
-      parentKey: null,
-      expandParent: true,
-      getNodeKey,
-      newNode: {
-        title: name,
-        subtitle: price,
-      },
-    });
-
-    newTree.treeData && setTreeData(newTree.treeData);
-    const category: CategoryRequest = {
-      name,
-      price,
-      status: EntityStatusEnum.ACTIVE,
-    };
-    handleSave(category);
-    initializeInputs();
+    try {
+      await categoryService.save(buildRequest());
+      refetch();
+      initializeInputs();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   }
 
-  function updateNode(rowInfo: GenerateNodePropsParams) {
-    console.log("updateNode rowInfo:", rowInfo);
-    const { node, path, parentNode } = rowInfo;
-    const { children, identifier } = node;
-
+  async function updateNode(rowInfo: GenerateNodePropsParams) {
+    const { node } = rowInfo;
     const name = getCategoryName();
-    const price = getPrice();
-    const parentId = (parentNode && parentNode.identifier) || undefined;
-
     if (name === "") {
       (categoryNameInputRef.current as any).focus();
       return;
     }
 
-    let newTree: TreeItem[] = changeNodeAtPath({
-      treeData,
-      path,
-      getNodeKey,
-      newNode: {
-        children,
-        title: name,
-        subtitle: price,
-        identifier,
-      },
-    });
-
-    setTreeData(newTree);
-    const category: CategoryRequest = {
-      identifier,
-      name,
-      price,
-      parentId,
-      status: EntityStatusEnum.ACTIVE,
-    };
-    handleSave(category);
-    initializeInputs();
+    try {
+      await categoryService.update(buildRequest(node));
+      refetch();
+      initializeInputs();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   }
 
-  function addNodeChild(rowInfo: GenerateNodePropsParams) {
-    let { path, node } = rowInfo;
-
+  async function addNodeChild(rowInfo: GenerateNodePropsParams) {
+    const { node } = rowInfo;
     const name = getCategoryName();
-    const price = getPrice();
-    const parentId = node?.identifier || undefined;
-
     if (name === "") {
       (categoryNameInputRef.current as any).focus();
       return;
     }
 
-    let newTree: FullTree & TreeIndex = addNodeUnderParent({
-      treeData: treeData,
-      parentKey: path[path.length - 1],
-      expandParent: true,
-      getNodeKey,
-      newNode: {
-        title: name,
-        subtitle: price,
-      },
-    });
-
-    newTree.treeData && setTreeData(newTree.treeData);
-    const category: CategoryRequest = {
-      name,
-      price,
-      parentId,
-      status: EntityStatusEnum.ACTIVE,
-    };
-    handleSave(category);
-    initializeInputs();
+    try {
+      await categoryService.save({
+        ...buildRequest(node),
+        identifier: undefined,
+        parentId: node?.identifier,
+      });
+      refetch();
+      initializeInputs();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   }
 
-  function removeNode(rowInfo: GenerateNodePropsParams) {
-    console.log("removeNode rowInfo:", rowInfo);
-
-    const { path, node, parentNode } = rowInfo;
-    setTreeData(
-      removeNodeAtPath({
-        treeData,
-        path,
-        getNodeKey,
-      })
-    );
-
-    const { identifier, title: name, subtitle: price } = node;
-    const parentId = (parentNode && parentNode.identifier) || undefined;
-    const category: CategoryRequest = {
-      identifier,
-      name,
-      price,
-      parentId,
-      status: EntityStatusEnum.DELETED,
-    };
-    handleSave(category);
+  async function removeNode(rowInfo: GenerateNodePropsParams) {
+    const { node } = rowInfo;
+    try {
+      await categoryService._delete(node.identifier, node.version);
+      refetch();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   }
 
-  function moveNode(rowInfo: OnMoveNodeParams) {
-    console.log("rowInfo:", rowInfo);
+  async function moveNode(rowInfo: OnMoveNodeParams) {
     const { node, nextParentNode } = rowInfo;
-    const { identifier, title: name, subtitle: price } = node;
-    const parentId = (nextParentNode && nextParentNode.identifier) || undefined;
-    const category: CategoryRequest = {
-      identifier,
-      name,
-      price,
-      parentId,
-      status: EntityStatusEnum.ACTIVE,
-    };
-    handleSave(category);
+    try {
+      await categoryService.reparent(node.identifier, node.version, nextParentNode?.identifier);
+      refetch();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   }
 
   function expand(expanded: boolean) {
@@ -258,21 +230,14 @@ export default function Categories() {
 
     return {
       identifier: category.identifier,
-      title: category.name,
-      subtitle: category.price && category.price.toString(),
+      name: category.name,
+      slug: category.slug,
+      sortOrder: category.sortOrder,
+      version: category.version,
       children: childrenData,
       expanded: true,
     } as TreeItem;
   }
-
-  const handleSave = async (category: CategoryRequest) => {
-    if (category.identifier !== undefined && category.identifier !== "") {
-      await categoryService.update(category);
-    } else {
-      await categoryService.save(category);
-    }
-    refetch();
-  };
 
   useMemo(() => {
     const categoryTreeData = data?.content?.map((category) => {
@@ -300,10 +265,17 @@ export default function Categories() {
             </Form.Group>
             <Form.Group as={Col} md={12} className={"mb-3"}>
               <Form.Control
-                name="price"
+                ref={slugInputRef}
+                name="slug"
+                placeholder={"Slug"}
+              />
+            </Form.Group>
+            <Form.Group as={Col} md={12} className={"mb-3"}>
+              <Form.Control
+                name="sortOrder"
                 type="number"
-                ref={priceInputRef}
-                placeholder={"İlan Ücreti"}
+                ref={sortOrderInputRef}
+                placeholder={"Sıra No"}
               />
             </Form.Group>
             <Form.Group as={Col} md={12} className={`mb-3`}>
@@ -337,7 +309,6 @@ export default function Categories() {
                     disabled={!searchFoundCount}
                     onClick={selectPrevMatch}
                   />
-
                   <Pagination.Last
                     disabled={!searchFoundCount}
                     onClick={selectNextMatch}
@@ -363,7 +334,7 @@ export default function Categories() {
               {treeData && treeData.length > 0 && (
                 <SortableTree
                   treeData={treeData}
-                  onChange={(treeData) => setTreeData(treeData)}
+                  onChange={(nextTreeData) => setTreeData(nextTreeData)}
                   onMoveNode={(movedData) => moveNode(movedData)}
                   searchQuery={searchString}
                   searchFocusOffset={searchFocusIndex}
@@ -391,6 +362,8 @@ export default function Categories() {
                         ></i>
                       </div>,
                     ],
+                    title: `${rowInfo.node.name} (${rowInfo.node.slug})`,
+                    subtitle: `Sıra: ${rowInfo.node.sortOrder ?? 0}`,
                     style: {
                       height: "50px",
                     },

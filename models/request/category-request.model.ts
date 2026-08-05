@@ -2,9 +2,11 @@ import { BaseRequest } from './base-request.model';
 import { EntityStatusEnum } from '@/models/enums';
 
 export interface CategoryRequest extends BaseRequest {
+  expectedVersion?: number,
   name: string,
-  orderId?: number,
+  slug: string,
+  sortOrder?: number,
+  description?: string,
   parentId?: string,
-  price: number,
   status: EntityStatusEnum,
 }

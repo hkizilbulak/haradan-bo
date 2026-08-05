@@ -39,7 +39,7 @@ export default function CategoryFilter({ onFilter }: IProps) {
                         formik.handleChange(e)
                         formik.submitForm()
                     }}
-                    value={formik.initialValues.status}
+                    value={formik.values.status || ''}
                 >
                     <PrepareOption enumType={OptionTypes.ENTITY_STATUS_OPTION} />
                 </Form.Select>

@@ -40,10 +40,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signIn = async (provider: string, options?: any) => {
     if (options?.email && options?.password) {
       const user = await authService.login(options.email, options.password);
-      const sessionData = { user };
+      const sessionData = {
+        user: {
+          ...user,
+          access_token: user.accessToken,
+          refresh_token: user.refreshToken,
+        },
+      };
       localStorage.setItem("user_session", JSON.stringify(sessionData));
-      if (user?.access_token) {
-        localStorage.setItem("access_token", user.access_token);
+      if (user?.accessToken) {
+        localStorage.setItem("access_token", user.accessToken);
       }
       setSession(sessionData);
       setStatus("authenticated");
@@ -81,10 +87,16 @@ export const useSession = () => {
 export const signIn = async (provider: string, options?: any) => {
   if (options?.email && options?.password) {
     const user = await authService.login(options.email, options.password);
-    const sessionData = { user };
+    const sessionData = {
+      user: {
+        ...user,
+        access_token: user.accessToken,
+        refresh_token: user.refreshToken,
+      },
+    };
     localStorage.setItem("user_session", JSON.stringify(sessionData));
-    if (user?.access_token) {
-      localStorage.setItem("access_token", user.access_token);
+    if (user?.accessToken) {
+      localStorage.setItem("access_token", user.accessToken);
     }
     if (options?.callbackUrl) {
       window.location.href = options.callbackUrl;

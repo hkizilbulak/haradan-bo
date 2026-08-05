@@ -1,5 +1,6 @@
 import { API_URL } from '@/contants/urls';
 import axios from 'axios';
+import { readStoredAccessToken } from './token';
 
 const headers: Readonly<Record<string, string | boolean>> = {
   Accept: "application/json",
@@ -15,23 +16,11 @@ const axiosInstance = axios.create({
   headers
 });
 
-// Request interceptor
 axiosInstance.interceptors.request.use(
   async (config) => {
-    let token: string | null = null;
-    if (typeof window !== 'undefined') {
-      token = localStorage.getItem('access_token');
-      if (!token) {
-        const stored = localStorage.getItem('user_session');
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            token = parsed?.user?.access_token || null;
-          } catch {}
-        }
-      }
-    }
+    const token = readStoredAccessToken();
     if (token) {
+      config.headers = config.headers || {};
       (config.headers as any).Authorization = `Bearer ${token}`;
     }
     return config;
@@ -41,7 +30,6 @@ axiosInstance.interceptors.request.use(
   }
 );
 
-// Response interceptor
 axiosInstance.interceptors.response.use(
   (response) => {
     return response;
