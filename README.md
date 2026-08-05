@@ -1,22 +1,48 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+Haradan Backend Operations - Next.js + Go Single Binary Server
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js 20+
+- Go 1.25+
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+### Production Build & Run
+
+```powershell
+cd C:\Users\Pc\Documents\GitHub\TestGame\kartezya\haradan-bo
+
+# Node dependencies kur
+npm install
+
+# Next.js build et
+npm run build
+
+# Go server'ı build et ve çalıştır
+go run main.go
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Server `http://localhost:8080` üzerinde başlar.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Login Credentials:**
+- Email: `admin@kartezya.com`
+- Password: `haraa`
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+### Development (Local API)
+
+`.env.local` dosyasını edit et:
+
+```
+NEXT_PUBLIC_API_URL = "http://localhost:3001"
+```
+
+Sonra `npm run build && go run main.go` çalıştır.
+
+### Docker
+
+```bash
+docker build -t haradan-bo .
+docker run -p 8080:8080 haradan-bo
+```
 
 ## Learn More
 
