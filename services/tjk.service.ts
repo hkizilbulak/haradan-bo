@@ -31,7 +31,7 @@ type TjkRunListResponse = {
   hasMore?: boolean;
 };
 
-const baseUrl = `${API_URL}v1/admin/tjk/sync-runs`;
+const baseUrl = '/v1/admin/tjk/sync-runs';
 
 async function fetchAllRuns(status?: string): Promise<TjkRunResponse[]> {
   const items: TjkRunResponse[] = [];
@@ -66,11 +66,23 @@ export class TjkService extends BaseService {
   };
 
   trigger = async (mode: string, sourceAdapter: string, scope: string = 'HORSES') => {
-    await axiosInstance.post(baseUrl, { mode, sourceAdapter, scope });
+    try {
+      const response = await axiosInstance.post(baseUrl, { mode, sourceAdapter, scope });
+      return response.data;
+    } catch (error) {
+      console.error("TJK trigger error:", error);
+      throw error;
+    }
   };
 
   cancel = async (runId: string, expectedVersion: number) => {
-    await axiosInstance.post(`${baseUrl}/${runId}/cancel`, { expectedVersion });
+    try {
+      const response = await axiosInstance.post(`${baseUrl}/${runId}/cancel`, { expectedVersion });
+      return response.data;
+    } catch (error) {
+      console.error("TJK cancel error:", error);
+      throw error;
+    }
   };
 }
 

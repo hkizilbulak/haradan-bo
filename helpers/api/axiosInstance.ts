@@ -5,14 +5,11 @@ import { readStoredAccessToken } from './token';
 const headers: Readonly<Record<string, string | boolean>> = {
   Accept: "application/json",
   "Content-Type": "application/json; charset=utf-8",
-  "Access-Control-Allow-Credentials": true,
   "X-Requested-With": "XMLHttpRequest",
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,PUT,POST,DELETE,PATCH,OPTIONS',
 };
 
 const axiosInstance = axios.create({
-  baseURL: API_URL,
+  baseURL: API_URL.replace(/\/$/, ''),
   headers
 });
 

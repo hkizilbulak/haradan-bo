@@ -38,27 +38,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signIn = async (provider: string, options?: any) => {
-    if (options?.email && options?.password) {
-      const user = await authService.login(options.email, options.password);
-      const sessionData = {
-        user: {
-          ...user,
-          access_token: user.accessToken,
-          refresh_token: user.refreshToken,
-        },
-      };
-      localStorage.setItem("user_session", JSON.stringify(sessionData));
-      if (user?.accessToken) {
-        localStorage.setItem("access_token", user.accessToken);
-      }
-      setSession(sessionData);
-      setStatus("authenticated");
-      if (options?.callbackUrl) {
-        window.location.href = options.callbackUrl;
+    try {
+      if (options?.email && options?.password) {
+        const user = await authService.login(options.email, options.password);
+        const sessionData = {
+          user: {
+            ...user,
+            access_token: user.accessToken,
+            refresh_token: user.refreshToken,
+          },
+        };
+        localStorage.setItem("user_session", JSON.stringify(sessionData));
+        if (user?.accessToken) {
+          localStorage.setItem("access_token", user.accessToken);
+        }
+        setSession(sessionData);
+        setStatus("authenticated");
+        if (options?.callbackUrl) {
+          window.location.href = options.callbackUrl;
+        } else {
+          router.push("/");
+        }
+        return { ok: true, error: null };
       } else {
-        router.push("/");
+        throw new Error("Email ve şifre gereklidir");
       }
-      return { ok: true, error: null };
+    } catch (error) {
+      setStatus("unauthenticated");
+      throw error;
     }
   };
 
@@ -85,23 +92,29 @@ export const useSession = () => {
 };
 
 export const signIn = async (provider: string, options?: any) => {
-  if (options?.email && options?.password) {
-    const user = await authService.login(options.email, options.password);
-    const sessionData = {
-      user: {
-        ...user,
-        access_token: user.accessToken,
-        refresh_token: user.refreshToken,
-      },
-    };
-    localStorage.setItem("user_session", JSON.stringify(sessionData));
-    if (user?.accessToken) {
-      localStorage.setItem("access_token", user.accessToken);
+  try {
+    if (options?.email && options?.password) {
+      const user = await authService.login(options.email, options.password);
+      const sessionData = {
+        user: {
+          ...user,
+          access_token: user.accessToken,
+          refresh_token: user.refreshToken,
+        },
+      };
+      localStorage.setItem("user_session", JSON.stringify(sessionData));
+      if (user?.accessToken) {
+        localStorage.setItem("access_token", user.accessToken);
+      }
+      if (options?.callbackUrl) {
+        window.location.href = options.callbackUrl;
+      }
+      return { ok: true, error: null };
+    } else {
+      throw new Error("Email ve şifre gereklidir");
     }
-    if (options?.callbackUrl) {
-      window.location.href = options.callbackUrl;
-    }
-    return { ok: true, error: null };
+  } catch (error) {
+    throw error;
   }
 };
 

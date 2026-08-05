@@ -3,7 +3,7 @@ import { API_ORIGIN } from '@/contants/urls';
 import { clearStoredAuthSession, readStoredAccessToken } from './token';
 
 const apiClient = axios.create({
-  baseURL: `${API_ORIGIN}/api`,
+  baseURL: API_ORIGIN,
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json; charset=utf-8',

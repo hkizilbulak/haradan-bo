@@ -1,10 +1,13 @@
 "use client";
-import { Row, Col, Card, Form, Button } from "react-bootstrap";
+import { Row, Col, Card, Form, Button, Alert } from "react-bootstrap";
 import useMounted from "@/hooks/useMounted";
 import { signIn, useSession } from "@/context/AuthContext";
 import { Formik } from "formik";
 import * as Yup from "yup";
 import FormTextField from "@/components/FormTextField";
+import { useState } from "react";
+import { toast } from "react-toastify";
+import { getErrorMessage } from "@/helpers/HelperUtils";
 
 interface FormData {
   email: string;
@@ -14,6 +17,7 @@ interface FormData {
 const SignIn = () => {
   const hasMounted = useMounted();
   const { data: session } = useSession();
+  const [error, setError] = useState<string | null>(null);
 
   const initialValues: FormData = {
     email: "", //"huseyinkizilbulak76@hotmail.com",
@@ -29,6 +33,7 @@ const SignIn = () => {
 
   const handleSubmit = async (values: FormData) => {
     const { email, password } = values;
+    setError(null);
     try {
       await signIn("credentials", {
         email,
@@ -36,7 +41,10 @@ const SignIn = () => {
         callbackUrl: `${window.location.origin}/`,
       });
     } catch (err) {
-      console.log(err);
+      const errorMsg = getErrorMessage(err);
+      setError(errorMsg);
+      toast.error(errorMsg);
+      console.error("Login error:", err);
     }
   };
 
@@ -48,6 +56,11 @@ const SignIn = () => {
             <div className="d-flex justify-content-center align-items-center mb-6">
               <p className="h3 fw-bold">Giriş Yap</p>
             </div>
+            {error && (
+              <Alert variant="danger" onClose={() => setError(null)} dismissible>
+                {error}
+              </Alert>
+            )}
             {hasMounted && (
               <Formik
                 initialValues={initialValues}

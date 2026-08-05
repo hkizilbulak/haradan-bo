@@ -1,7 +1,8 @@
 import { apiRequest } from '@/helpers/api/openapiClient';
 import { TokenResponse } from '@/models';
-import { AuthLoginRequest } from '@/models/request/auth-login-request.model';
 import { jwtDecode } from "jwt-decode";
+import axiosInstance from '@/helpers/api/axiosInstance';
+import { AxiosRequestConfig } from 'axios';
 
 export const authService = {
     login,
@@ -9,16 +10,31 @@ export const authService = {
 
 async function login(username: string, password: string) {
     try {
-        const body: AuthLoginRequest = {
-            email: username,
+        let body = new URLSearchParams({
+            grant_type: 'password',
+            username,
             password,
-            clientContext: 'ADMIN_BO',
-        };
+        });
 
-        const response = await apiRequest<TokenResponse>('POST', '/v1/auth/login', body);
-        const jwt: any = jwtDecode(response.accessToken);
-        const tokenResponse = response as TokenResponse;
-        tokenResponse.authorities = jwt.authorities;
+        let config = {
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Authorization": "Basic aGFyYWRhbjpoYXJhUA=="
+            }
+        } as AxiosRequestConfig
+
+        const response = await axiosInstance.post(`auth/token`, body, config);
+        const jwt: any = jwtDecode(response.data.access_token);
+        
+        // Map OAuth2 response (snake_case) to TokenResponse (camelCase)
+        const tokenResponse: TokenResponse = {
+            accessToken: response.data.access_token,
+            refreshToken: response.data.refresh_token,
+            tokenType: response.data.token_type,
+            expiresIn: response.data.expires_in,
+            authorities: jwt.authorities,
+        };
+        
         return tokenResponse;
     } catch (error) {
         throw error;
