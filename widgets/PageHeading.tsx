@@ -36,14 +36,16 @@ const PageHeading = ({
                   </span>
                 </Button>
               )}
-              <Button
-                className={"d-flex align-items-center"}
-                variant="warning"
-                onClick={onToggleFilter}
-              >
-                <i className={`fe fe-filter`}></i>
-                <span className={"d-none d-lg-flex ms-2"}>Filtrele</span>
-              </Button>
+              {onToggleFilter && (
+                <Button
+                  className={"d-flex align-items-center"}
+                  variant="warning"
+                  onClick={onToggleFilter}
+                >
+                  <i className={`fe fe-filter`}></i>
+                  <span className={"d-none d-lg-flex ms-2"}>Filtrele</span>
+                </Button>
+              )}
             </div>
           </div>
         </div>

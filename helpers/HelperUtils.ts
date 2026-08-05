@@ -26,3 +26,11 @@ export function getErrorMessage(error: any) {
     }
     return "Beklenmeyen hata oluştu: Hata : " + axiosError.message;
 }
+
+export function formatMoney(amountMinor?: number, currency?: string) {
+    if (amountMinor === undefined || amountMinor === null || currency === undefined || currency === null) {
+        return '-';
+    }
+
+    return `${(amountMinor / 100).toFixed(2)} ${currency}`;
+}

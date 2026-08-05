@@ -50,3 +50,78 @@ export function getBannerStatusText(searchType?: string) {
     if (searchType === 'INACTIVE') return 'Pasif';
     return searchType ?? '-';
 }
+
+export function getCampaignEventTypeText(searchType?: string) {
+    if (searchType === 'PACKAGE_EXPIRY_1_DAY') return 'Paket Bitiş 1 Gün';
+    if (searchType === 'PACKAGE_EXPIRY_5_DAYS') return 'Paket Bitiş 5 Gün';
+    if (searchType === 'PACKAGE_RENEWAL') return 'Paket Yenileme';
+    if (searchType === 'PACKAGE_UPGRADE') return 'Paket Yükseltme';
+    return searchType ?? '-';
+}
+
+export function getNotificationEventTypeText(searchType?: string) {
+    if (searchType === 'PACKAGE_ADVERT_PUBLISHED') return 'Paket İlan Yayını';
+    if (searchType === 'PACKAGE_EXPIRY_1_DAY') return 'Paket Bitiş 1 Gün';
+    if (searchType === 'PACKAGE_EXPIRY_5_DAYS') return 'Paket Bitiş 5 Gün';
+    if (searchType === 'URGENT_ADVERT_ACTIVATED') return 'Acil İlan Aktif';
+    return searchType ?? '-';
+}
+
+export function getJobTypeText(searchType?: string) {
+    if (searchType === 'MEDIA_RECONCILE') return 'Medya Eşitleme';
+    if (searchType === 'PACKAGE_EXPIRY_SCAN') return 'Paket Sonlanma Tarama';
+    if (searchType === 'TJK_SYNC') return 'TJK Senkron';
+    return searchType ?? '-';
+}
+
+export function getJobRunStatusText(searchType?: string) {
+    if (searchType === 'QUEUED') return 'Kuyrukta';
+    if (searchType === 'LEASED') return 'İşleniyor';
+    if (searchType === 'SUCCEEDED') return 'Başarılı';
+    if (searchType === 'FAILED') return 'Başarısız';
+    if (searchType === 'CANCELLED') return 'İptal';
+    if (searchType === 'DEAD') return 'Ölü';
+    return searchType ?? '-';
+}
+
+export function getPackageAssignmentStatusText(searchType?: string) {
+    if (searchType === 'ACTIVE') return 'Aktif';
+    if (searchType === 'CANCELLED') return 'İptal';
+    if (searchType === 'EXPIRED') return 'Süresi Doldu';
+    if (searchType === 'SUPERSEDED') return 'Güncellendi';
+    return searchType ?? '-';
+}
+
+export function getPackageAssignmentSourceText(searchType?: string) {
+    if (searchType === 'ADMIN') return 'Yönetici';
+    if (searchType === 'SYSTEM') return 'Sistem';
+    return searchType ?? '-';
+}
+
+export function getTjkRunStatusText(searchType?: string) {
+    if (searchType === 'QUEUED') return 'Kuyrukta';
+    if (searchType === 'RUNNING') return 'Çalışıyor';
+    if (searchType === 'SUCCEEDED') return 'Başarılı';
+    if (searchType === 'FAILED') return 'Başarısız';
+    if (searchType === 'PARTIAL_SUCCESS') return 'Kısmi Başarı';
+    if (searchType === 'CANCELLED') return 'İptal';
+    return searchType ?? '-';
+}
+
+export function getTjkModeText(searchType?: string) {
+    if (searchType === 'FULL') return 'Tam';
+    if (searchType === 'INCREMENTAL') return 'Artımlı';
+    if (searchType === 'RECONCILIATION') return 'Mutabakat';
+    return searchType ?? '-';
+}
+
+export function getTjkTriggerKindText(searchType?: string) {
+    if (searchType === 'MANUAL') return 'Manuel';
+    if (searchType === 'SCHEDULED') return 'Zamanlanmış';
+    return searchType ?? '-';
+}
+
+export function getTjkScopeText(searchType?: string) {
+    if (searchType === 'HORSES') return 'Atlar';
+    return searchType ?? '-';
+}

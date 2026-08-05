@@ -29,9 +29,9 @@ export const DashboardMenu: IMenuProps[] = [
 	},
 	{
 		id: uuid(),
-		title: 'Ödemeler',
-		icon: 'credit-card',
-		link: '/payments'
+		title: 'Paketler',
+		icon: 'package',
+		link: '/packages'
 	},
 	{
 		id: uuid(),
@@ -41,15 +41,27 @@ export const DashboardMenu: IMenuProps[] = [
 	},
 	{
 		id: uuid(),
-		title: 'Haralar',
-		icon: 'layers',
-		link: '/stables'
+		title: 'Kampanyalar',
+		icon: 'tag',
+		link: '/campaigns'
 	},
 	{
 		id: uuid(),
-		title: 'Yazılar',
-		icon: 'file-text',
-		link: '/articles'
+		title: 'Joblar',
+		icon: 'refresh-cw',
+		link: '/jobs'
+	},
+	{
+		id: uuid(),
+		title: 'Bildirim Şablonları',
+		icon: 'mail',
+		link: '/notifications'
+	},
+	{
+		id: uuid(),
+		title: 'TJK Senkron',
+		icon: 'activity',
+		link: '/tjk'
 	},
 	{
 		id: uuid(),
@@ -62,18 +74,6 @@ export const DashboardMenu: IMenuProps[] = [
 		title: 'Özellikler',
 		icon: 'file-text',
 		link: '/properties'
-	},
-	{
-		id: uuid(),
-		title: 'Mesajlar',
-		icon: 'file-text',
-		link: '/contacts'
-	},
-	{
-		id: uuid(),
-		title: 'Cache Temizle',
-		icon: 'delete',
-		link: '/clear-cache'
 	},
 	{
 		id: uuid(),

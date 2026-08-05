@@ -18,3 +18,15 @@ export function getTodayArr() {
     const date = new Date();
     return [date.getFullYear(), date.getMonth(), date.getDate()];
 }
+
+export function formatDateTimeForText(date?: string | number[]) {
+    if (typeof date === 'string' && date !== '') {
+        return new Date(date).toLocaleString('en-GB');
+    }
+
+    if (date?.length === 3) {
+        return new Date(date[0], date[1] - 1, date[2]).toLocaleString('en-GB');
+    }
+
+    return '';
+}
