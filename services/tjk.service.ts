@@ -1,7 +1,6 @@
 import axiosInstance from '@/helpers/api/axiosInstance';
 import { API_URL } from '@/contants/urls';
 import { BaseResponse, PagedResponse, SearchParams } from '@/models/common';
-import { BaseService } from './base.service';
 
 export interface TjkRunResponse extends BaseResponse {
   id: string;
@@ -31,7 +30,7 @@ type TjkRunListResponse = {
   hasMore?: boolean;
 };
 
-const baseUrl = '/v1/admin/tjk/sync-runs';
+const baseUrl = `${API_URL}v1/admin/tjk/sync-runs`;
 
 async function fetchAllRuns(status?: string): Promise<TjkRunResponse[]> {
   const items: TjkRunResponse[] = [];
@@ -47,13 +46,9 @@ async function fetchAllRuns(status?: string): Promise<TjkRunResponse[]> {
   }
 }
 
-export class TjkService extends BaseService {
-  constructor() {
-    super(baseUrl);
-  }
-
-  search = async <T extends BaseResponse>(params: SearchParams<T>) => {
-    const content = (await fetchAllRuns(undefined)) as T[];
+export class TjkService {
+  search = async (_params: SearchParams<TjkRunResponse>): Promise<PagedResponse<TjkRunResponse>> => {
+    const content = await fetchAllRuns(undefined);
     return {
       content,
       page: {
@@ -62,7 +57,7 @@ export class TjkService extends BaseService {
         totalPages: 1,
         number: 0,
       },
-    } satisfies PagedResponse<T>;
+    };
   };
 
   trigger = async (mode: string, sourceAdapter: string, scope: string = 'HORSES') => {

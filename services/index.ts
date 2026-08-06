@@ -1,5 +1,4 @@
 export * from './advert.service';
-export * from './article.service';
 export * from './auth.service';
 export * from './user.service';
 export * from './category.service';
@@ -9,11 +8,4 @@ export * from './campaign.service';
 export * from './job.service';
 export * from './notification-template.service';
 export * from './tjk.service';
-export * from './contact.service';
-export * from './payment.service';
-export * from './stable.service';
-export * from './property.service';
-export * from './city.service';
-export * from './district.service';
 export * from './base.service';
-export * from './cache.service';

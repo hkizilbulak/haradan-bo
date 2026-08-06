@@ -51,6 +51,18 @@ export function getBannerStatusText(searchType?: string) {
     return searchType ?? '-';
 }
 
+export function getAdvertStatusText(searchType?: string) {
+    if (searchType === 'DRAFT') return 'Taslak';
+    if (searchType === 'PENDING_REVIEW') return 'İnceleme Bekliyor';
+    if (searchType === 'CHANGES_REQUESTED') return 'Düzeltme İstendi';
+    if (searchType === 'PUBLISHED') return 'Yayında';
+    if (searchType === 'REJECTED') return 'Reddedildi';
+    if (searchType === 'SUSPENDED') return 'Askıya Alındı';
+    if (searchType === 'SOLD') return 'Satıldı';
+    if (searchType === 'ARCHIVED') return 'Arşivlendi';
+    return searchType ?? '-';
+}
+
 export function getCampaignEventTypeText(searchType?: string) {
     if (searchType === 'PACKAGE_EXPIRY_1_DAY') return 'Paket Bitiş 1 Gün';
     if (searchType === 'PACKAGE_EXPIRY_5_DAYS') return 'Paket Bitiş 5 Gün';
@@ -119,6 +131,27 @@ export function getTjkTriggerKindText(searchType?: string) {
     if (searchType === 'MANUAL') return 'Manuel';
     if (searchType === 'SCHEDULED') return 'Zamanlanmış';
     return searchType ?? '-';
+}
+
+export function getGenericStatusText(searchType?: string) {
+    if (searchType === 'ACTIVE') return 'Aktif';
+    if (searchType === 'INACTIVE') return 'Pasif';
+    if (searchType === 'PASSIVE') return 'Pasif';
+    if (searchType === 'DISABLED') return 'Pasif';
+    if (searchType === 'CLOSED') return 'Kapalı';
+    if (searchType === 'DELETED') return 'Silindi';
+    if (searchType === 'WAITING_APPROVAL') return 'Onay Bekliyor';
+    if (searchType === 'NOT_COMPLETED') return 'Tamamlanmadı';
+    if (searchType === 'DEFAULT') return 'Varsayılan';
+    if (searchType === 'QUEUED') return 'Kuyrukta';
+    if (searchType === 'LEASED') return 'İşleniyor';
+    if (searchType === 'SUCCEEDED') return 'Başarılı';
+    if (searchType === 'FAILED') return 'Başarısız';
+    if (searchType === 'CANCELLED') return 'İptal';
+    if (searchType === 'DEAD') return 'Ölü';
+    if (searchType === 'RUNNING') return 'Çalışıyor';
+    if (searchType === 'PARTIAL_SUCCESS') return 'Kısmi Başarı';
+    return getAdvertStatusText(searchType);
 }
 
 export function getTjkScopeText(searchType?: string) {

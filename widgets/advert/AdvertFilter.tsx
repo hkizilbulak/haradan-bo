@@ -1,11 +1,10 @@
-﻿import { Col, Form, Row } from 'react-bootstrap';
-import { EntityStatusEnum } from '@/models/enums';
+import { Col, Form, Row } from 'react-bootstrap';
+import { ModerationAdvertStatus } from '@/models';
 import { useFormik } from 'formik';
-import PrepareOption, { OptionTypes } from '@/components/PrepareOption';
 import { appendOperator } from '@/helpers/HelperUtils';
 
 export type IAdvertFilterForm = {
-    status?: EntityStatusEnum;
+    status?: ModerationAdvertStatus;
 }
 
 const initialValues: IAdvertFilterForm = {};
@@ -39,7 +38,15 @@ export default function AdvertFilter({ onFilter }: IProps) {
                     }}
                     value={formik.values.status || ''}
                 >
-                    <PrepareOption enumType={OptionTypes.ENTITY_STATUS_OPTION} />
+                    <option value="">Tüm durumlar</option>
+                    <option value="DRAFT">Taslak</option>
+                    <option value="PENDING_REVIEW">İnceleme Bekliyor</option>
+                    <option value="CHANGES_REQUESTED">Düzeltme İstendi</option>
+                    <option value="PUBLISHED">Yayınlandı</option>
+                    <option value="REJECTED">Reddedildi</option>
+                    <option value="SUSPENDED">Askıya Alındı</option>
+                    <option value="SOLD">Satıldı</option>
+                    <option value="ARCHIVED">Arşivlendi</option>
                 </Form.Select>
             </Form.Group>
         </Row>

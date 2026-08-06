@@ -6,15 +6,12 @@ import { Page } from '@/models/common';
 type IProps = {
     page?: Page,
     siblingCount?: number,
-    onPageChange: (pageNumber: any) => void;
+    onPageChange: (pageNumber: number) => void;
 }
 const CustomPagination = ({ onPageChange, page, siblingCount = 1 }: IProps) => {
-
-    if (!page) {
-        return null;
-    }
-
-    const { number: currentPage, totalElements: totalCount, size: pageSize } = page;
+    const currentPage = page?.number ?? 0;
+    const totalCount = page?.totalElements ?? 0;
+    const pageSize = page?.size ?? 1;
 
     const paginationRange = usePagination({
         currentPage,
@@ -22,6 +19,10 @@ const CustomPagination = ({ onPageChange, page, siblingCount = 1 }: IProps) => {
         siblingCount,
         pageSize
     });
+
+    if (!page) {
+        return null;
+    }
 
     if (currentPage === -1 || (paginationRange && paginationRange.length < 2)) {
         return null;

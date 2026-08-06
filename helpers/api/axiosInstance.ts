@@ -1,6 +1,6 @@
 import { API_URL } from '@/contants/urls';
 import axios from 'axios';
-import { readStoredAccessToken } from './token';
+import { dispatchUnauthorizedEvent } from './authEvents';
 
 const headers: Readonly<Record<string, string | boolean>> = {
   Accept: "application/json",
@@ -10,30 +10,23 @@ const headers: Readonly<Record<string, string | boolean>> = {
 
 const axiosInstance = axios.create({
   baseURL: API_URL.replace(/\/$/, ''),
-  headers
+  headers,
+  withCredentials: true,
 });
 
 axiosInstance.interceptors.request.use(
-  async (config) => {
-    const token = readStoredAccessToken();
-    if (token) {
-      config.headers = config.headers || {};
-      (config.headers as any).Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
+  async (config) => config,
+  (error) => Promise.reject(error),
 );
 
 axiosInstance.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   (error) => {
+    if (error?.response?.status === 401) {
+      dispatchUnauthorizedEvent();
+    }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default axiosInstance;

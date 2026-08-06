@@ -1,7 +1,7 @@
 "use client";
 import { categoryService } from "@/services";
 import { PageHeading } from "@/widgets";
-import { useState, useRef, ReactNode, useMemo } from "react";
+import { useState, useRef, ReactNode, useEffect, useCallback } from "react";
 import { Col, Form, Row, Container, Button, Pagination } from "react-bootstrap";
 import SortableTree, {
   addNodeUnderParent,
@@ -223,7 +223,7 @@ export default function Categories() {
 
   const getNodeKey = ({ treeIndex }: { treeIndex: number }) => treeIndex;
 
-  function prepareNodes(category: CategoryResponse) {
+  const prepareNodes = useCallback((category: CategoryResponse) => {
     const childrenData: any = category.children?.map((childCategory) => {
       return prepareNodes(childCategory);
     });
@@ -237,14 +237,14 @@ export default function Categories() {
       children: childrenData,
       expanded: true,
     } as TreeItem;
-  }
+  }, []);
 
-  useMemo(() => {
+  useEffect(() => {
     const categoryTreeData = data?.content?.map((category) => {
       return prepareNodes(category);
     });
     setTreeData(categoryTreeData || []);
-  }, [data]);
+  }, [data, prepareNodes]);
 
   return (
     <Container fluid className="p-3 lg:p-6">
@@ -253,7 +253,6 @@ export default function Categories() {
           <PageHeading heading="Kategoriler" showCreateButton={false} />
         </Col>
       </Row>
-      <div>
         <Row>
           <Col lg={4} md={12} sm={12}>
             <Form.Group as={Col} md={12} className={"mb-3"}>
@@ -347,7 +346,7 @@ export default function Categories() {
                   canDrag={({ node }) => !node.dragDisabled}
                   generateNodeProps={(rowInfo) => ({
                     buttons: [
-                      <div>
+                      <div key={`${rowInfo.node.identifier ?? rowInfo.treeIndex}-actions`}>
                         <i
                           className={`fe fe-plus-square me-2`}
                           onClick={() => addNodeChild(rowInfo)}
@@ -373,7 +372,6 @@ export default function Categories() {
             </div>
           </Col>
         </Row>
-      </div>
     </Container>
   );
 }

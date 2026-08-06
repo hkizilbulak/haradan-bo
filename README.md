@@ -29,11 +29,13 @@ Server `http://localhost:8080` üzerinde başlar.
 
 ### Development (Local API)
 
-`.env.local` dosyasını edit et:
+Backend adresini environment variable olarak ver:
 
+```powershell
+$env:BACKEND_API_URL = "http://localhost:3001"
 ```
-NEXT_PUBLIC_API_URL = "http://localhost:3001"
-```
+
+Frontend aynı origin altında `/api/...` çağrıları yapar. Go sunucusu bu istekleri backend'e proxy eder, login sonrası access/refresh token'ları HttpOnly cookie olarak yönetir.
 
 Sonra `npm run build && go run main.go` çalıştır.
 

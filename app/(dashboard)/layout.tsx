@@ -6,6 +6,7 @@ import NavbarVertical from '@/layouts/navbars/NavbarVertical';
 import NavbarTop from '@/layouts/navbars/NavbarTop';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
+import Loading from '@/components/Loading';
 
 export default function DashboardLayout({
 	children,
@@ -13,14 +14,22 @@ export default function DashboardLayout({
 	children: React.ReactNode
 }) {
 	const [showMenu, setShowMenu] = useState(true);
-	const { status } = useAuth();
+	const { status, hasAdminAccess } = useAuth();
 	const router = useRouter();
 
 	useEffect(() => {
-		if (status === 'unauthenticated') {
-			router.push('/login');
+		if (status === 'unauthenticated' || (status === 'authenticated' && !hasAdminAccess)) {
+			router.replace('/login');
 		}
-	}, [status, router]);
+	}, [hasAdminAccess, status, router]);
+
+	if (status === 'loading') {
+		return <Loading />;
+	}
+
+	if (status === 'unauthenticated' || !hasAdminAccess) {
+		return null;
+	}
 
 	return (
 		<div id="db-wrapper" className={`${showMenu ? '' : 'toggled'}`}>

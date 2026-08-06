@@ -1,3 +1,4 @@
+import { ReactNode } from "react";
 import PrepareTableHead from "./PrepareTableHead";
 import { Table } from 'react-bootstrap';
 import CustomPagination from "./Pagination";
@@ -6,7 +7,7 @@ import { Page } from "@/models/common";
 type IProps = {
     headItems: string[],
     page?: Page,
-    content?: any;
+    content?: ReactNode;
     onHandlePageChange: (page: number) => void
 }
 
@@ -16,7 +17,6 @@ const PrepareTable = ({
     content,
     onHandlePageChange
 }: IProps) => {
-    console.log('content:', typeof content)
     return (
 
         <>

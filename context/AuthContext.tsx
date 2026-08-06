@@ -1,84 +1,122 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import axios from "axios";
+import { SessionResponse, SessionUserResponse } from "@/models";
 import { authService } from "@/services/auth.service";
 import { useRouter } from "next/navigation";
+import { subscribeToUnauthorizedEvent } from "@/helpers/api/authEvents";
+
+type SignInOptions = {
+  email?: string;
+  password?: string;
+  callbackUrl?: string;
+};
+
+type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
 type AuthContextType = {
-  session: any;
-  status: "loading" | "authenticated" | "unauthenticated";
-  signIn: (provider: string, options?: any) => Promise<any>;
-  signOut: (options?: any) => Promise<void>;
+  session: SessionResponse | null;
+  status: AuthStatus;
+  hasAdminAccess: boolean;
+  signIn: (provider: string, options?: SignInOptions) => Promise<{ ok: boolean; error: string | null }>;
+  signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
   session: null,
   status: "loading",
-  signIn: async () => {},
+  hasAdminAccess: false,
+  signIn: async () => ({ ok: false, error: "not_ready" }),
   signOut: async () => {},
 });
 
+function hasActiveAdminAccess(user?: SessionUserResponse | null) {
+  return user?.role === "admin" && user?.status === "ACTIVE";
+}
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [session, setSession] = useState<any>(null);
-  const [status, setStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading");
+  const [session, setSession] = useState<SessionResponse | null>(null);
+  const [status, setStatus] = useState<AuthStatus>("loading");
   const router = useRouter();
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("user_session");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setSession(parsed);
-        setStatus("authenticated");
-      } else {
-        setStatus("unauthenticated");
-      }
-    } catch {
-      setStatus("unauthenticated");
+  const clearSession = useCallback((redirectToLogin: boolean) => {
+    setSession(null);
+    setStatus("unauthenticated");
+    if (redirectToLogin) {
+      router.replace("/login");
     }
-  }, []);
+  }, [router]);
 
-  const signIn = async (provider: string, options?: any) => {
+  const loadSession = useCallback(async () => {
     try {
-      if (options?.email && options?.password) {
-        const user = await authService.login(options.email, options.password);
-        const sessionData = {
-          user: {
-            ...user,
-            access_token: user.accessToken,
-            refresh_token: user.refreshToken,
-          },
-        };
-        localStorage.setItem("user_session", JSON.stringify(sessionData));
-        if (user?.accessToken) {
-          localStorage.setItem("access_token", user.accessToken);
-        }
-        setSession(sessionData);
-        setStatus("authenticated");
-        if (options?.callbackUrl) {
-          window.location.href = options.callbackUrl;
-        } else {
-          router.push("/");
-        }
-        return { ok: true, error: null };
-      } else {
+      const currentSession = await authService.getSession();
+      if (!hasActiveAdminAccess(currentSession.user)) {
+        await authService.logout();
+        clearSession(true);
+        return;
+      }
+
+      setSession(currentSession);
+      setStatus("authenticated");
+    } catch (error) {
+      if (axios.isAxiosError(error) && (error.response?.status === 401 || error.response?.status === 403)) {
+        clearSession(false);
+        return;
+      }
+
+      clearSession(false);
+      throw error;
+    }
+  }, [clearSession]);
+
+  useEffect(() => {
+    void loadSession();
+  }, [loadSession]);
+
+  useEffect(() => {
+    return subscribeToUnauthorizedEvent(() => {
+      clearSession(true);
+    });
+  }, [clearSession]);
+
+  const signIn = async (_provider: string, options?: SignInOptions) => {
+    try {
+      if (!options?.email || !options.password) {
         throw new Error("Email ve şifre gereklidir");
       }
+
+      const nextSession = await authService.login(options.email, options.password);
+      if (!hasActiveAdminAccess(nextSession.user)) {
+        await authService.logout();
+        clearSession(false);
+        throw new Error("Bu hesap aktif bir yönetici hesabı değil.");
+      }
+
+      setSession(nextSession);
+      setStatus("authenticated");
+
+      if (options.callbackUrl) {
+        window.location.href = options.callbackUrl;
+      } else {
+        router.push("/");
+      }
+
+      return { ok: true, error: null };
     } catch (error) {
-      setStatus("unauthenticated");
+      clearSession(false);
       throw error;
     }
   };
 
   const signOut = async () => {
-    localStorage.removeItem("user_session");
-    localStorage.removeItem("access_token");
-    setSession(null);
-    setStatus("unauthenticated");
-    router.push("/login");
+    await authService.logout();
+    clearSession(true);
   };
 
+  const hasAdminAccess = useMemo(() => hasActiveAdminAccess(session?.user), [session]);
+
   return (
-    <AuthContext.Provider value={{ session, status, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, status, hasAdminAccess, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
@@ -89,37 +127,4 @@ export const useAuth = () => useContext(AuthContext);
 export const useSession = () => {
   const { session, status } = useAuth();
   return { data: session, status };
-};
-
-export const signIn = async (provider: string, options?: any) => {
-  try {
-    if (options?.email && options?.password) {
-      const user = await authService.login(options.email, options.password);
-      const sessionData = {
-        user: {
-          ...user,
-          access_token: user.accessToken,
-          refresh_token: user.refreshToken,
-        },
-      };
-      localStorage.setItem("user_session", JSON.stringify(sessionData));
-      if (user?.accessToken) {
-        localStorage.setItem("access_token", user.accessToken);
-      }
-      if (options?.callbackUrl) {
-        window.location.href = options.callbackUrl;
-      }
-      return { ok: true, error: null };
-    } else {
-      throw new Error("Email ve şifre gereklidir");
-    }
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const signOut = async () => {
-  localStorage.removeItem("user_session");
-  localStorage.removeItem("access_token");
-  window.location.href = "/login";
 };

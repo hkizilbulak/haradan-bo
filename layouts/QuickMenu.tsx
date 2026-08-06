@@ -1,4 +1,4 @@
-import { useSession, signOut } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { Fragment } from 'react';
 import { useMediaQuery } from 'react-responsive';
 import {
@@ -10,7 +10,7 @@ import useMounted from '@/hooks/useMounted';
 
 const QuickMenu = () => {
 
-    const { data: session } = useSession()
+    const { session, signOut } = useAuth()
 
     const hasMounted = useMounted();
 
@@ -39,11 +39,11 @@ const QuickMenu = () => {
                     >
                         <Dropdown.Item as="div" className="px-2 pb-0 pt-2" bsPrefix=' '>
                             <div className="lh-1 text-center">
-                                <h5 className="mb-1"> {(session?.user as any)?.firstName + " " + (session?.user as any)?.lastName}</h5>
+                                <h5 className="mb-1">{`${session?.user.firstName ?? ''} ${session?.user.lastName ?? ''}`.trim()}</h5>
                             </div>
                             <div className=" dropdown-divider mt-3 mb-2"></div>
                         </Dropdown.Item>
-                        <Dropdown.Item onClick={() => signOut()}>
+                        <Dropdown.Item onClick={() => void signOut()}>
                             <i className="fe fe-power me-2"></i>Çıkış Yap
                         </Dropdown.Item>
                     </Dropdown.Menu>
@@ -72,11 +72,11 @@ const QuickMenu = () => {
                     >
                         <Dropdown.Item as="div" className="px-2 pb-0 pt-2" bsPrefix=' '>
                             <div className="lh-1  text-center">
-                                <h5 className="mb-1"> {(session?.user as any)?.firstName + " " + (session?.user as any)?.lastName}</h5>
+                                <h5 className="mb-1">{`${session?.user.firstName ?? ''} ${session?.user.lastName ?? ''}`.trim()}</h5>
                             </div>
                             <div className=" dropdown-divider mt-3 mb-2"></div>
                         </Dropdown.Item>
-                        <Dropdown.Item onClick={() => signOut()}>
+                        <Dropdown.Item onClick={() => void signOut()}>
                             <i className="fe fe-power me-2"></i>Çıkış Yap
                         </Dropdown.Item>
                     </Dropdown.Menu>

@@ -19,11 +19,11 @@ export default function BannerFilter({ onFilter }: IProps) {
     onSubmit: values => {
       let filter = '';
 
-      if (values.placement && values.placement !== '') {
+      if (values.placement) {
         filter = appendOperator(filter, `placement==${values.placement}`);
       }
 
-      if (values.status && values.status !== '') {
+      if (values.status) {
         filter = appendOperator(filter, `status==${values.status}`);
       }
 

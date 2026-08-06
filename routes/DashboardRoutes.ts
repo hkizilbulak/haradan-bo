@@ -18,7 +18,6 @@ export const DashboardMenu: IMenuProps[] = [
 		icon: 'database',
 		children: [
 			{ id: uuid(), link: '/listings', name: 'Tüm İlanlar' },
-			{ id: uuid(), link: '/listings', name: 'İlan Dopingleri' },
 		]
 	},
 	{
@@ -68,21 +67,6 @@ export const DashboardMenu: IMenuProps[] = [
 		title: 'Kategoriler',
 		icon: 'file-text',
 		link: '/categories'
-	},
-	{
-		id: uuid(),
-		title: 'Özellikler',
-		icon: 'file-text',
-		link: '/properties'
-	},
-	{
-		id: uuid(),
-		title: 'Tanımlamalar',
-		icon: 'database',
-		children: [
-			{ id: uuid(), link: '/definitions/cities', name: 'İller' },
-			{ id: uuid(), link: '/definitions/districts', name: 'İlçeler' },
-		]
 	},
 	{
 		id: uuid(),

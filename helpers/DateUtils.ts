@@ -24,8 +24,9 @@ export function formatDateTimeForText(date?: string | number[]) {
         return new Date(date).toLocaleString('en-GB');
     }
 
-    if (date?.length === 3) {
-        return new Date(date[0], date[1] - 1, date[2]).toLocaleString('en-GB');
+    if (Array.isArray(date) && date.length === 3) {
+        const [year, month, day] = date;
+        return new Date(year, month - 1, day).toLocaleString('en-GB');
     }
 
     return '';

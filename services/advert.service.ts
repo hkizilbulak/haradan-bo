@@ -1,14 +1,14 @@
+import { API_URL } from '@/contants/urls';
 import { apiRequest } from '@/helpers/api/openapiClient';
 import { ModerationAdvertResponse } from '@/models';
 import { PagedResponse, PageParams, SearchParams } from '@/models/common';
-import { EntityStatusEnum } from '@/models/enums';
 
 type ModerationQueueItem = {
     id: string;
     title?: string | null;
     publishedAt?: string | null;
     deletedAt?: string | null;
-    status: string;
+    status: ModerationAdvertResponse['status'];
     version: number;
     categoryId?: string | null;
     ownerUserId?: string | null;
@@ -20,13 +20,37 @@ type ModerationQueueResponse = {
     nextCursor?: string;
 };
 
-const baseUrl = '/v1/admin/adverts/moderation';
+export type ModerationReasonRequest = {
+    expectedVersion: number;
+    reason: string;
+};
+
+const baseUrl = `${API_URL}v1/admin/adverts/moderation`;
+const moderationRootUrl = `${API_URL}v1/admin/adverts`;
 
 class AdvertService {
     async search(params: SearchParams<ModerationAdvertResponse>) {
         const items = await this.fetchAll();
         const filtered = this.applyFilter(items, params.filter);
         return this.toPagedResponse(filtered, params.pageRequest);
+    }
+
+    async approve(advertId: string, expectedVersion: number) {
+        await apiRequest('POST', `${moderationRootUrl}/${advertId}/approve`, {
+            expectedVersion,
+        });
+    }
+
+    async reject(advertId: string, request: ModerationReasonRequest) {
+        await apiRequest('POST', `${moderationRootUrl}/${advertId}/reject`, request);
+    }
+
+    async suspend(advertId: string, request: ModerationReasonRequest) {
+        await apiRequest('POST', `${moderationRootUrl}/${advertId}/suspend`, request);
+    }
+
+    async requestChanges(advertId: string, request: ModerationReasonRequest) {
+        await apiRequest('POST', `${moderationRootUrl}/${advertId}/request-changes`, request);
     }
 
     private async fetchAll() {
@@ -51,7 +75,7 @@ class AdvertService {
             title: item.title ?? undefined,
             publishedAt: item.publishedAt ?? undefined,
             deletedAt: item.deletedAt ?? undefined,
-            status: item.status as EntityStatusEnum,
+            status: item.status,
             version: item.version,
             categoryId: item.categoryId ?? undefined,
             ownerUserId: item.ownerUserId ?? undefined,
@@ -79,7 +103,7 @@ class AdvertService {
 
         const field = match[1];
         let expected = match[2].trim();
-        const actual = (item as Record<string, unknown>)[field];
+        const actual = this.readField(item, field);
         if (actual === undefined || actual === null) {
             return false;
         }
@@ -94,6 +118,29 @@ class AdvertService {
         }
 
         return actualText === expectedText;
+    }
+
+    private readField(item: ModerationAdvertResponse, field: string): unknown {
+        switch (field) {
+            case 'identifier':
+                return item.identifier;
+            case 'title':
+                return item.title;
+            case 'publishedAt':
+                return item.publishedAt;
+            case 'deletedAt':
+                return item.deletedAt;
+            case 'status':
+                return item.status;
+            case 'version':
+                return item.version;
+            case 'categoryId':
+                return item.categoryId;
+            case 'ownerUserId':
+                return item.ownerUserId;
+            default:
+                return undefined;
+        }
     }
 
     private toPagedResponse(items: ModerationAdvertResponse[], pageParams: PageParams<ModerationAdvertResponse>): PagedResponse<ModerationAdvertResponse> {

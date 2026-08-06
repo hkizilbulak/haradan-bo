@@ -1,9 +1,8 @@
-const normalizeUrl = (value?: string | null) => {
-  if (!value) {
-    return '';
-  }
-  return value.replace(/\/+$/, '');
-};
+export const API_PROXY_PREFIX = '/api';
+export const API_ORIGIN = '';
+export const API_URL = `${API_PROXY_PREFIX}/`;
+export const MEDIA_URL = `${API_PROXY_PREFIX}/v1/media`;
 
-export const API_ORIGIN = normalizeUrl(process.env.NEXT_PUBLIC_API_URL);
-export const API_URL = process.env.NEXT_PUBLIC_API_URL;
+export function buildMediaUrl(assetId: string, profile: string) {
+  return `${MEDIA_URL}/${assetId}/${profile}`;
+}

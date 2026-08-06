@@ -18,7 +18,7 @@ export function capitalizeSentence(sentence: string) {
     return sentence.toLocaleLowerCase('tr-TR').replace(/(?:^|\s|,|;|!|:|-|\.|\?)[a-z0-9ğçşüöı]/g, letter => letter.toUpperCase());
 }
 
-export function getErrorMessage(error: any) {
+export function getErrorMessage(error: any): string {
     const axiosError = (error as AxiosError<Error>);
     const errorData = (axiosError.response?.data);
     if (errorData !== undefined && errorData !== null && errorData.errorCode !== undefined) {

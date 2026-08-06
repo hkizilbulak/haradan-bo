@@ -1,7 +1,6 @@
 import axiosInstance from '@/helpers/api/axiosInstance';
 import { API_URL } from '@/contants/urls';
 import { BaseResponse, PagedResponse, SearchParams } from '@/models/common';
-import { BaseService } from './base.service';
 
 export interface JobResponse extends BaseResponse {
   id: string;
@@ -34,15 +33,11 @@ type JobListResponse = { items?: JobResponse[] };
 
 const baseUrl = `${API_URL}v1/admin/jobs`;
 
-export class JobService extends BaseService {
-  constructor() {
-    super(baseUrl);
-  }
-
-  search = async <T extends BaseResponse>(params: SearchParams<T>) => {
+export class JobService {
+  search = async (_params: SearchParams<JobResponse>): Promise<PagedResponse<JobResponse>> => {
     const response = await axiosInstance.get(baseUrl);
     const data = response.data as JobListResponse;
-    const content = (data.items ?? []) as T[];
+    const content = data.items ?? [];
     return {
       content,
       page: {
@@ -51,7 +46,7 @@ export class JobService extends BaseService {
         totalPages: 1,
         number: 0,
       },
-    } satisfies PagedResponse<T>;
+    };
   };
 
   update = async (jobId: string, request: JobRequest) => {

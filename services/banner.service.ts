@@ -1,9 +1,8 @@
 import axiosInstance from '@/helpers/api/axiosInstance';
 import { API_URL } from '@/contants/urls';
-import { BaseResponse, PagedResponse, SearchParams } from '@/models/common';
+import { PagedResponse, SearchParams } from '@/models/common';
 import { BannerRequest } from '@/models/request/banner-request.model';
 import { BannerResponse } from '@/models/response/banner-response.model';
-import { BaseService } from './base.service';
 
 type AdminBannerListResponse = {
   items?: BannerResponse[];
@@ -65,18 +64,14 @@ async function fetchAllBanners(params: BannerFilterParams): Promise<BannerRespon
   }
 }
 
-export class BannerService extends BaseService {
-  constructor() {
-    super(baseUrl);
-  }
-
-  search = async <T extends BaseResponse>(params: SearchParams<T>) => {
+export class BannerService {
+  search = async (params: SearchParams<BannerResponse>): Promise<PagedResponse<BannerResponse>> => {
     const filters = parseFilter(params.filter);
     const allItems = await fetchAllBanners(filters);
     const page = params.pageRequest.page ?? 0;
     const size = params.pageRequest.size ?? 10;
     const start = page * size;
-    const content = allItems.slice(start, start + size) as T[];
+    const content = allItems.slice(start, start + size);
 
     return {
       content,
@@ -86,7 +81,7 @@ export class BannerService extends BaseService {
         totalPages: Math.max(1, Math.ceil(allItems.length / size)),
         number: page,
       },
-    } satisfies PagedResponse<T>;
+    };
   };
 
   create = async (request: BannerRequest) => {

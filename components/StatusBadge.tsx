@@ -1,9 +1,8 @@
-import { getEntityStatusEnumText } from "@/helpers/EnumUtils";
-import { EntityStatusEnum } from '@/models/enums';
+import { getGenericStatusText } from "@/helpers/EnumUtils";
 import { Badge } from "react-bootstrap";
 
 type IProps = {
-    status: EntityStatusEnum
+    status?: string | null
 }
 
 const StatusBadge = ({
@@ -11,21 +10,21 @@ const StatusBadge = ({
 }: IProps) => {
 
     const getBadgeClass = () => {
-        if (status === EntityStatusEnum.ACTIVE) return "success"
-        if (status === EntityStatusEnum.DELETED) return "danger"
-        if (status === EntityStatusEnum.WAITING_APPROVAL) return "warning"
-        if (status === EntityStatusEnum.PASSIVE) return "secondary"
-        if (status === EntityStatusEnum.NOT_COMPLETED) return "light"
-        if (status === EntityStatusEnum.SOLD) return "info"
-        if (status === EntityStatusEnum.REJECTED) return "dark"
-        if (status === EntityStatusEnum.DEFAULT) return "primary"
+        if (status === 'ACTIVE' || status === 'SUCCEEDED' || status === 'PUBLISHED') return "success"
+        if (status === 'DELETED' || status === 'FAILED' || status === 'CLOSED') return "danger"
+        if (status === 'WAITING_APPROVAL' || status === 'PENDING_REVIEW' || status === 'QUEUED' || status === 'CHANGES_REQUESTED') return "warning"
+        if (status === 'PASSIVE' || status === 'INACTIVE' || status === 'DISABLED' || status === 'ARCHIVED' || status === 'CANCELLED') return "secondary"
+        if (status === 'NOT_COMPLETED') return "light"
+        if (status === 'SOLD' || status === 'RUNNING' || status === 'LEASED' || status === 'PARTIAL_SUCCESS') return "info"
+        if (status === 'REJECTED' || status === 'SUSPENDED') return "dark"
+        if (status === 'DEFAULT' || status === 'DRAFT') return "primary"
         return "primary"
     }
 
     const badgeClass = getBadgeClass();
 
     return (
-        <Badge bg={badgeClass} text={badgeClass === 'light' ? 'dark' : 'white'}>{getEntityStatusEnumText(status)}</Badge>
+        <Badge bg={badgeClass} text={badgeClass === 'light' ? 'dark' : 'white'}>{getGenericStatusText(status ?? undefined)}</Badge>
     );
 }
 

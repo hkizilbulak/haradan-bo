@@ -1,17 +1,69 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"embed"
+	"encoding/json"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strings"
+	"time"
 )
 
 //go:embed all:out
 var content embed.FS
+
+const (
+	accessTokenCookieName  = "haradan_bo_access_token"
+	refreshTokenCookieName = "haradan_bo_refresh_token"
+	adminClientContext     = "ADMIN_BO"
+)
+
+type appServer struct {
+	backendURL string
+	client     *http.Client
+	fileServer http.Handler
+	subFS      fs.FS
+}
+
+type loginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type tokenResponse struct {
+	AccessToken   string `json:"accessToken"`
+	RefreshToken  string `json:"refreshToken"`
+	TokenType     string `json:"tokenType"`
+	ExpiresIn     int    `json:"expiresIn"`
+	ClientContext string `json:"clientContext,omitempty"`
+}
+
+type refreshRequest struct {
+	RefreshToken  string `json:"refreshToken"`
+	ClientContext string `json:"clientContext"`
+}
+
+type myProfileResponse struct {
+	ID            string  `json:"id"`
+	Email         string  `json:"email"`
+	EmailVerified bool    `json:"emailVerified"`
+	FirstName     string  `json:"firstName"`
+	LastName      string  `json:"lastName"`
+	Phone         *string `json:"phone"`
+	Role          string  `json:"role"`
+	Status        string  `json:"status"`
+}
+
+type sessionResponse struct {
+	User myProfileResponse `json:"user"`
+}
 
 func main() {
 	port := os.Getenv("PORT")
@@ -19,77 +71,420 @@ func main() {
 		port = "8080"
 	}
 
-	// Extract the 'out' subfolder from embedded filesystem
 	subFS, err := fs.Sub(content, "out")
 	if err != nil {
 		log.Fatalf("Failed to create sub filesystem: %v", err)
 	}
 
-	fileServer := http.FileServer(http.FS(subFS))
+	server := &appServer{
+		backendURL: resolveBackendURL(),
+		client:     &http.Client{Timeout: 30 * time.Second},
+		fileServer: http.FileServer(http.FS(subFS)),
+		subFS:      subFS,
+	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		urlPath := strings.TrimPrefix(r.URL.Path, "/")
-		if urlPath == "" {
-			urlPath = "index.html"
-		}
-
-		// Handle /adverts -> /listings rewrite for adblock compatibility
-		if strings.HasPrefix(urlPath, "adverts") {
-			urlPath = strings.Replace(urlPath, "adverts", "listings", 1)
-		}
-
-		// Try opening exact file requested
-		f, err := subFS.Open(urlPath)
-		if err == nil {
-			defer f.Close()
-			fi, err := f.Stat()
-			if err == nil && !fi.IsDir() {
-				fileServer.ServeHTTP(w, r)
-				return
-			}
-		}
-
-		// Try opening [path].html
-		htmlPath := urlPath + ".html"
-		fHtml, err := subFS.Open(htmlPath)
-		if err == nil {
-			defer fHtml.Close()
-			fi, err := fHtml.Stat()
-			if err == nil && !fi.IsDir() {
-				r.URL.Path = "/" + htmlPath
-				fileServer.ServeHTTP(w, r)
-				return
-			}
-		}
-
-		// Try opening [path]/index.html
-		indexPath := path.Join(urlPath, "index.html")
-		fIndex, err := subFS.Open(indexPath)
-		if err == nil {
-			defer fIndex.Close()
-			fi, err := fIndex.Stat()
-			if err == nil && !fi.IsDir() {
-				r.URL.Path = "/" + indexPath
-				fileServer.ServeHTTP(w, r)
-				return
-			}
-		}
-
-		// Fallback to 404.html or index.html for SPA routing
-		f404, err := subFS.Open("404.html")
-		if err == nil {
-			defer f404.Close()
-			r.URL.Path = "/404.html"
-			fileServer.ServeHTTP(w, r)
-			return
-		}
-
-		r.URL.Path = "/index.html"
-		fileServer.ServeHTTP(w, r)
-	})
+	http.HandleFunc("/", server.handleRequest)
 
 	log.Printf("Server starting on port %s...", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
+}
+
+func resolveBackendURL() string {
+	backendURL := strings.TrimRight(os.Getenv("BACKEND_API_URL"), "/")
+	if backendURL == "" {
+		backendURL = strings.TrimRight(os.Getenv("NEXT_PUBLIC_API_URL"), "/")
+	}
+	if backendURL == "" {
+		log.Fatal("BACKEND_API_URL or NEXT_PUBLIC_API_URL must be set")
+	}
+	return backendURL
+}
+
+func (s *appServer) handleRequest(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/api/session") {
+		s.handleSessionRequest(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/api/") {
+		s.handleAPIProxy(w, r)
+		return
+	}
+
+	s.serveStatic(w, r)
+}
+
+func (s *appServer) handleSessionRequest(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	case "/api/session":
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s.handleGetSession(w, r)
+	case "/api/session/login":
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s.handleLogin(w, r)
+	case "/api/session/logout":
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s.handleLogout(w, r)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func (s *appServer) handleLogin(w http.ResponseWriter, r *http.Request) {
+	var request loginRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid login payload", http.StatusBadRequest)
+		return
+	}
+
+	requestBody, err := json.Marshal(map[string]string{
+		"email":         request.Email,
+		"password":      request.Password,
+		"clientContext": adminClientContext,
+	})
+	if err != nil {
+		http.Error(w, "Failed to encode login payload", http.StatusInternalServerError)
+		return
+	}
+
+	response, responseBody, err := s.doBackendJSONRequest(r.Context(), http.MethodPost, "/v1/auth/login", requestBody, "", nil)
+	if err != nil {
+		http.Error(w, "Authentication service unavailable", http.StatusBadGateway)
+		return
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		writeBackendResponse(w, response, responseBody)
+		return
+	}
+
+	var tokens tokenResponse
+	if err := json.Unmarshal(responseBody, &tokens); err != nil {
+		http.Error(w, "Invalid token response", http.StatusBadGateway)
+		return
+	}
+
+	writeSessionCookies(w, r, tokens)
+
+	profile, statusCode, err := s.fetchProfile(r.Context(), w, r, tokens.AccessToken)
+	if err != nil {
+		writeJSONError(w, statusCode, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, sessionResponse{User: *profile})
+}
+
+func (s *appServer) handleGetSession(w http.ResponseWriter, r *http.Request) {
+	profile, statusCode, err := s.fetchProfile(r.Context(), w, r, readCookieValue(r, accessTokenCookieName))
+	if err != nil {
+		writeJSONError(w, statusCode, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, sessionResponse{User: *profile})
+}
+
+func (s *appServer) handleLogout(w http.ResponseWriter, r *http.Request) {
+	accessToken := readCookieValue(r, accessTokenCookieName)
+	if accessToken != "" {
+		response, _, err := s.doBackendJSONRequest(r.Context(), http.MethodPost, "/v1/auth/logout", []byte("{}"), accessToken, nil)
+		if err == nil {
+			response.Body.Close()
+		}
+	}
+
+	clearSessionCookies(w, r)
+	writeJSON(w, http.StatusOK, map[string]string{"message": "logged_out"})
+}
+
+func (s *appServer) handleAPIProxy(w http.ResponseWriter, r *http.Request) {
+	requestBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	targetPath := strings.TrimPrefix(r.URL.Path, "/api")
+	response, responseBody, err := s.performAuthenticatedRequest(r.Context(), w, r, targetPath, requestBody)
+	if err != nil {
+		http.Error(w, "Backend request failed", http.StatusBadGateway)
+		return
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusUnauthorized {
+		clearSessionCookies(w, r)
+	}
+
+	writeBackendResponse(w, response, responseBody)
+}
+
+func (s *appServer) performAuthenticatedRequest(ctx context.Context, w http.ResponseWriter, r *http.Request, targetPath string, requestBody []byte) (*http.Response, []byte, error) {
+	response, responseBody, err := s.doBackendJSONRequest(ctx, r.Method, targetPath, requestBody, readCookieValue(r, accessTokenCookieName), r.URL.Query())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if response.StatusCode != http.StatusUnauthorized {
+		return response, responseBody, nil
+	}
+
+	refreshToken := readCookieValue(r, refreshTokenCookieName)
+	if refreshToken == "" {
+		return response, responseBody, nil
+	}
+
+	tokens, refreshErr := s.refreshSession(ctx, refreshToken)
+	if refreshErr != nil {
+		return response, responseBody, nil
+	}
+
+	response.Body.Close()
+	writeSessionCookies(w, r, *tokens)
+	return s.doBackendJSONRequest(ctx, r.Method, targetPath, requestBody, tokens.AccessToken, r.URL.Query())
+}
+
+func (s *appServer) refreshSession(ctx context.Context, refreshToken string) (*tokenResponse, error) {
+	requestBody, err := json.Marshal(refreshRequest{
+		RefreshToken:  refreshToken,
+		ClientContext: adminClientContext,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	response, responseBody, err := s.doBackendJSONRequest(ctx, http.MethodPost, "/v1/auth/refresh", requestBody, "", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return nil, io.EOF
+	}
+
+	var tokens tokenResponse
+	if err := json.Unmarshal(responseBody, &tokens); err != nil {
+		return nil, err
+	}
+
+	return &tokens, nil
+}
+
+func (s *appServer) fetchProfile(ctx context.Context, w http.ResponseWriter, r *http.Request, accessToken string) (*myProfileResponse, int, error) {
+	response, responseBody, err := s.doBackendJSONRequest(ctx, http.MethodGet, "/v1/me", nil, accessToken, nil)
+	if err != nil {
+		return nil, http.StatusBadGateway, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusUnauthorized {
+		refreshToken := readCookieValue(r, refreshTokenCookieName)
+		if refreshToken == "" {
+			clearSessionCookies(w, r)
+			return nil, http.StatusUnauthorized, io.EOF
+		}
+
+		tokens, refreshErr := s.refreshSession(ctx, refreshToken)
+		if refreshErr != nil {
+			clearSessionCookies(w, r)
+			return nil, http.StatusUnauthorized, refreshErr
+		}
+
+		writeSessionCookies(w, r, *tokens)
+		response, responseBody, err = s.doBackendJSONRequest(ctx, http.MethodGet, "/v1/me", nil, tokens.AccessToken, nil)
+		if err != nil {
+			return nil, http.StatusBadGateway, err
+		}
+		defer response.Body.Close()
+	}
+
+	if response.StatusCode != http.StatusOK {
+		clearSessionCookies(w, r)
+		return nil, response.StatusCode, io.EOF
+	}
+
+	var profile myProfileResponse
+	if err := json.Unmarshal(responseBody, &profile); err != nil {
+		return nil, http.StatusBadGateway, err
+	}
+
+	return &profile, http.StatusOK, nil
+}
+
+func (s *appServer) doBackendJSONRequest(ctx context.Context, method string, targetPath string, requestBody []byte, accessToken string, query url.Values) (*http.Response, []byte, error) {
+	targetURL, err := url.Parse(s.backendURL + targetPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	if query != nil {
+		targetURL.RawQuery = query.Encode()
+	}
+
+	request, err := http.NewRequestWithContext(ctx, method, targetURL.String(), bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/json")
+	if accessToken != "" {
+		request.Header.Set("Authorization", "Bearer "+accessToken)
+	}
+
+	response, err := s.client.Do(request)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		response.Body.Close()
+		return nil, nil, err
+	}
+
+	response.Body = io.NopCloser(bytes.NewReader(responseBody))
+	return response, responseBody, nil
+}
+
+func (s *appServer) serveStatic(w http.ResponseWriter, r *http.Request) {
+	urlPath := strings.TrimPrefix(r.URL.Path, "/")
+	if urlPath == "" {
+		urlPath = "index.html"
+	}
+
+	if strings.HasPrefix(urlPath, "adverts") {
+		urlPath = strings.Replace(urlPath, "adverts", "listings", 1)
+	}
+
+	f, err := s.subFS.Open(urlPath)
+	if err == nil {
+		defer f.Close()
+		fi, statErr := f.Stat()
+		if statErr == nil && !fi.IsDir() {
+			s.fileServer.ServeHTTP(w, r)
+			return
+		}
+	}
+
+	htmlPath := urlPath + ".html"
+	fHTML, err := s.subFS.Open(htmlPath)
+	if err == nil {
+		defer fHTML.Close()
+		fi, statErr := fHTML.Stat()
+		if statErr == nil && !fi.IsDir() {
+			r.URL.Path = "/" + htmlPath
+			s.fileServer.ServeHTTP(w, r)
+			return
+		}
+	}
+
+	indexPath := path.Join(urlPath, "index.html")
+	fIndex, err := s.subFS.Open(indexPath)
+	if err == nil {
+		defer fIndex.Close()
+		fi, statErr := fIndex.Stat()
+		if statErr == nil && !fi.IsDir() {
+			r.URL.Path = "/" + indexPath
+			s.fileServer.ServeHTTP(w, r)
+			return
+		}
+	}
+
+	f404, err := s.subFS.Open("404.html")
+	if err == nil {
+		defer f404.Close()
+		r.URL.Path = "/404.html"
+		s.fileServer.ServeHTTP(w, r)
+		return
+	}
+
+	r.URL.Path = "/index.html"
+	s.fileServer.ServeHTTP(w, r)
+}
+
+func writeSessionCookies(w http.ResponseWriter, r *http.Request, tokens tokenResponse) {
+	secure := isSecureRequest(r)
+	http.SetCookie(w, &http.Cookie{
+		Name:     accessTokenCookieName,
+		Value:    tokens.AccessToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   tokens.ExpiresIn,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     refreshTokenCookieName,
+		Value:    tokens.RefreshToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   60 * 60 * 24 * 30,
+	})
+}
+
+func clearSessionCookies(w http.ResponseWriter, r *http.Request) {
+	secure := isSecureRequest(r)
+	http.SetCookie(w, &http.Cookie{
+		Name:     accessTokenCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     refreshTokenCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+}
+
+func readCookieValue(r *http.Request, name string) string {
+	cookie, err := r.Cookie(name)
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+func isSecureRequest(r *http.Request) bool {
+	return r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+}
+
+func writeBackendResponse(w http.ResponseWriter, response *http.Response, responseBody []byte) {
+	if contentType := response.Header.Get("Content-Type"); contentType != "" {
+		w.Header().Set("Content-Type", contentType)
+	}
+	w.WriteHeader(response.StatusCode)
+	_, _ = w.Write(responseBody)
+}
+
+func writeJSON(w http.ResponseWriter, statusCode int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func writeJSONError(w http.ResponseWriter, statusCode int, message string) {
+	writeJSON(w, statusCode, map[string]string{"message": message})
 }

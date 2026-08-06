@@ -1,13 +1,14 @@
 "use client";
 import { Row, Col, Card, Form, Button, Alert } from "react-bootstrap";
 import useMounted from "@/hooks/useMounted";
-import { signIn, useSession } from "@/context/AuthContext";
+import { useAuth, useSession } from "@/context/AuthContext";
 import { Formik } from "formik";
 import * as Yup from "yup";
 import FormTextField from "@/components/FormTextField";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { getErrorMessage } from "@/helpers/HelperUtils";
+import { useRouter } from "next/navigation";
 
 interface FormData {
   email: string;
@@ -17,7 +18,15 @@ interface FormData {
 const SignIn = () => {
   const hasMounted = useMounted();
   const { data: session } = useSession();
+  const { signIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (session?.user.role === "admin" && session.user.status === "ACTIVE") {
+      router.replace("/");
+    }
+  }, [router, session]);
 
   const initialValues: FormData = {
     email: "", //"huseyinkizilbulak76@hotmail.com",

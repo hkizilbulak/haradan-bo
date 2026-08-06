@@ -1,9 +1,12 @@
-import { BaseResponse, PagedResponse, SearchParams } from '@/models/common';
-import { BaseService } from '@/services/base.service';
+import { PagedResponse, SearchParams } from '@/models/common';
 import { useState, useEffect } from 'react';
 
-type IProps<T extends BaseResponse> = {
-    service: BaseService,
+type SearchableService<T> = {
+    search: (params: SearchParams<T>) => Promise<PagedResponse<T>>;
+}
+
+type IProps<T> = {
+    service: SearchableService<T>,
     params?: SearchParams<T>;
 }
 
@@ -16,7 +19,7 @@ const initialParameters = {
     }
 } as any;
 
-const useApi = <T extends BaseResponse>({ service, params = initialParameters }: IProps<T>) => {
+const useApi = <T>({ service, params = initialParameters as SearchParams<T> }: IProps<T>) => {
     const [data, setData] = useState<PagedResponse<T>>();
     const [isLoading, setIsLoading] = useState(true);
     const [isError, setIsError] = useState(false);

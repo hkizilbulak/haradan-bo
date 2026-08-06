@@ -1,42 +1,36 @@
-import { apiRequest } from '@/helpers/api/openapiClient';
-import { TokenResponse } from '@/models';
-import { jwtDecode } from "jwt-decode";
-import axiosInstance from '@/helpers/api/axiosInstance';
-import { AxiosRequestConfig } from 'axios';
+import axios from 'axios';
+import { AuthLoginRequest, SessionResponse } from '@/models';
 
 export const authService = {
-    login,
+  getSession,
+  login,
+  logout,
 };
 
-async function login(username: string, password: string) {
-    try {
-        let body = new URLSearchParams({
-            grant_type: 'password',
-            username,
-            password,
-        });
+const authClient = axios.create({
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json; charset=utf-8',
+  },
+  withCredentials: true,
+});
 
-        let config = {
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Authorization": "Basic aGFyYWRhbjpoYXJhUA=="
-            }
-        } as AxiosRequestConfig
+async function getSession() {
+  const response = await authClient.get<SessionResponse>('/api/session');
+  return response.data;
+}
 
-        const response = await axiosInstance.post(`auth/token`, body, config);
-        const jwt: any = jwtDecode(response.data.access_token);
-        
-        // Map OAuth2 response (snake_case) to TokenResponse (camelCase)
-        const tokenResponse: TokenResponse = {
-            accessToken: response.data.access_token,
-            refreshToken: response.data.refresh_token,
-            tokenType: response.data.token_type,
-            expiresIn: response.data.expires_in,
-            authorities: jwt.authorities,
-        };
-        
-        return tokenResponse;
-    } catch (error) {
-        throw error;
-    }
+async function login(email: string, password: string) {
+  const request: AuthLoginRequest = {
+    email,
+    password,
+    clientContext: 'ADMIN_BO',
+  };
+
+  const response = await authClient.post<SessionResponse>('/api/session/login', request);
+  return response.data;
+}
+
+async function logout() {
+  await authClient.post('/api/session/logout');
 }

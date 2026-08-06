@@ -1,7 +1,6 @@
 import axiosInstance from '@/helpers/api/axiosInstance';
 import { API_URL } from '@/contants/urls';
 import { BaseResponse, PagedResponse, SearchParams } from '@/models/common';
-import { BaseService } from './base.service';
 
 export interface CampaignResponse extends BaseResponse {
   id: string;
@@ -78,13 +77,9 @@ async function fetchAllCampaigns(): Promise<CampaignResponse[]> {
   }
 }
 
-export class CampaignService extends BaseService {
-  constructor() {
-    super(baseUrl);
-  }
-
-  search = async <T extends BaseResponse>(params: SearchParams<T>) => {
-    const content = (await fetchAllCampaigns()) as T[];
+export class CampaignService {
+  search = async (_params: SearchParams<CampaignResponse>): Promise<PagedResponse<CampaignResponse>> => {
+    const content = await fetchAllCampaigns();
     return {
       content,
       page: {
@@ -93,7 +88,7 @@ export class CampaignService extends BaseService {
         totalPages: 1,
         number: 0,
       },
-    } satisfies PagedResponse<T>;
+    };
   };
 
   create = async (request: CampaignRequest) => {

@@ -1,7 +1,6 @@
 import axiosInstance from '@/helpers/api/axiosInstance';
 import { API_URL } from '@/contants/urls';
 import { BaseResponse, PagedResponse, SearchParams } from '@/models/common';
-import { BaseService } from './base.service';
 
 export interface NotificationTemplateResponse extends BaseResponse {
   id: string;
@@ -32,15 +31,11 @@ type TemplateListResponse = { items?: NotificationTemplateResponse[] };
 
 const baseUrl = `${API_URL}v1/admin/notification-templates`;
 
-export class NotificationTemplateService extends BaseService {
-  constructor() {
-    super(baseUrl);
-  }
-
-  search = async <T extends BaseResponse>(params: SearchParams<T>) => {
+export class NotificationTemplateService {
+  search = async (_params: SearchParams<NotificationTemplateResponse>): Promise<PagedResponse<NotificationTemplateResponse>> => {
     const response = await axiosInstance.get(baseUrl);
     const data = response.data as TemplateListResponse;
-    const content = (data.items ?? []) as T[];
+    const content = data.items ?? [];
     return {
       content,
       page: {
@@ -49,7 +44,7 @@ export class NotificationTemplateService extends BaseService {
         totalPages: 1,
         number: 0,
       },
-    } satisfies PagedResponse<T>;
+    };
   };
 
   update = async (eventType: string, request: NotificationTemplateRequest) => {

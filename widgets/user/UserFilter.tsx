@@ -24,11 +24,11 @@ export default function UserFilter({ onFilter }: IProps) {
         filter = appendOperator(filter, `q==*${values.q.trim()}*`);
       }
 
-      if (values.status && values.status !== '') {
+      if (values.status) {
         filter = appendOperator(filter, `status==${values.status}`);
       }
 
-      if (values.role && values.role !== '') {
+      if (values.role) {
         filter = appendOperator(filter, `role==${values.role}`);
       }
 

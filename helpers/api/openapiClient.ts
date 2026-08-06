@@ -1,24 +1,18 @@
 import axios, { AxiosRequestConfig, Method } from 'axios';
 import { API_ORIGIN } from '@/contants/urls';
-import { clearStoredAuthSession, readStoredAccessToken } from './token';
+import { dispatchUnauthorizedEvent } from './authEvents';
 
 const apiClient = axios.create({
-  baseURL: API_ORIGIN,
+  baseURL: API_ORIGIN || undefined,
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json; charset=utf-8',
   },
+  withCredentials: true,
 });
 
 apiClient.interceptors.request.use(
-  (config) => {
-    const token = readStoredAccessToken();
-    if (token) {
-      config.headers = config.headers || {};
-      (config.headers as any).Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
+  (config) => config,
   (error) => Promise.reject(error),
 );
 
@@ -26,7 +20,7 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error?.response?.status === 401) {
-      clearStoredAuthSession();
+      dispatchUnauthorizedEvent();
     }
     return Promise.reject(error);
   },

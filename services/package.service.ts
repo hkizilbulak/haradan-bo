@@ -1,7 +1,6 @@
 import axiosInstance from '@/helpers/api/axiosInstance';
 import { API_URL } from '@/contants/urls';
 import { BaseResponse, PagedResponse, SearchParams } from '@/models/common';
-import { BaseService } from './base.service';
 
 export interface PackageResponse extends BaseResponse {
   code: string;
@@ -63,15 +62,11 @@ function toNumber(value?: number | string | null) {
   return Number(value);
 }
 
-export class PackageService extends BaseService {
-  constructor() {
-    super(baseUrl);
-  }
-
-  search = async <T extends BaseResponse>(params: SearchParams<T>) => {
+export class PackageService {
+  search = async (_params: SearchParams<PackageResponse>): Promise<PagedResponse<PackageResponse>> => {
     const response = await axiosInstance.get(baseUrl);
     const data = response.data as PackageAdminListResponse;
-    const content = (data.items ?? []) as T[];
+    const content = data.items ?? [];
     return {
       content,
       page: {
@@ -80,7 +75,7 @@ export class PackageService extends BaseService {
         totalPages: 1,
         number: 0,
       },
-    } satisfies PagedResponse<T>;
+    };
   };
 
   create = async (request: PackageRequest) => {

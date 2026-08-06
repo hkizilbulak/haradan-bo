@@ -1,7 +1,7 @@
 export interface Error {
   application: string;
   errorCode: number;
-  errorMessage: number;
+  errorMessage: string;
   traceId: string;
   errors: ValidationError[];
   parameters: Map<string, string>;

@@ -3,7 +3,6 @@ import { API_URL } from '@/contants/urls';
 import { BaseResponse, PagedResponse, SearchParams } from '@/models/common';
 import { UserRequest } from '@/models/request/user-request.model';
 import { UserResponse } from '@/models/response/user-response.model';
-import { BaseService } from './base.service';
 
 type AdminUserListResponse = {
   items?: UserResponse[];
@@ -70,18 +69,14 @@ async function fetchAllUsers(params: UserFilterParams): Promise<UserResponse[]> 
   }
 }
 
-export class UserService extends BaseService {
-  constructor() {
-    super(baseUrl);
-  }
-
-  search = async <T extends BaseResponse>(params: SearchParams<T>) => {
+export class UserService {
+  search = async (params: SearchParams<UserResponse>): Promise<PagedResponse<UserResponse>> => {
     const filters = parseFilter(params.filter);
     const allItems = await fetchAllUsers(filters);
     const page = params.pageRequest.page ?? 0;
     const size = params.pageRequest.size ?? 10;
     const start = page * size;
-    const content = allItems.slice(start, start + size) as T[];
+    const content = allItems.slice(start, start + size);
 
     return {
       content,
@@ -91,7 +86,7 @@ export class UserService extends BaseService {
         totalPages: Math.max(1, Math.ceil(allItems.length / size)),
         number: page,
       },
-    } satisfies PagedResponse<T>;
+    };
   };
 
   changeRole = async (userId: string, request: UserRequest) => {

@@ -1,3 +1,4 @@
+import { API_URL } from '@/contants/urls';
 import { apiRequest } from '@/helpers/api/openapiClient';
 import { CategoryRequest, CategoryResponse } from '@/models';
 import { PagedResponse, PageParams, SearchParams } from '@/models/common';
@@ -20,9 +21,12 @@ type AdminCategoryListResponse = {
     nextCursor?: string;
 };
 
-type CategoryTreeNode = CategoryResponse & { version: number };
+type CategoryTreeNode = Omit<CategoryResponse, 'children' | 'version'> & {
+    version: number;
+    children: CategoryTreeNode[];
+};
 
-const baseUrl = '/v1/admin/categories';
+const baseUrl = `${API_URL}v1/admin/categories`;
 
 class CategoryService {
     async search(params: SearchParams<CategoryResponse>) {
