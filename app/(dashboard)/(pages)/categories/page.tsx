@@ -215,12 +215,32 @@ export default function Categories() {
     }
   };
 
+  function collectAllNodesToDelete(node: any): { identifier: string; version: number }[] {
+    if (!node || !node.identifier) return [];
+    const list: { identifier: string; version: number }[] = [
+      { identifier: node.identifier, version: node.version ?? 1 },
+    ];
+    if (node.children && Array.isArray(node.children)) {
+      for (const child of node.children) {
+        list.push(...collectAllNodesToDelete(child));
+      }
+    }
+    return list;
+  }
+
   const handleConfirmDelete = async () => {
     if (!nodeToDelete?.identifier) return;
     setSubmitting(true);
     try {
-      await categoryService._delete(nodeToDelete.identifier, nodeToDelete.version);
-      toast.info("Kategori silindi (pasife alındı).");
+      const nodesToDelete = collectAllNodesToDelete(nodeToDelete);
+      for (const item of nodesToDelete) {
+        await categoryService._delete(item.identifier, item.version);
+      }
+      toast.info(
+        nodesToDelete.length > 1
+          ? `Kategori ve bağlı ${nodesToDelete.length - 1} alt kategori başarıyla silindi (pasife alındı).`
+          : "Kategori silindi (pasife alındı)."
+      );
       setDeleteModalOpen(false);
       setNodeToDelete(null);
       refetch();
@@ -231,11 +251,31 @@ export default function Categories() {
     }
   };
 
+  function collectAllNodesToRestore(node: any): { identifier: string; version: number }[] {
+    if (!node || !node.identifier) return [];
+    const list: { identifier: string; version: number }[] = [
+      { identifier: node.identifier, version: node.version ?? 1 },
+    ];
+    if (node.children && Array.isArray(node.children)) {
+      for (const child of node.children) {
+        list.push(...collectAllNodesToRestore(child));
+      }
+    }
+    return list;
+  }
+
   async function restoreNode(rowInfo: GenerateNodePropsParams) {
     const { node } = rowInfo;
     try {
-      await categoryService.activate(node.identifier, node.version);
-      toast.success("Kategori tekrar aktif edildi.");
+      const nodesToRestore = collectAllNodesToRestore(node);
+      for (const item of nodesToRestore) {
+        await categoryService.activate(item.identifier, item.version);
+      }
+      toast.success(
+        nodesToRestore.length > 1
+          ? `Kategori ve bağlı ${nodesToRestore.length - 1} alt kategori tekrar aktif edildi.`
+          : "Kategori tekrar aktif edildi."
+      );
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -524,21 +564,37 @@ export default function Categories() {
       </Modal>
 
       {/* POPUP / ANIMATED MODAL: Delete Confirmation */}
-      <Modal show={deleteModalOpen} onHide={() => setDeleteModalOpen(false)} centered animation size="sm">
+      <Modal show={deleteModalOpen} onHide={() => setDeleteModalOpen(false)} centered animation>
         <Modal.Body className="text-center p-4">
-          <div className="icon-shape icon-xl bg-light-danger text-danger rounded-circle mx-auto mb-3 p-3">
+          <div className="icon-shape icon-xl bg-light-danger text-danger rounded-circle mx-auto mb-3 p-3" style={{ width: '64px', height: '64px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             <i className="fe fe-alert-triangle fs-1"></i>
           </div>
           <h4 className="fw-bold mb-2">Kategoriyi Sil?</h4>
-          <p className="text-muted small mb-4">
-            <strong>&quot;{nodeToDelete?.name}&quot;</strong> kategorisini pasife almak istediğinizden emin misiniz? Dilediğiniz zaman pasif filtreyle geri yükleyebilirsiniz.
+          <p className="text-muted small mb-3">
+            <strong>&quot;{nodeToDelete?.name}&quot;</strong> kategorisini silmek (pasife almak) istediğinizden emin misiniz?
           </p>
-          <div className="d-flex gap-2 justify-content-center">
+
+          {/* Sub-categories warning if node has children */}
+          {nodeToDelete?.children && nodeToDelete.children.length > 0 && (
+            <div className="alert alert-warning text-start border-warning p-3 mb-4 rounded-3" style={{ backgroundColor: '#fffbe6' }}>
+              <div className="d-flex gap-2">
+                <i className="fe fe-alert-circle text-warning fs-4 flex-shrink-0 mt-1"></i>
+                <div>
+                  <strong className="text-warning-emphasis d-block mb-1">⚠️ Dikkat: Alt Kategoriler De Silinecek!</strong>
+                  <span className="small text-dark-emphasis">
+                    Bu kategorinin altında <strong>{nodeToDelete.children.length} adet alt kategori</strong> bulunmaktadır. Bu ana kategoriyi silerseniz bağlı olan tüm alt kategoriler de otomatik olarak silinecektir (pasife alınacaktır).
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="d-flex gap-2 justify-content-center mt-3">
             <Button variant="light" className="w-50" onClick={() => setDeleteModalOpen(false)}>
               Vazgeç
             </Button>
             <Button variant="danger" className="w-50 fw-semibold" disabled={submitting} onClick={handleConfirmDelete}>
-              {submitting ? "Siliniyor..." : "Evet, Sil"}
+              {submitting ? "Siliniyor..." : "Evet, Tümünü Sil"}
             </Button>
           </div>
         </Modal.Body>
