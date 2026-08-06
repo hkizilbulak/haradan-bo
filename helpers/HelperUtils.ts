@@ -19,12 +19,16 @@ export function capitalizeSentence(sentence: string) {
 }
 
 export function getErrorMessage(error: any): string {
-    const axiosError = (error as AxiosError<Error>);
-    const errorData = (axiosError.response?.data);
-    if (errorData !== undefined && errorData !== null && errorData.errorCode !== undefined) {
-        return errorData.errorMessage
+    const axiosError = (error as AxiosError<Error | { message?: string }>);
+    if (axiosError.response?.status === 502) {
+        return "Backend servisine erişilemiyor (502 Bad Gateway). Lütfen backend uygulamasının (haradan-be) çalıştığından emin olun.";
     }
-    return "Beklenmeyen hata oluştu: Hata : " + axiosError.message;
+    const errorData = (axiosError.response?.data as any);
+    if (errorData !== undefined && errorData !== null) {
+        if (errorData.errorMessage) return errorData.errorMessage;
+        if (errorData.message) return errorData.message;
+    }
+    return "Beklenmeyen hata oluştu: " + (axiosError.message || "Bilinmeyen hata");
 }
 
 export function formatMoney(amountMinor?: number, currency?: string) {

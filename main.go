@@ -97,7 +97,8 @@ func resolveBackendURL() string {
 		backendURL = strings.TrimRight(os.Getenv("NEXT_PUBLIC_API_URL"), "/")
 	}
 	if backendURL == "" {
-		log.Fatal("BACKEND_API_URL or NEXT_PUBLIC_API_URL must be set")
+		backendURL = "http://localhost:3001"
+		log.Printf("BACKEND_API_URL not set, falling back to %s for local development", backendURL)
 	}
 	return backendURL
 }
@@ -159,7 +160,7 @@ func (s *appServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	response, responseBody, err := s.doBackendJSONRequest(r.Context(), http.MethodPost, "/v1/auth/login", requestBody, "", nil)
 	if err != nil {
-		http.Error(w, "Authentication service unavailable", http.StatusBadGateway)
+		writeJSONError(w, http.StatusBadGateway, "Backend servisine erişilemiyor (502 Bad Gateway). Lütfen backend servisinin (haradan-be) çalıştığından emin olun.")
 		return
 	}
 	defer response.Body.Close()
@@ -216,7 +217,7 @@ func (s *appServer) handleAPIProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetPath := strings.TrimPrefix(r.URL.Path, "/api")
+	targetPath := r.URL.Path
 	response, responseBody, err := s.performAuthenticatedRequest(r.Context(), w, r, targetPath, requestBody)
 	if err != nil {
 		http.Error(w, "Backend request failed", http.StatusBadGateway)
@@ -325,6 +326,9 @@ func (s *appServer) fetchProfile(ctx context.Context, w http.ResponseWriter, r *
 }
 
 func (s *appServer) doBackendJSONRequest(ctx context.Context, method string, targetPath string, requestBody []byte, accessToken string, query url.Values) (*http.Response, []byte, error) {
+	if !strings.HasPrefix(targetPath, "/api/") && targetPath != "/api" {
+		targetPath = "/api" + targetPath
+	}
 	targetURL, err := url.Parse(s.backendURL + targetPath)
 	if err != nil {
 		return nil, nil, err
