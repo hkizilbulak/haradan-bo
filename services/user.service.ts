@@ -16,6 +16,20 @@ type UserFilterParams = {
   status?: string;
 };
 
+export interface SecurityEvent {
+  id: string;
+  eventType: 'LOGIN_SUCCESS' | 'LOGIN_FAILURE' | 'LOGOUT' | 'SESSION_REVOKED' | 'ALL_SESSIONS_REVOKED' | 'REFRESH_REPLAY_DETECTED' | 'PASSWORD_CHANGE' | 'PASSWORD_RESET' | 'EMAIL_VERIFICATION' | 'EMAIL_CHANGE' | 'ROLE_CHANGE' | 'ACCOUNT_STATUS_CHANGE' | 'BO_CONTEXT_REJECTED';
+  createdAt: string;
+  clientContext?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+type SecurityEventListResponse = {
+  items: SecurityEvent[];
+  nextCursor?: string | null;
+  hasMore: boolean;
+};
+
 const baseUrl = `${API_URL}v1/admin/users`;
 
 function parseFilter(filter?: string): UserFilterParams {
@@ -101,6 +115,22 @@ export class UserService {
       expectedCurrentStatus: request.expectedCurrentStatus,
       newStatus: request.newStatus,
     });
+  };
+
+  getSecurityEvents = async (userId: string): Promise<SecurityEvent[]> => {
+    const items: SecurityEvent[] = [];
+    let cursor: string | undefined;
+    while (true) {
+      const response = await axiosInstance.get(`${baseUrl}/${userId}/security-events`, {
+        params: { cursor, limit: 50 },
+      });
+      const data = response.data as SecurityEventListResponse;
+      items.push(...data.items);
+      if (!data.hasMore || !data.nextCursor) {
+        return items;
+      }
+      cursor = data.nextCursor;
+    }
   };
 }
 

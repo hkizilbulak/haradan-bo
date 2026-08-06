@@ -30,6 +30,24 @@ type TjkRunListResponse = {
   hasMore?: boolean;
 };
 
+export interface TjkItemError {
+  id: string;
+  runId: string;
+  tjkNumber?: string | null;
+  horseId?: string | null;
+  errorClass: string;
+  status: 'OPEN' | 'RESOLVED' | 'IGNORED';
+  message: string;
+  createdAt: string;
+  resolvedAt?: string | null;
+}
+
+export type TjkItemErrorListResponse = {
+  items: TjkItemError[];
+  nextCursor?: string | null;
+  hasMore: boolean;
+};
+
 const baseUrl = `${API_URL}v1/admin/tjk/sync-runs`;
 
 async function fetchAllRuns(status?: string): Promise<TjkRunResponse[]> {
@@ -78,6 +96,32 @@ export class TjkService {
       console.error("TJK cancel error:", error);
       throw error;
     }
+  };
+
+  getItemErrors = async (runId: string): Promise<TjkItemError[]> => {
+    const items: TjkItemError[] = [];
+    let cursor: string | undefined;
+    while (true) {
+      const response = await axiosInstance.get(`${baseUrl}/${runId}/item-errors`, {
+        params: { cursor, limit: 50 },
+      });
+      const data = response.data as TjkItemErrorListResponse;
+      items.push(...data.items);
+      if (!data.hasMore || !data.nextCursor) {
+        return items;
+      }
+      cursor = data.nextCursor;
+    }
+  };
+
+  ignoreError = async (errorId: string) => {
+    const response = await axiosInstance.post(`${API_URL}v1/admin/tjk/item-errors/${errorId}/ignore`);
+    return response.data;
+  };
+
+  resolveError = async (errorId: string) => {
+    const response = await axiosInstance.post(`${API_URL}v1/admin/tjk/item-errors/${errorId}/resolve`);
+    return response.data;
   };
 }
 

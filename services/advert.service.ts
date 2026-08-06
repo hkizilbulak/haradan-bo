@@ -25,6 +25,38 @@ export type ModerationReasonRequest = {
     reason: string;
 };
 
+export type AdvertPackageAssignment = {
+  id: string;
+  advertId: string;
+  packageCode: string;
+  status: 'ACTIVE' | 'SUPERSEDED' | 'EXPIRED' | 'CANCELLED';
+  startsAt: string;
+  endsAt?: string | null;
+  assignedByUserId: string;
+  assignedAt: string;
+  supersededAt?: string | null;
+  expiredAt?: string | null;
+  cancelledAt?: string | null;
+  reason?: string | null;
+  source: 'ADMIN' | 'SYSTEM';
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdvertPackageHistoryPage = {
+  items: AdvertPackageAssignment[];
+  nextCursor?: string | null;
+  hasMore: boolean;
+};
+
+export type AssignPackageRequest = {
+  packageCode: string;
+  startsAt?: string;
+  endsAt?: string | null;
+  reason?: string | null;
+};
+
 const baseUrl = `${API_URL}v1/admin/adverts/moderation`;
 const moderationRootUrl = `${API_URL}v1/admin/adverts`;
 
@@ -51,6 +83,38 @@ class AdvertService {
 
     async requestChanges(advertId: string, request: ModerationReasonRequest) {
         await apiRequest('POST', `${moderationRootUrl}/${advertId}/request-changes`, request);
+    }
+
+    async getPackage(advertId: string) {
+        return apiRequest<AdvertPackageAssignment>('GET', `${moderationRootUrl}/${advertId}/package`);
+    }
+
+    async assignPackage(advertId: string, request: AssignPackageRequest) {
+        return apiRequest<AdvertPackageAssignment>('PUT', `${moderationRootUrl}/${advertId}/package`, request);
+    }
+
+    async cancelPackage(advertId: string, reason?: string) {
+        await apiRequest('POST', `${moderationRootUrl}/${advertId}/package/cancel`, {
+            reason: reason || undefined,
+        });
+    }
+
+    async getPackageHistory(advertId: string): Promise<AdvertPackageAssignment[]> {
+        const items: AdvertPackageAssignment[] = [];
+        let cursor: string | undefined;
+        while (true) {
+            const response = await apiRequest<AdvertPackageHistoryPage>(
+                'GET',
+                `${moderationRootUrl}/${advertId}/package-history`,
+                undefined,
+                { params: { cursor, limit: 50 } },
+            );
+            items.push(...response.items);
+            if (!response.hasMore || !response.nextCursor) {
+                return items;
+            }
+            cursor = response.nextCursor;
+        }
     }
 
     private async fetchAll() {

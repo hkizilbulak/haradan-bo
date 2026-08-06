@@ -29,6 +29,26 @@ export interface JobRequest {
   timeoutSeconds: number;
 }
 
+export interface JobHistoryItem {
+  id: string;
+  jobId: string;
+  status: 'QUEUED' | 'LEASED' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'DEAD';
+  executionType: 'SCHEDULED' | 'MANUAL';
+  referenceDate?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  durationMs?: number | null;
+  lastError?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type JobHistoryPage = {
+  items: JobHistoryItem[];
+  nextCursor?: string | null;
+  hasMore: boolean;
+};
+
 type JobListResponse = { items?: JobResponse[] };
 
 const baseUrl = `${API_URL}v1/admin/jobs`;
@@ -60,6 +80,22 @@ export class JobService {
 
   run = async (jobId: string) => {
     await axiosInstance.post(`${baseUrl}/${jobId}/run`, {});
+  };
+
+  getHistory = async (jobId: string): Promise<JobHistoryItem[]> => {
+    const items: JobHistoryItem[] = [];
+    let cursor: string | undefined;
+    while (true) {
+      const response = await axiosInstance.get(`${baseUrl}/${jobId}/history`, {
+        params: { cursor, limit: 50 },
+      });
+      const data = response.data as JobHistoryPage;
+      items.push(...data.items);
+      if (!data.hasMore || !data.nextCursor) {
+        return items;
+      }
+      cursor = data.nextCursor;
+    }
   };
 }
 

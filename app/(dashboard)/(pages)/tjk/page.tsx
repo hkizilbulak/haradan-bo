@@ -1,5 +1,6 @@
 "use client"
-import { Button, Col, Container, Form, Offcanvas, Row } from 'react-bootstrap';
+import React, { useState } from 'react';
+import { Badge, Button, Col, Container, Form, Modal, Offcanvas, Row, Table } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import Loading from '@/components/Loading';
@@ -10,7 +11,7 @@ import { getTjkModeText, getTjkScopeText, getTjkTriggerKindText } from '@/helper
 import { getErrorMessage } from '@/helpers/HelperUtils';
 import useApi from '@/hooks/useApi';
 import useModal from '@/hooks/useModal';
-import { tjkService, TjkRunResponse } from '@/services/tjk.service';
+import { tjkService, TjkRunResponse, TjkItemError } from '@/services/tjk.service';
 import { PageHeading } from '@/widgets';
 import { toast } from 'react-toastify';
 
@@ -59,12 +60,101 @@ function TriggerModal({ onClose, onSave }: { onClose: () => void; onSave: (value
   );
 }
 
+function TjkErrorsModal({ runId, onClose }: { runId: string; onClose: () => void }) {
+  const [items, setItems] = useState<TjkItemError[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadErrors = () => {
+    setLoading(true);
+    tjkService.getItemErrors(runId)
+      .then(setItems)
+      .catch((err) => toast.error(getErrorMessage(err)))
+      .finally(() => setLoading(false));
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    loadErrors();
+  }, [runId]);
+
+  const handleAction = async (errorId: string, action: 'ignore' | 'resolve') => {
+    try {
+      if (action === 'ignore') {
+        await tjkService.ignoreError(errorId);
+      } else {
+        await tjkService.resolveError(errorId);
+      }
+      loadErrors();
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
+  };
+
+  const statusVariant = (status: string) => {
+    switch (status) {
+      case 'OPEN': return 'danger';
+      case 'RESOLVED': return 'success';
+      case 'IGNORED': return 'secondary';
+      default: return 'secondary';
+    }
+  };
+
+  return (
+    <Modal show onHide={onClose} size="lg">
+      <Modal.Header closeButton>
+        <Modal.Title>Senkron Hataları</Modal.Title>
+      </Modal.Header>
+      <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+        {loading && <Loading />}
+        {!loading && items.length === 0 && <p className="text-muted">Bu koşuda hata kaydı yok.</p>}
+        {!loading && items.length > 0 && (
+          <Table striped bordered hover size="sm">
+            <thead>
+              <tr>
+                <th>Durum</th>
+                <th>TJK No</th>
+                <th>Hata Sınıfı</th>
+                <th>Mesaj</th>
+                <th>Tarih</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id}>
+                  <td><Badge bg={statusVariant(item.status)}>{item.status}</Badge></td>
+                  <td>{item.tjkNumber ?? '-'}</td>
+                  <td>{item.errorClass}</td>
+                  <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.message}>{item.message}</td>
+                  <td>{formatDateTimeForText(item.createdAt)}</td>
+                  <td>
+                    {item.status === 'OPEN' && (
+                      <>
+                        <Button size="sm" variant="success" className="me-1" onClick={() => handleAction(item.id, 'resolve')}>Çözüldü</Button>
+                        <Button size="sm" variant="secondary" onClick={() => handleAction(item.id, 'ignore')}>Yoksay</Button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" onClick={onClose}>Kapat</Button>
+      </Modal.Footer>
+    </Modal>
+  );
+}
+
 export default function TjkPage() {
   const [{ data, isLoading, refetch }] = useApi<TjkRunResponse>({
     service: tjkService,
     params: { filter: '', pageRequest: { page: 0, size: 100, sort: [{ direction: 'DESC', property: 'createdAt' }] } },
   });
   const { isModalOpen, openModal, closeModal, modalContent } = useModal();
+  const [errorsRunId, setErrorsRunId] = useState<string | null>(null);
 
   const hasActiveRun = data?.content?.some(
     (run) => run.status === 'QUEUED' || run.status === 'RUNNING'
@@ -107,6 +197,7 @@ export default function TjkPage() {
       <td>{formatDateTimeForText(run.createdAt)}</td>
       <td>
         <Button size="sm" className="me-2" variant="primary" onClick={() => handleCancel(run)}>İptal</Button>
+        <Button size="sm" variant="outline-danger" onClick={() => setErrorsRunId(run.id)}>Hatalar</Button>
       </td>
     </tr>
   ));
@@ -119,6 +210,7 @@ export default function TjkPage() {
         </Col>
       </Row>
       {isModalOpen && modalContent}
+      {errorsRunId && <TjkErrorsModal runId={errorsRunId} onClose={() => setErrorsRunId(null)} />}
       {isLoading && <Loading />}
       {!isLoading && <PrepareTable headItems={headItems} content={content} page={data?.page} onHandlePageChange={() => undefined} />}
     </Container>
