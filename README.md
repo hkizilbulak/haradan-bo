@@ -1,64 +1,96 @@
-Haradan Backend Operations - Next.js + Go Single Binary Server
+# 🏇 Haradan Backoffice (BO)
 
-## Getting Started
+Next.js (SSG) ve Go (BFF Proxy) mimarisine sahip **Haradan.com Yönetim Paneli** tekil binary sunucu uygulaması.
 
-### Prerequisites
-- Node.js 20+
-- Go 1.25+
+---
 
-### Production Build & Run
+## 📐 Sistem Mimarisi
+
+```mermaid
+flowchart LR
+    subgraph Browser ["Tarayıcı (Client)"]
+        UI["Haradan BO Arayüzü"]
+    end
+
+    subgraph BO ["Haradan BO (Port 8080)"]
+        GoServer["Go Server (main.go)"]
+        StaticHTML["Statik HTML/JS (out/)"]
+        SessionManager["HttpOnly Cookie & Auth Proxy"]
+    end
+
+    subgraph Backend ["Haradan BE (Port 3001)"]
+        BEApi["Go REST API (cmd/api)"]
+        TJKWorker["TJK Sync Worker"]
+    end
+
+    UI -->|"Sayfa İstekleri"| StaticHTML
+    UI -->|"/api/session/*"| SessionManager
+    SessionManager -->|"/v1/* Proxy"| BEApi
+    BEApi --> TJKWorker
+```
+
+---
+
+## 🚀 Adım Adım Çalıştırma Rehberi
+
+### 1️⃣ Backend (`haradan-be`) Servisini Başlatın
+Backend'i **`3001`** portunda ve **`TJK_ENABLED=true`** parametresiyle çalıştırın:
 
 ```powershell
-cd C:\Users\Pc\Documents\GitHub\TestGame\kartezya\haradan-bo
+cd kartezya\haradan-be
 
-# Node dependencies kur
-npm install
+# .env değişkenlerini yükle ve başlat
+Get-Content .env | ForEach-Object { if ($_ -match "^\s*([^#=]+)\s*=\s*(.*)\s*$") { [System.Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim()) } }
+$env:HTTP_ADDR=":3001"
+$env:TJK_ENABLED="true"
+go run ./cmd/api
+```
 
-# Next.js build et
+---
+
+### 2️⃣ BO Sunucusunu (`haradan-bo`) Başlatın
+Arayüzü derleyin ve Go proxy sunucusunu **`8080`** portunda çalıştırın:
+
+```powershell
+cd kartezya\haradan-bo
+
+# Derle ve Başlat (Production / Binary Mode)
 npm run build
-
-# Go server'ı build et ve çalıştır
 go run main.go
 ```
 
-Server `http://localhost:8080` üzerinde başlar.
+> 🌐 **Erişim:** Tarayıcınızdan **`http://localhost:8080`** adresine gidin.
 
-**Login Credentials:**
-- Email: `admin@kartezya.com`
-- Password: `haraa`
+---
 
-### Development (Local API)
+### 🛠️ Geliştirme (Development) Modu
 
-Backend adresini environment variable olarak vermen önerilir:
+Arayüz kodlarında canlı değişiklik yapmak istiyorsanız Next.js geliştirme sunucusunu kullanabilirsiniz:
 
 ```powershell
-$env:BACKEND_API_URL = "http://localhost:3001"
+npm run dev
 ```
 
-`BACKEND_API_URL` veya `NEXT_PUBLIC_API_URL` verilmezse Go sunucusu local geliştirme için varsayılan olarak `http://localhost:3001` kullanır.
+> ⚡ **Not:** `npm run dev` kullanırken de `go run main.go` (`8080`) ve `haradan-be` (`3001`) arkada çalışıyor olmalıdır.
 
-Frontend aynı origin altında `/api/...` çağrıları yapar. Go sunucusu bu istekleri backend'e proxy eder, login sonrası access/refresh token'ları HttpOnly cookie olarak yönetir.
+---
 
-Sonra `npm run build && go run main.go` çalıştır.
+## 🔑 Varsayılan Giriş Bilgileri
 
-### Docker
+| Parametre | Değer |
+| :--- | :--- |
+| **E-posta** | `admin@kartezya.com` |
+| **Şifre** | `haraa` |
+| **Erişim Adresi** | `http://localhost:8080/login` |
 
-```bash
-docker build -t haradan-bo .
-docker run -p 8080:8080 haradan-bo
-```
+---
 
-## Learn More
+## ⚙️ Yapılandırma & Detaylar
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+- **HttpOnly Cookie Yönetimi:** Access ve Refresh token'lar güvenli bir şekilde `main.go` tarafından cookie olarak tutulur.
+- **TJK Senkronizasyon Adaptörü:** TJK senkronizasyonu başlatırken Kaynak Adaptörü olarak **`TJK_HTTP`** kullanılır.
+- **Docker İle Çalıştırma:**
+  ```bash
+  docker build -t haradan-bo .
+  docker run -p 8080:8080 haradan-bo
+  ```

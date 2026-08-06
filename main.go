@@ -104,6 +104,18 @@ func resolveBackendURL() string {
 }
 
 func (s *appServer) handleRequest(w http.ResponseWriter, r *http.Request) {
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept")
+	}
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	if strings.HasPrefix(r.URL.Path, "/api/session") {
 		s.handleSessionRequest(w, r)
 		return
@@ -326,6 +338,9 @@ func (s *appServer) fetchProfile(ctx context.Context, w http.ResponseWriter, r *
 }
 
 func (s *appServer) doBackendJSONRequest(ctx context.Context, method string, targetPath string, requestBody []byte, accessToken string, query url.Values) (*http.Response, []byte, error) {
+	for strings.HasPrefix(targetPath, "/api/api/") {
+		targetPath = strings.Replace(targetPath, "/api/api/", "/api/", 1)
+	}
 	if !strings.HasPrefix(targetPath, "/api/") && targetPath != "/api" {
 		targetPath = "/api" + targetPath
 	}

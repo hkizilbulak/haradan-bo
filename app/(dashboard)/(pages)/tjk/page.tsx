@@ -17,7 +17,7 @@ import { toast } from 'react-toastify';
 const headItems = ['Mod', 'Durum', 'Kapsam', 'Kaynak', 'Tetik', 'Oluşturulma', ''];
 
 function TriggerModal({ onClose, onSave }: { onClose: () => void; onSave: (value: { mode: string; sourceAdapter: string; scope: string; }) => void; }) {
-  const values = { mode: 'FULL', sourceAdapter: 'HORSES', scope: 'HORSES' };
+  const values = { mode: 'FULL', sourceAdapter: 'TJK_HTTP', scope: 'HORSES' };
   const schema = Yup.object().shape({
     mode: Yup.string().required(),
     sourceAdapter: Yup.string().required(),
