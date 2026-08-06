@@ -26,7 +26,11 @@ const useApi = <T>({ service, params = initialParameters as SearchParams<T> }: I
     const [isRefetch, setIsRefetch] = useState(false)
     const [parameters, setParameters] = useState<SearchParams<T>>(params);
 
-    const refetch = () => setIsRefetch(!isRefetch)
+    const refetch = () => setIsRefetch((prev) => !prev);
+
+    useEffect(() => {
+        setParameters(params);
+    }, [JSON.stringify(params)]);
 
 
     const handleFilter = (filter: string) => {

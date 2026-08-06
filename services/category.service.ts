@@ -52,7 +52,7 @@ class CategoryService {
         }
 
         await apiRequest('PATCH', `${baseUrl}/${request.identifier}`, {
-            expectedVersion: request.expectedVersion ?? 0,
+            expectedVersion: Math.max(1, request.expectedVersion ?? 1),
             name: request.name,
             slug: request.slug,
             sortOrder: request.sortOrder,
@@ -62,21 +62,21 @@ class CategoryService {
 
     async _delete(identifier: string, expectedVersion?: number) {
         await apiRequest('POST', `${baseUrl}/${identifier}/active`, {
-            expectedVersion: expectedVersion ?? 0,
+            expectedVersion: Math.max(1, expectedVersion ?? 1),
             isActive: false,
         });
     }
 
     async activate(identifier: string, expectedVersion?: number) {
         await apiRequest('POST', `${baseUrl}/${identifier}/active`, {
-            expectedVersion: expectedVersion ?? 0,
+            expectedVersion: Math.max(1, expectedVersion ?? 1),
             isActive: true,
         });
     }
 
     async reparent(identifier: string, expectedVersion: number, parentId?: string) {
         await apiRequest('POST', `${baseUrl}/${identifier}/reparent`, {
-            expectedVersion,
+            expectedVersion: Math.max(1, expectedVersion ?? 1),
             newParentId: parentId || undefined,
         });
     }
