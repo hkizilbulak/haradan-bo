@@ -66,7 +66,15 @@ export default function TjkPage() {
   });
   const { isModalOpen, openModal, closeModal, modalContent } = useModal();
 
+  const hasActiveRun = data?.content?.some(
+    (run) => run.status === 'QUEUED' || run.status === 'RUNNING'
+  );
+
   const openTriggerModal = () => {
+    if (hasActiveRun) {
+      toast.warning('Hali hazırda kuyrukta veya çalışan bir senkronizasyon bulunmaktadır. Lütfen tamamlanmasını bekleyin veya mevcut işlemi iptal edin.');
+      return;
+    }
     openModal(<TriggerModal onClose={closeModal} onSave={handleTrigger} />);
   };
 
