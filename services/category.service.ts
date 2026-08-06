@@ -67,6 +67,13 @@ class CategoryService {
         });
     }
 
+    async activate(identifier: string, expectedVersion?: number) {
+        await apiRequest('POST', `${baseUrl}/${identifier}/active`, {
+            expectedVersion: expectedVersion ?? 0,
+            isActive: true,
+        });
+    }
+
     async reparent(identifier: string, expectedVersion: number, parentId?: string) {
         await apiRequest('POST', `${baseUrl}/${identifier}/reparent`, {
             expectedVersion,
