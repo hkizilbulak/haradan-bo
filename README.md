@@ -33,70 +33,48 @@ flowchart LR
 
 ## 🚀 Adım Adım Çalıştırma Rehberi
 
-### 1️⃣ Backend (`haradan-be`) Servisini Başlatın
-Backend'i **`3001`** portunda ve **`TJK_ENABLED=true`** parametresiyle tek komutla başlatın:
+Projeyi yerelde eksiksiz çalıştırmak için sırasıyla aşağıdaki adımlar uygulanır:
 
-#### 🪟 Windows (PowerShell):
+### 1️⃣ Adım: Backend'i (`haradan-be`) Başlatma (Port 3001)
+
+1. Terminalde (`haradan-be` dizininde):
+
 ```powershell
-npm run be
+cd haradan-be
+$env:HTTP_ADDR=":3001"
+Get-Content .env | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$' -and $matches[1].Trim() -ne 'HTTP_ADDR') { [System.Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), 'Process') } }
+go run ./cmd/api
 ```
 
-#### 🍎 macOS / Linux (Terminal):
-```bash
-npm run be:mac
-```
+*(Opsiyonel: TJK Senkronizasyonunu backend tarafında aktif etmek için `$env:TJK_ENABLED="true"` ekleyebilirsiniz.)*
 
 ---
 
-### 2️⃣ Worker (`haradan-be` Worker) Servisini Başlatın
-Kuyruktaki görevlerin ve iptal taleplerinin işlenmesi için worker'ı çalıştırın:
+### 2️⃣ Adım: BO Proxy Sunucusunu (`haradan-bo`) Başlatma (Port 8080)
 
-#### 🪟 Windows (PowerShell):
+2. Terminalde (`haradan-bo` dizininde):
+
 ```powershell
-npm run worker
-```
-
-#### 🍎 macOS / Linux (Terminal):
-```bash
-npm run worker:mac
-```
-
----
-
-### 2️⃣ BO Sunucusunu (`haradan-bo`) Başlatın
-Arayüzü derleyin ve Go proxy sunucusunu **`8080`** portunda çalıştırın:
-
-#### 🪟 Windows (PowerShell):
-```powershell
-cd kartezya\haradan-bo
-
-# Derle ve Başlat (Production / Binary Mode)
-npm run build
+cd haradan-bo
+$env:PORT="8080"
+$env:BACKEND_API_URL="http://localhost:3001"
 go run main.go
 ```
 
-#### 🍎 macOS / Linux (Terminal):
-```bash
-cd kartezya/haradan-bo
-
-# Derle ve Başlat (Production / Binary Mode)
-npm run build
-go run main.go
-```
-
-> 🌐 **Erişim:** Tarayıcınızdan **`http://localhost:8080`** adresine gidin.
+> 🌐 **Erişim Adresi:** Tarayıcınızdan **`http://localhost:8080`** adresine gidin.
 
 ---
 
-### 🛠️ Geliştirme (Development) Modu
+### 🛠️ Geliştirme (Development) Modu (Opsiyonel)
 
-Arayüz kodlarında canlı değişiklik yapmak istiyorsanız Next.js geliştirme sunucusunu kullanabilirsiniz:
+Arayüz kodlarında canlı (hot-reload) değişiklik yapmak istiyorsanız Next.js dev sunucusunu da başlatabilirsiniz:
 
-```bash
+```powershell
+cd haradan-bo
 npm run dev
 ```
 
-> ⚡ **Not:** `npm run dev` kullanırken de `go run main.go` (`8080`) ve `haradan-be` (`3001`) arkada çalışıyor olmalıdır.
+> ⚡ **Not:** `npm run dev` kullanıldığında da `go run main.go` (`8080`) ve `haradan-be` (`3001`) arkada çalışıyor olmalıdır. Uygulama ana erişim adresi **`http://localhost:8080`** üzerindendir.
 
 ---
 
