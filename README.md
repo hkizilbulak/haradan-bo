@@ -36,13 +36,25 @@ flowchart LR
 ### 1️⃣ Backend (`haradan-be`) Servisini Başlatın
 Backend'i **`3001`** portunda ve **`TJK_ENABLED=true`** parametresiyle çalıştırın:
 
+#### 🪟 Windows (PowerShell):
 ```powershell
 cd kartezya\haradan-be
 
-# .env değişkenlerini yükle ve başlat
+# .env değişkenlerini yükle ve 3001 portunda başlat
 Get-Content .env | ForEach-Object { if ($_ -match "^\s*([^#=]+)\s*=\s*(.*)\s*$") { [System.Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim()) } }
 $env:HTTP_ADDR=":3001"
 $env:TJK_ENABLED="true"
+go run ./cmd/api
+```
+
+#### 🍎 macOS / Linux (Terminal):
+```bash
+cd kartezya/haradan-be
+
+# .env değişkenlerini yükle ve 3001 portunda başlat
+export $(grep -v '^#' .env | xargs)
+export HTTP_ADDR=":3001"
+export TJK_ENABLED="true"
 go run ./cmd/api
 ```
 
@@ -51,8 +63,18 @@ go run ./cmd/api
 ### 2️⃣ BO Sunucusunu (`haradan-bo`) Başlatın
 Arayüzü derleyin ve Go proxy sunucusunu **`8080`** portunda çalıştırın:
 
+#### 🪟 Windows (PowerShell):
 ```powershell
 cd kartezya\haradan-bo
+
+# Derle ve Başlat (Production / Binary Mode)
+npm run build
+go run main.go
+```
+
+#### 🍎 macOS / Linux (Terminal):
+```bash
+cd kartezya/haradan-bo
 
 # Derle ve Başlat (Production / Binary Mode)
 npm run build
@@ -67,7 +89,7 @@ go run main.go
 
 Arayüz kodlarında canlı değişiklik yapmak istiyorsanız Next.js geliştirme sunucusunu kullanabilirsiniz:
 
-```powershell
+```bash
 npm run dev
 ```
 
