@@ -34,28 +34,31 @@ flowchart LR
 ## 🚀 Adım Adım Çalıştırma Rehberi
 
 ### 1️⃣ Backend (`haradan-be`) Servisini Başlatın
-Backend'i **`3001`** portunda ve **`TJK_ENABLED=true`** parametresiyle çalıştırın:
+Backend'i **`3001`** portunda ve **`TJK_ENABLED=true`** parametresiyle tek komutla başlatın:
 
 #### 🪟 Windows (PowerShell):
 ```powershell
-cd kartezya\haradan-be
-
-# .env değişkenlerini yükle ve 3001 portunda başlat
-Get-Content .env | ForEach-Object { if ($_ -match "^\s*([^#=]+)\s*=\s*(.*)\s*$") { [System.Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim()) } }
-$env:HTTP_ADDR=":3001"
-$env:TJK_ENABLED="true"
-go run ./cmd/api
+npm run be
 ```
 
 #### 🍎 macOS / Linux (Terminal):
 ```bash
-cd kartezya/haradan-be
+npm run be:mac
+```
 
-# .env değişkenlerini yükle ve 3001 portunda başlat
-export $(grep -v '^#' .env | xargs)
-export HTTP_ADDR=":3001"
-export TJK_ENABLED="true"
-go run ./cmd/api
+---
+
+### 2️⃣ Worker (`haradan-be` Worker) Servisini Başlatın
+Kuyruktaki görevlerin ve iptal taleplerinin işlenmesi için worker'ı çalıştırın:
+
+#### 🪟 Windows (PowerShell):
+```powershell
+npm run worker
+```
+
+#### 🍎 macOS / Linux (Terminal):
+```bash
+npm run worker:mac
 ```
 
 ---

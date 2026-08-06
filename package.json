@@ -4,6 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "be": "powershell -ExecutionPolicy Bypass -File ./scripts/run-be.ps1",
+    "be:mac": "bash ./scripts/run-be.sh",
+    "worker": "powershell -ExecutionPolicy Bypass -File ./scripts/run-worker.ps1",
+    "worker:mac": "bash ./scripts/run-worker.sh",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
