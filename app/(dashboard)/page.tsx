@@ -10,6 +10,8 @@ import { getErrorMessage } from '@/helpers/HelperUtils';
 import { ModerationAdvertResponse } from '@/models';
 import { advertService, jobService, packageService, userService, tjkService } from '@/services';
 import { toast } from 'react-toastify';
+import { Skeleton, TableSkeleton } from '@/components/Skeleton';
+
 
 export default function Home() {
     const { session } = useAuth();
@@ -165,9 +167,7 @@ export default function Home() {
                                         <span className="fw-bold" style={{ fontSize: '13px', color: '#4f46e5' }}>Moderasyon Bekleyen İlanlar</span>
                                         <h1 className="mb-0 fw-bold" style={{ fontSize: '28px', lineHeight: 1.2, color: '#3730a3' }}>
                                             {loadingStats ? (
-                                                <Spinner animation="border" role="status" size="sm">
-                                                    <span className="visually-hidden">Yükleniyor...</span>
-                                                </Spinner>
+                                                <Skeleton width="60px" height="28px" />
                                             ) : stats.pendingAdvertsCount}
                                         </h1>
                                     </div>
@@ -204,9 +204,7 @@ export default function Home() {
                                         <span className="fw-bold" style={{ fontSize: '13px', color: '#4338ca' }}>Kayıtlı Kullanıcılar</span>
                                         <h1 className="mb-0 fw-bold" style={{ fontSize: '28px', lineHeight: 1.2, color: '#3730a3' }}>
                                             {loadingStats ? (
-                                                <Spinner animation="border" role="status" size="sm">
-                                                    <span className="visually-hidden">Yükleniyor...</span>
-                                                </Spinner>
+                                                <Skeleton width="60px" height="28px" />
                                             ) : stats.totalUsers}
                                         </h1>
                                     </div>
@@ -243,9 +241,7 @@ export default function Home() {
                                         <span className="fw-bold" style={{ fontSize: '13px', color: '#3730a3' }}>Dinamik Paket Kataloğu</span>
                                         <h1 className="mb-0 fw-bold" style={{ fontSize: '28px', lineHeight: 1.2, color: '#312e81' }}>
                                             {loadingStats ? (
-                                                <Spinner animation="border" role="status" size="sm">
-                                                    <span className="visually-hidden">Yükleniyor...</span>
-                                                </Spinner>
+                                                <Skeleton width="60px" height="28px" />
                                             ) : stats.totalPackages}
                                         </h1>
                                     </div>
@@ -289,9 +285,7 @@ export default function Home() {
                                         <div className="d-flex align-items-center gap-2">
                                             <h2 className="mb-0 fw-bold" style={{ fontSize: '18px', lineHeight: 1, color: '#9d174d' }}>
                                                 {loadingStats ? (
-                                                    <Spinner animation="border" role="status" size="sm">
-                                                        <span className="visually-hidden">Yükleniyor...</span>
-                                                    </Spinner>
+                                                    <Skeleton width="45px" height="20px" />
                                                 ) : stats.totalJobs}
                                             </h2>
                                         </div>
@@ -330,9 +324,7 @@ export default function Home() {
                                         <div className="d-flex align-items-center gap-2">
                                             <h2 className="mb-0 fw-bold" style={{ fontSize: '18px', lineHeight: 1, color: '#065f46' }}>
                                                 {loadingStats ? (
-                                                    <Spinner animation="border" role="status" size="sm">
-                                                        <span className="visually-hidden">Yükleniyor...</span>
-                                                    </Spinner>
+                                                    <Skeleton width="45px" height="20px" />
                                                 ) : stats.activeTjkRuns > 0 ? `${stats.activeTjkRuns} Aktif` : 'Hazır'}
                                             </h2>
                                         </div>
@@ -395,8 +387,8 @@ export default function Home() {
                             </Card.Header>
                             <Card.Body className="p-0">
                                 {loadingStats && (
-                                    <div className="p-4 text-center">
-                                        <Spinner animation="border" role="status" variant="primary" />
+                                    <div className="p-3">
+                                        <TableSkeleton columns={5} rows={4} />
                                     </div>
                                 )}
                                 {!loadingStats && recentAdverts.length === 0 && (

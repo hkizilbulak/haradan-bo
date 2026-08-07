@@ -169,13 +169,13 @@ export default function Users() {
       {isModalOpen && modalContent}
       {securityUser && <SecurityEventsModal userId={securityUser.identifier!} userName={`${securityUser.firstName} ${securityUser.lastName}`} onClose={() => setSecurityUser(null)} />}
 
-      {isLoading && <Loading />}
-
-      {!isLoading && <PrepareTable
+      <PrepareTable
         headItems={headItems}
         content={content}
+        isLoading={isLoading}
         page={data?.page}
-        onHandlePageChange={(page) => handlePageChange(page)} />}
+        onHandlePageChange={(page) => handlePageChange(page)} />
+
     </Container>
   );
 }

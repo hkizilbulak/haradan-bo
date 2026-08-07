@@ -142,3 +142,27 @@
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
   }
 }
+
+// 8. Skeleton Loader & Shimmer Effect
+.skeleton {
+  background: #e2e8f0;
+  background: linear-gradient(
+    90deg,
+    #e2e8f0 0%,
+    #f1f5f9 50%,
+    #e2e8f0 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite ease-in-out;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
