@@ -46,6 +46,16 @@ Get-Content .env | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$' -and $matches
 go run ./cmd/api
 ```
 
+eğer mac kullanıyorsan
+...
+export HTTP_ADDR=":3001"
+set -a
+source .env
+set +a
+export HTTP_ADDR=":3001"
+go run ./cmd/api
+...
+
 *(Opsiyonel: TJK Senkronizasyonunu backend tarafında aktif etmek için `$env:TJK_ENABLED="true"` ekleyebilirsiniz.)*
 
 ---
