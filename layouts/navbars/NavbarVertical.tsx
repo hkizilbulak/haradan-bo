@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 import { Fragment, useContext } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation'
@@ -74,11 +74,35 @@ const NavbarVertical = (props: IProps) => {
 	};
 
 	const generateLink = (item: IMenuProps) => {
+		const isExternal = item.link?.startsWith('http');
+		if (isExternal) {
+			return (
+				<a
+					href={item.link}
+					target="_blank"
+					rel="noopener noreferrer"
+					className={`nav-link ${location === item.link ? 'active' : ''}`}
+					onClick={(e) =>
+						isMobile ? props.onClick(!props.showMenu) : props.showMenu
+					}>
+					{item.name || item.title}
+					{item.badge ? (
+						<Badge
+							className="ms-1"
+							bg={item.badgecolor ? item.badgecolor : 'primary'}
+						>
+							{item.badge}
+						</Badge>
+					) : (
+						''
+					)}
+				</a>
+			);
+		}
 		return (
-			<a
-				href={item.link}
-				className={`nav-link ${location === item.link ? 'active' : ''
-					}`}
+			<Link
+				href={item.link || '#'}
+				className={`nav-link ${location === item.link ? 'active' : ''}`}
 				onClick={(e) =>
 					isMobile ? props.onClick(!props.showMenu) : props.showMenu
 				}>
@@ -93,7 +117,7 @@ const NavbarVertical = (props: IProps) => {
 				) : (
 					''
 				)}
-			</a>
+			</Link>
 		);
 	};
 
@@ -202,19 +226,34 @@ const NavbarVertical = (props: IProps) => {
 									</Fragment>
 								);
 							} else {
+								const isExternal = menu.link?.startsWith('http');
 								return (
 									<Card bsPrefix="nav-item" key={index}>
-										<a href={menu.link} className={`nav-link ${location === menu.link ? 'active' : ''} ${menu.title === 'Haradan.com' ? 'bg-primary text-white' : ''}`}>
-											{typeof menu.icon === 'string' ? (
-												<i className={`nav-icon fe fe-${menu.icon} me-2`}></i>
-											) : (menu.icon)}
-											{menu.title}
-											{menu.badge ? (
-												<Badge className="ms-1" bg={menu.badgecolor ? menu.badgecolor : 'primary'}>
-													{menu.badge}
-												</Badge>
-											) : ('')}
-										</a>
+										{isExternal ? (
+											<a href={menu.link} target="_blank" rel="noopener noreferrer" className={`nav-link ${location === menu.link ? 'active' : ''} ${menu.title === 'Haradan.com' ? 'bg-primary text-white' : ''}`}>
+												{typeof menu.icon === 'string' ? (
+													<i className={`nav-icon fe fe-${menu.icon} me-2`}></i>
+												) : (menu.icon)}
+												{menu.title}
+												{menu.badge ? (
+													<Badge className="ms-1" bg={menu.badgecolor ? menu.badgecolor : 'primary'}>
+														{menu.badge}
+													</Badge>
+												) : ('')}
+											</a>
+										) : (
+											<Link href={menu.link || '#'} className={`nav-link ${location === menu.link ? 'active' : ''} ${menu.title === 'Haradan.com' ? 'bg-primary text-white' : ''}`}>
+												{typeof menu.icon === 'string' ? (
+													<i className={`nav-icon fe fe-${menu.icon} me-2`}></i>
+												) : (menu.icon)}
+												{menu.title}
+												{menu.badge ? (
+													<Badge className="ms-1" bg={menu.badgecolor ? menu.badgecolor : 'primary'}>
+														{menu.badge}
+													</Badge>
+												) : ('')}
+											</Link>
+										)}
 									</Card>
 								);
 							}

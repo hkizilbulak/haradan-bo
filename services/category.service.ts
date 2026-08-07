@@ -1,5 +1,5 @@
+import axios from 'axios';
 import { API_URL } from '@/contants/urls';
-import { apiRequest } from '@/helpers/api/openapiClient';
 import { CategoryRequest, CategoryResponse } from '@/models';
 import { PagedResponse, PageParams, SearchParams } from '@/models/common';
 import { EntityStatusEnum } from '@/models/enums';
@@ -21,12 +21,63 @@ type AdminCategoryListResponse = {
     nextCursor?: string;
 };
 
+type PublicCategoryTreeNode = {
+    id: string;
+    slug: string;
+    name: string;
+    children?: PublicCategoryTreeNode[];
+};
+
+type PublicCategoryTreeResponse = {
+    items: PublicCategoryTreeNode[];
+};
+
 type CategoryTreeNode = Omit<CategoryResponse, 'children' | 'version'> & {
     version: number;
     children: CategoryTreeNode[];
 };
 
 const baseUrl = `${API_URL}v1/admin/categories`;
+const publicUrl = `${API_URL}v1/categories`;
+
+const categoryClient = axios.create({
+    headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
+    },
+    withCredentials: true,
+});
+
+categoryClient.interceptors.request.use((config) => {
+    if (config.url) {
+        config.url = config.url.replace(/^\/api\/api\//, '/api/');
+        if (typeof window !== 'undefined' && window.location.port === '3000') {
+            if (config.url.startsWith('/api/')) {
+                config.url = (process.env.NEXT_PUBLIC_DEV_PROXY_URL || 'http://localhost:8080') + config.url;
+            }
+        }
+    }
+    return config;
+});
+
+function flattenPublicTree(nodes: PublicCategoryTreeNode[], parentId?: string): AdminCategoryItem[] {
+    const result: AdminCategoryItem[] = [];
+    nodes.forEach((node, index) => {
+        result.push({
+            id: node.id,
+            name: node.name,
+            slug: node.slug,
+            sortOrder: index + 1,
+            parentId: parentId || null,
+            isActive: true,
+            version: 1,
+        });
+        if (node.children && node.children.length > 0) {
+            result.push(...flattenPublicTree(node.children, node.id));
+        }
+    });
+    return result;
+}
 
 class CategoryService {
     async search(params: SearchParams<CategoryResponse>) {
@@ -37,7 +88,7 @@ class CategoryService {
     }
 
     async save(request: CategoryRequest) {
-        await apiRequest('POST', baseUrl, {
+        await categoryClient.post(baseUrl, {
             name: request.name,
             slug: request.slug,
             parentId: request.parentId || undefined,
@@ -51,7 +102,7 @@ class CategoryService {
             throw new Error('Kategori kimliği gerekli.');
         }
 
-        await apiRequest('PATCH', `${baseUrl}/${request.identifier}`, {
+        await categoryClient.patch(`${baseUrl}/${request.identifier}`, {
             expectedVersion: Math.max(1, request.expectedVersion ?? 1),
             name: request.name,
             slug: request.slug,
@@ -61,21 +112,21 @@ class CategoryService {
     }
 
     async _delete(identifier: string, expectedVersion?: number) {
-        await apiRequest('POST', `${baseUrl}/${identifier}/active`, {
+        await categoryClient.post(`${baseUrl}/${identifier}/active`, {
             expectedVersion: Math.max(1, expectedVersion ?? 1),
             isActive: false,
         });
     }
 
     async activate(identifier: string, expectedVersion?: number) {
-        await apiRequest('POST', `${baseUrl}/${identifier}/active`, {
+        await categoryClient.post(`${baseUrl}/${identifier}/active`, {
             expectedVersion: Math.max(1, expectedVersion ?? 1),
             isActive: true,
         });
     }
 
     async reparent(identifier: string, expectedVersion: number, parentId?: string) {
-        await apiRequest('POST', `${baseUrl}/${identifier}/reparent`, {
+        await categoryClient.post(`${baseUrl}/${identifier}/reparent`, {
             expectedVersion: Math.max(1, expectedVersion ?? 1),
             newParentId: parentId || undefined,
         });
@@ -83,22 +134,35 @@ class CategoryService {
 
     private async fetchAll() {
         const items: AdminCategoryItem[] = [];
-        let cursor: string | undefined;
-        let hasMore = true;
+        try {
+            let cursor: string | undefined;
+            let hasMore = true;
 
-        while (hasMore) {
-            const response = await apiRequest<AdminCategoryListResponse>('GET', baseUrl, undefined, {
-                params: {
-                    cursor,
-                    limit: 100,
-                },
-            });
-            items.push(...response.items);
-            hasMore = response.hasMore;
-            cursor = response.nextCursor;
+            while (hasMore) {
+                const response = await categoryClient.get<AdminCategoryListResponse>(baseUrl, {
+                    params: {
+                        cursor,
+                        limit: 100,
+                    },
+                });
+                items.push(...(response.data?.items || []));
+                hasMore = !!response.data?.hasMore;
+                cursor = response.data?.nextCursor;
+            }
+
+            return items;
+        } catch (err) {
+            // Fallback to public categories tree if admin categories endpoint returns 401 or error
+            try {
+                const response = await categoryClient.get<PublicCategoryTreeResponse>(publicUrl);
+                if (response.data?.items) {
+                    return flattenPublicTree(response.data.items);
+                }
+            } catch (fallbackErr) {
+                console.error('Error fetching categories fallback:', fallbackErr);
+            }
+            return items;
         }
-
-        return items;
     }
 
     private applyFilter(items: AdminCategoryItem[], filter?: string) {

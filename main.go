@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -30,6 +31,7 @@ type appServer struct {
 	client     *http.Client
 	fileServer http.Handler
 	subFS      fs.FS
+	refreshMu  sync.Mutex
 }
 
 type loginRequest struct {
@@ -237,21 +239,28 @@ func (s *appServer) handleAPIProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode == http.StatusUnauthorized {
-		clearSessionCookies(w, r)
-	}
-
 	writeBackendResponse(w, response, responseBody)
 }
 
 func (s *appServer) performAuthenticatedRequest(ctx context.Context, w http.ResponseWriter, r *http.Request, targetPath string, requestBody []byte) (*http.Response, []byte, error) {
-	response, responseBody, err := s.doBackendJSONRequest(ctx, r.Method, targetPath, requestBody, readCookieValue(r, accessTokenCookieName), r.URL.Query())
+	initialAccessToken := readCookieValue(r, accessTokenCookieName)
+	response, responseBody, err := s.doBackendJSONRequest(ctx, r.Method, targetPath, requestBody, initialAccessToken, r.URL.Query())
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if response.StatusCode != http.StatusUnauthorized {
 		return response, responseBody, nil
+	}
+
+	s.refreshMu.Lock()
+	defer s.refreshMu.Unlock()
+
+	// Check if another concurrent request already refreshed token
+	currentAccessToken := readCookieValue(r, accessTokenCookieName)
+	if currentAccessToken != "" && currentAccessToken != initialAccessToken {
+		response.Body.Close()
+		return s.doBackendJSONRequest(ctx, r.Method, targetPath, requestBody, currentAccessToken, r.URL.Query())
 	}
 
 	refreshToken := readCookieValue(r, refreshTokenCookieName)

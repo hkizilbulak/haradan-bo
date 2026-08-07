@@ -75,7 +75,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     return subscribeToUnauthorizedEvent(() => {
-      clearSession(true);
+      authService.getSession().then((currSession) => {
+        if (!hasActiveAdminAccess(currSession?.user)) {
+          clearSession(true);
+        }
+      }).catch(() => {
+        clearSession(true);
+      });
     });
   }, [clearSession]);
 
