@@ -1,4 +1,144 @@
 // 
 // user.scss
-// Use this to write your custom SCSS
+// Visual polish and custom styling for haradan-bo backoffice UI
 //
+
+// 1. Layout & Page Breathing Room
+#page-content {
+  padding-bottom: 3.5rem !important;
+  min-height: 100vh;
+}
+
+.container-fluid {
+  padding-bottom: 2.5rem;
+}
+
+// 2. Modern Card Design & Subtle Shadows
+.card {
+  border: 1px solid rgba(226, 232, 240, 0.8) !important;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.035), 0 2px 6px -1px rgba(15, 23, 42, 0.02) !important;
+  border-radius: 12px !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &.card-hover:hover,
+  &.hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -3px rgba(15, 23, 42, 0.07), 0 4px 6px -2px rgba(15, 23, 42, 0.03) !important;
+  }
+}
+
+.card-header {
+  background-color: transparent;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  padding: 1.15rem 1.5rem;
+}
+
+.card-body {
+  padding: 1.5rem;
+}
+
+.card-footer {
+  background-color: transparent;
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+  padding: 1rem 1.5rem;
+}
+
+// 3. Table Visual Enhancements
+.table {
+  margin-bottom: 0;
+
+  thead th {
+    background-color: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.875rem 1rem;
+  }
+
+  tbody td {
+    padding: 0.95rem 1rem;
+    vertical-align: middle;
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.875rem;
+  }
+
+  tbody tr {
+    transition: background-color 0.15s ease-in-out;
+
+    &:hover {
+      background-color: rgba(248, 250, 252, 0.85) !important;
+    }
+
+    &:last-child td {
+      border-bottom: none;
+    }
+  }
+}
+
+// 4. Badges & Pill Styling
+.badge {
+  padding: 0.4em 0.7em;
+  font-weight: 600;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+// 5. Button Enhancements
+.btn {
+  border-radius: 8px;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  transition: all 0.2s ease-in-out;
+
+  &:focus, &.focus {
+    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.15);
+  }
+}
+
+.btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8125rem;
+  border-radius: 6px;
+}
+
+.btn-primary {
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.15);
+  &:hover {
+    box-shadow: 0 4px 10px rgba(99, 102, 241, 0.25);
+    transform: translateY(-1px);
+  }
+}
+
+// 6. Navigation Polish
+.navbar-classic {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  padding: 0.75rem 1.5rem !important;
+}
+
+.navbar-vertical {
+  border-right: 1px solid #e2e8f0;
+}
+
+// 7. Form Controls Polish
+.form-control, .form-select {
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+
+  &:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  }
+}
