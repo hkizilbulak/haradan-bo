@@ -1,7 +1,11 @@
 //
 // user-variables.scss
-// Use this to overwrite Bootstrap and Dashui variables
+// Overwrites for Bootstrap and Dashui variables
 //
-// Example of a variable override to change Dashui primary color
-// Remove the "//" to comment it in and see it in action!
-// $primary: #000;
+
+$primary: #6366f1 !default;       // Modern Indigo
+$primary-dark: #4f46e5 !default;  // Deep Indigo
+$primary-light: #e0e7ff !default; // Soft Pastel Indigo
+
+$font-family-base: 'Inter', system-ui, -apple-system, sans-serif !default;
+
