@@ -1,5 +1,8 @@
 import { ApiErrorResponse } from "@/models/common";
 import { AxiosError } from 'axios';
+import { formatMoneyInput, parseMoneyInput, SUPPORTED_MONEY_FRACTION_DIGITS } from './money';
+
+export { formatMoneyInput, parseMoneyInput, SUPPORTED_MONEY_FRACTION_DIGITS } from './money';
 
 export function copyMatchingKeyValues(target: any, source: any) {
     Object.keys(target).forEach(key => {
@@ -66,6 +69,10 @@ export function getErrorMessage(error: unknown): string {
         if (nested) return nested;
     }
 
+    if (error instanceof Error && error.message.trim()) {
+        return error.message;
+    }
+
     return "Beklenmeyen bir hata oluştu.";
 }
 
@@ -90,77 +97,14 @@ export function formatMoney(amountMinor?: number, currency?: string) {
  * Do not apply *100 blindly for exotic fraction-digit currencies — BE Money is
  * integer amountMinor + 3-letter currency without per-currency exponent metadata.
  */
-export const SUPPORTED_MONEY_FRACTION_DIGITS = 2;
-
 /** Convert major decimal string/number to minor integer (e.g. 199,90 TRY → 19990). */
 export function toAmountMinor(major: string | number | undefined | null): number | undefined {
-    if (major === undefined || major === null || major === '') {
-        return undefined;
-    }
-
-    const raw = String(major).trim().replace(/\s/g, '');
-    if (!raw || raw.startsWith('-')) {
-        return undefined;
-    }
-
-    const hasComma = raw.includes(',');
-    const hasDot = raw.includes('.');
-
-    let whole: string;
-    let fraction = '';
-
-    if (hasComma && hasDot) {
-        // Prefer TR: `.` thousands, `,` decimal (e.g. 1.234,56). Reject US-style 1,234.56.
-        const lastComma = raw.lastIndexOf(',');
-        const lastDot = raw.lastIndexOf('.');
-        if (lastComma < lastDot) {
-            return undefined;
-        }
-        whole = raw.slice(0, lastComma).replace(/\./g, '');
-        fraction = raw.slice(lastComma + 1);
-    } else if (hasComma) {
-        const parts = raw.split(',');
-        if (parts.length !== 2) {
-            return undefined;
-        }
-        whole = parts[0];
-        fraction = parts[1];
-    } else if (hasDot) {
-        // Only `.`: treat as decimal separator (199.90), not thousands.
-        const parts = raw.split('.');
-        if (parts.length !== 2) {
-            return undefined;
-        }
-        whole = parts[0];
-        fraction = parts[1];
-    } else {
-        whole = raw;
-    }
-
-    if (!/^\d+$/.test(whole) || (fraction !== '' && !/^\d+$/.test(fraction))) {
-        return undefined;
-    }
-    if (fraction.length > SUPPORTED_MONEY_FRACTION_DIGITS) {
-        return undefined;
-    }
-
-    const paddedFraction = (fraction + '00').slice(0, SUPPORTED_MONEY_FRACTION_DIGITS);
-    try {
-        const minor = BigInt(whole) * BigInt(100) + BigInt(paddedFraction);
-        if (minor > BigInt(Number.MAX_SAFE_INTEGER)) {
-            return undefined;
-        }
-        return Number(minor);
-    } catch {
-        return undefined;
-    }
+    const parsed = parseMoneyInput(major === undefined || major === null ? null : String(major));
+    return parsed.kind === 'valid' ? parsed.amountMinor : undefined;
 }
 
 export function fromAmountMinor(amountMinor?: number | null): string {
-    if (amountMinor === undefined || amountMinor === null) {
-        return '';
-    }
-    return (amountMinor / 100).toFixed(2);
+    return formatMoneyInput(amountMinor);
 }
 
 /** Allows only same-origin relative paths for post-login navigation. */

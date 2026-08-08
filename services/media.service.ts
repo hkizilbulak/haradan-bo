@@ -32,7 +32,12 @@ export type InitiateMediaUploadResponse = {
 export type MediaProcessingStatusResponse = {
   assetId: string;
   lifecycleStatus: MediaAssetLifecycle | string;
-  variants?: unknown[];
+  failureMessage?: string | null;
+  variants?: Array<{
+    transformProfile: string;
+    lifecycleStatus: string;
+    publicUrl?: string | null;
+  }>;
 };
 
 const SUCCESS_TERMINAL: MediaAssetLifecycle = 'MASTER_READY';
@@ -48,6 +53,25 @@ const baseUrl = `${API_URL}v1/admin/media`;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function bannerVariantReady(status: MediaProcessingStatusResponse) {
+  return status.lifecycleStatus === SUCCESS_TERMINAL
+    && status.variants?.some((variant) => variant.transformProfile === 'BANNER' && variant.lifecycleStatus === 'READY');
+}
+
+function processingFailureMessage(status: MediaProcessingStatusResponse) {
+  if (status.failureMessage?.trim()) {
+    return status.failureMessage;
+  }
+  if (status.lifecycleStatus === 'VALIDATION_FAILED') {
+    return 'Yüklenen görsel doğrulamadan geçemedi.';
+  }
+  const bannerVariant = status.variants?.find((variant) => variant.transformProfile === 'BANNER');
+  if (bannerVariant?.lifecycleStatus === 'FAILED') {
+    return 'Banner önizlemesi hazırlanamadı. Lütfen tekrar deneyin.';
+  }
+  return undefined;
 }
 
 export class MediaService {
@@ -76,57 +100,49 @@ export class MediaService {
    */
   uploadAdminAsset = async (
     file: File,
-    options?: { pollAttempts?: number; pollDelayMs?: number },
+    options?: { pollAttempts?: number; pollDelayMs?: number; onStageChange?: (stage: 'UPLOADING' | 'PROCESSING') => void },
   ): Promise<MediaProcessingStatusResponse> => {
-    const initiated = await this.initiateUpload(file.type || 'application/octet-stream', file.size);
-    const headers: Record<string, string> = {
-      ...(initiated.upload.headers || {}),
-    };
-    if (!headers['Content-Type'] && file.type) {
-      headers['Content-Type'] = file.type;
-    }
-
-    const uploadResponse = await fetch(initiated.upload.url, {
-      method: initiated.upload.method || 'PUT',
-      headers,
+    options?.onStageChange?.('UPLOADING');
+    const uploadResponse = await fetch('/api/bo/media-upload', {
+      method: 'POST',
+      headers: { 'Content-Type': file.type },
       body: file,
     });
 
     if (!uploadResponse.ok) {
-      throw new Error('Dosya yüklemesi başarısız oldu.');
+      const errorBody = await uploadResponse.json().catch(() => null) as { message?: string } | null;
+      throw new Error(errorBody?.message || 'Görsel yüklenemedi. Lütfen tekrar deneyin.');
     }
 
-    let status = await this.confirmUpload(initiated.assetId);
-    const attempts = options?.pollAttempts ?? 8;
+    const relayed = await uploadResponse.json() as { assetId: string };
+    if (!relayed.assetId) {
+      throw new Error('Görsel yükleme yanıtı geçersiz. Lütfen tekrar deneyin.');
+    }
+
+    options?.onStageChange?.('PROCESSING');
+    let status = await this.confirmUpload(relayed.assetId);
+    const attempts = options?.pollAttempts ?? 30;
     const delayMs = options?.pollDelayMs ?? 1000;
 
     for (let i = 0; i < attempts; i += 1) {
-      if (status.lifecycleStatus === SUCCESS_TERMINAL) {
+      if (bannerVariantReady(status)) {
         return status;
       }
+      const failureMessage = processingFailureMessage(status);
+      if (failureMessage) {
+        throw new Error(failureMessage);
+      }
       if (FAILURE_TERMINAL.has(status.lifecycleStatus as MediaAssetLifecycle)) {
-        throw new Error(
-          status.lifecycleStatus === 'VALIDATION_FAILED'
-            ? 'Yüklenen medya doğrulamadan geçemedi.'
-            : `Medya işleme başarısız oldu (${status.lifecycleStatus}).`,
-        );
+        throw new Error('Görsel işlenemedi. Lütfen tekrar deneyin.');
       }
       await sleep(delayMs);
-      status = await this.getStatus(initiated.assetId);
+      status = await this.getStatus(relayed.assetId);
     }
 
-    if (status.lifecycleStatus === SUCCESS_TERMINAL) {
+    if (bannerVariantReady(status)) {
       return status;
     }
-    if (FAILURE_TERMINAL.has(status.lifecycleStatus as MediaAssetLifecycle)) {
-      throw new Error(
-        status.lifecycleStatus === 'VALIDATION_FAILED'
-          ? 'Yüklenen medya doğrulamadan geçemedi.'
-          : `Medya işleme başarısız oldu (${status.lifecycleStatus}).`,
-      );
-    }
-
-    throw new Error('Medya işleme zaman aşımına uğradı. Lütfen tekrar deneyin.');
+    throw new Error('Banner önizlemesi hazırlanırken zaman aşımı oluştu. Lütfen tekrar deneyin.');
   };
 
   previewUrl = (assetId: string, profile: MediaDeliveryProfile = 'BANNER') => {

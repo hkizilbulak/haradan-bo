@@ -24,6 +24,7 @@ const (
 	accessTokenCookieName  = "haradan_bo_access_token"
 	refreshTokenCookieName = "haradan_bo_refresh_token"
 	adminClientContext     = "ADMIN_BO"
+	maxRelayedUploadBytes  = 64 << 20
 )
 
 type appServer struct {
@@ -65,6 +66,19 @@ type myProfileResponse struct {
 
 type sessionResponse struct {
 	User myProfileResponse `json:"user"`
+}
+
+type mediaUploadGrant struct {
+	AssetID string `json:"assetId"`
+	Upload  struct {
+		Method  string            `json:"method"`
+		URL     string            `json:"url"`
+		Headers map[string]string `json:"headers"`
+	} `json:"upload"`
+}
+
+type relayedMediaUploadResponse struct {
+	AssetID string `json:"assetId"`
 }
 
 func main() {
@@ -164,12 +178,118 @@ func (s *appServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 		s.handleSessionRequest(w, r)
 		return
 	}
+	if r.URL.Path == "/api/bo/media-upload" {
+		s.handleMediaUploadRelay(w, r)
+		return
+	}
 	if strings.HasPrefix(r.URL.Path, "/api/") {
 		s.handleAPIProxy(w, r)
 		return
 	}
 
 	s.serveStatic(w, r)
+}
+
+// handleMediaUploadRelay performs only the provider PUT server-side. The BO
+// browser stays same-origin, while initiation, confirmation and processing
+// remain authoritative backend operations.
+func (s *appServer) handleMediaUploadRelay(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	contentType := strings.ToLower(strings.TrimSpace(strings.Split(r.Header.Get("Content-Type"), ";")[0]))
+	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/webp" {
+		writeJSONError(w, http.StatusUnprocessableEntity, "Yalnızca JPEG, PNG veya WebP görseller yüklenebilir.")
+		return
+	}
+	if r.ContentLength > maxRelayedUploadBytes {
+		writeJSONError(w, http.StatusRequestEntityTooLarge, "Görsel izin verilen boyuttan büyük.")
+		return
+	}
+
+	limited := http.MaxBytesReader(w, r.Body, maxRelayedUploadBytes)
+	fileBytes, err := io.ReadAll(limited)
+	if err != nil {
+		writeJSONError(w, http.StatusRequestEntityTooLarge, "Görsel izin verilen boyuttan büyük.")
+		return
+	}
+	if len(fileBytes) == 0 {
+		writeJSONError(w, http.StatusUnprocessableEntity, "Yüklenecek görsel boş olamaz.")
+		return
+	}
+
+	initiateBody, err := json.Marshal(map[string]any{
+		"declaredContentType": contentType,
+		"declaredByteSize":    len(fileBytes),
+	})
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "Görsel yükleme isteği hazırlanamadı.")
+		return
+	}
+	response, responseBody, err := s.performAuthenticatedRequest(
+		r.Context(), w, r, "/api/v1/admin/media/uploads", initiateBody,
+	)
+	if err != nil {
+		writeJSONError(w, http.StatusBadGateway, "Görsel yükleme hizmetine ulaşılamadı. Lütfen tekrar deneyin.")
+		return
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusCreated {
+		writeBackendResponse(w, response, responseBody)
+		return
+	}
+
+	var grant mediaUploadGrant
+	if err := json.Unmarshal(responseBody, &grant); err != nil || grant.AssetID == "" {
+		writeJSONError(w, http.StatusBadGateway, "Görsel yükleme izni alınamadı. Lütfen tekrar deneyin.")
+		return
+	}
+	uploadURL, err := url.Parse(grant.Upload.URL)
+	if err != nil || !isSafeProviderUploadURL(uploadURL) || !strings.EqualFold(grant.Upload.Method, http.MethodPut) {
+		writeJSONError(w, http.StatusBadGateway, "Görsel yükleme izni geçersiz. Lütfen tekrar deneyin.")
+		return
+	}
+
+	uploadRequest, err := http.NewRequestWithContext(r.Context(), http.MethodPut, uploadURL.String(), bytes.NewReader(fileBytes))
+	if err != nil {
+		writeJSONError(w, http.StatusBadGateway, "Görsel yükleme başlatılamadı. Lütfen tekrar deneyin.")
+		return
+	}
+	for key, value := range grant.Upload.Headers {
+		uploadRequest.Header.Set(key, value)
+	}
+	if uploadRequest.Header.Get("Content-Type") == "" {
+		uploadRequest.Header.Set("Content-Type", contentType)
+	}
+
+	uploadClient := *s.client
+	uploadClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
+	uploadResponse, err := uploadClient.Do(uploadRequest)
+	if err != nil {
+		writeJSONError(w, http.StatusBadGateway, "Görsel depolama alanına yüklenemedi. Lütfen tekrar deneyin.")
+		return
+	}
+	defer uploadResponse.Body.Close()
+	_, _ = io.Copy(io.Discard, uploadResponse.Body)
+	if uploadResponse.StatusCode < http.StatusOK || uploadResponse.StatusCode >= http.StatusMultipleChoices {
+		writeJSONError(w, http.StatusBadGateway, "Görsel depolama alanına yüklenemedi. Lütfen tekrar deneyin.")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, relayedMediaUploadResponse{AssetID: grant.AssetID})
+}
+
+func isSafeProviderUploadURL(target *url.URL) bool {
+	if target == nil || target.Host == "" || target.User != nil {
+		return false
+	}
+	if strings.EqualFold(target.Scheme, "https") {
+		return true
+	}
+	host := strings.ToLower(target.Hostname())
+	return strings.EqualFold(target.Scheme, "http") && (host == "localhost" || host == "127.0.0.1" || host == "::1")
 }
 
 func (s *appServer) handleSessionRequest(w http.ResponseWriter, r *http.Request) {

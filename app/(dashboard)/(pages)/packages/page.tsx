@@ -8,7 +8,7 @@ import SafeRichText from '@/components/SafeRichText';
 import PrepareTable from '@/components/PrepareTable';
 import StatusBadge from '@/components/StatusBadge';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
-import { formatMoney, fromAmountMinor, getErrorMessage, toAmountMinor } from '@/helpers/HelperUtils';
+import { formatMoney, formatMoneyInput, getErrorMessage, parseMoneyInput } from '@/helpers/HelperUtils';
 import { sanitizeRichHtml } from '@/helpers/sanitizeHtml';
 import React, { useState } from 'react';
 import useApi from '@/hooks/useApi';
@@ -67,7 +67,7 @@ function PackagePreview({ value }: { value: PackageRequest }) {
   );
 }
 
-function PackageModal({ selectedPackage, onClose, onSave }: { selectedPackage?: PackageResponse; onClose: () => void; onSave: (value: PackageRequest) => void; }) {
+function PackageModal({ selectedPackage, onClose, onSave }: { selectedPackage?: PackageResponse; onClose: () => void; onSave: (value: PackageRequest) => Promise<void>; }) {
   const isNew = !selectedPackage?.code;
   const values: PackageRequest = selectedPackage ? {
     identifier: selectedPackage.code,
@@ -85,6 +85,8 @@ function PackageModal({ selectedPackage, onClose, onSave }: { selectedPackage?: 
     broadcastOnPublish: selectedPackage.broadcastOnPublish,
     isActive: selectedPackage.isActive,
   } : initialValues;
+  const [priceInput, setPriceInput] = useState(() => formatMoneyInput(values.amountMinor));
+  const parsedPrice = parseMoneyInput(priceInput);
 
   const schema = Yup.object().shape({
     displayName: Yup.string().required('Ad zorunludur'),
@@ -101,7 +103,21 @@ function PackageModal({ selectedPackage, onClose, onSave }: { selectedPackage?: 
         <Offcanvas.Title>{isNew ? 'Yeni Paket' : 'Paket Düzenle'}</Offcanvas.Title>
       </Offcanvas.Header>
       <Offcanvas.Body>
-        <Formik initialValues={values} enableReinitialize validationSchema={schema} onSubmit={onSave}>
+        <Formik
+          initialValues={values}
+          enableReinitialize
+          validationSchema={schema}
+          onSubmit={async (formValues) => {
+            const price = parseMoneyInput(priceInput);
+            if (price.kind === 'invalid') {
+              return;
+            }
+            await onSave({
+              ...formValues,
+              amountMinor: price.kind === 'valid' ? price.amountMinor : undefined,
+            });
+          }}
+        >
           {({ handleSubmit, handleChange, setFieldValue, values, errors, touched, isValid, isSubmitting }) => (
             <Form noValidate onSubmit={handleSubmit}>
               <Form.Group className="mb-3">
@@ -164,21 +180,24 @@ function PackageModal({ selectedPackage, onClose, onSave }: { selectedPackage?: 
                 <Form.Label>Fiyat (₺)</Form.Label>
                 <Form.Control
                   type="text"
-                  value={fromAmountMinor(values.amountMinor)}
-                  onChange={(e) => {
-                    const raw = e.target.value.trim();
-                    if (!raw) {
+                  inputMode="decimal"
+                  value={priceInput}
+                  onChange={(e) => setPriceInput(e.target.value)}
+                  onBlur={() => {
+                    const price = parseMoneyInput(priceInput);
+                    if (price.kind === 'empty') {
                       void setFieldValue('amountMinor', undefined);
-                      return;
+                    } else if (price.kind === 'valid') {
+                      void setFieldValue('amountMinor', price.amountMinor);
+                      setPriceInput(formatMoneyInput(price.amountMinor));
                     }
-                    const next = toAmountMinor(e.target.value);
-                    if (next === undefined) {
-                      return;
-                    }
-                    void setFieldValue('amountMinor', next);
                   }}
+                  isInvalid={parsedPrice.kind === 'invalid'}
                   placeholder="Örn. 199,90"
                 />
+                <Form.Control.Feedback type="invalid">
+                  Fiyatı 200,50 veya 1.200,50 biçiminde girin.
+                </Form.Control.Feedback>
               </Form.Group>
               <Form.Group className="mb-3">
                 <Form.Label>Varsayılan Süre (Gün)</Form.Label>
@@ -201,7 +220,7 @@ function PackageModal({ selectedPackage, onClose, onSave }: { selectedPackage?: 
                 </Form.Text>
               </Form.Group>
               <PackagePreview value={values} />
-              <Button disabled={!isValid || isSubmitting} variant="primary" as="input" type="submit" value={isNew ? 'Ekle' : 'Güncelle'} />
+              <Button disabled={!isValid || isSubmitting || parsedPrice.kind === 'invalid'} variant="primary" as="input" type="submit" value={isNew ? 'Ekle' : 'Güncelle'} />
             </Form>
           )}
         </Formik>

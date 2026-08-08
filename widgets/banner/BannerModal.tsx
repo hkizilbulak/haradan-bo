@@ -44,6 +44,7 @@ type IProps = {
 
 export default function BannerModal({ selectedBanner, onClose, onHandleSave }: IProps) {
   const [uploading, setUploading] = useState(false);
+  const [uploadStage, setUploadStage] = useState<'UPLOADING' | 'PROCESSING'>('UPLOADING');
 
   const validationSchema = Yup.object().shape({
     assetId: Yup.string().required('Görsel zorunludur'),
@@ -100,7 +101,7 @@ export default function BannerModal({ selectedBanner, onClose, onHandleSave }: I
                 <Form.Label>Görsel Yükle</Form.Label>
                 <Form.Control
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   disabled={uploading}
                   onChange={async (event) => {
                     const input = event.currentTarget as unknown as HTMLInputElement;
@@ -108,9 +109,15 @@ export default function BannerModal({ selectedBanner, onClose, onHandleSave }: I
                     if (!file) {
                       return;
                     }
+                    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                      toast.error('Yalnızca JPEG, PNG veya WebP görseller yüklenebilir.');
+                      input.value = '';
+                      return;
+                    }
                     setUploading(true);
+                    setUploadStage('UPLOADING');
                     try {
-                      const status = await mediaService.uploadAdminAsset(file);
+                      const status = await mediaService.uploadAdminAsset(file, { onStageChange: setUploadStage });
                       await setFieldValue('assetId', status.assetId);
                       toast.success('Görsel yüklendi');
                     } catch (error) {
@@ -124,7 +131,7 @@ export default function BannerModal({ selectedBanner, onClose, onHandleSave }: I
                 {uploading && (
                   <div className="mt-2 d-flex align-items-center gap-2 text-muted">
                     <Spinner size="sm" animation="border" />
-                    <span>Yükleniyor...</span>
+                    <span>{uploadStage === 'UPLOADING' ? 'Görsel yükleniyor…' : 'Görsel işleniyor ve önizleme hazırlanıyor…'}</span>
                   </div>
                 )}
               </Form.Group>

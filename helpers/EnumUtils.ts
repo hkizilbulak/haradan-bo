@@ -171,15 +171,15 @@ export function getTjkRunStatusText(searchType?: string) {
 }
 
 export function getTjkModeText(searchType?: string) {
-    if (searchType === 'FULL') return 'Tam';
-    if (searchType === 'INCREMENTAL') return 'Artımlı';
-    if (searchType === 'RECONCILIATION') return 'Mutabakat';
+    if (searchType === 'FULL') return 'Tam Senkronizasyon';
+    if (searchType === 'INCREMENTAL') return 'Artımlı Senkronizasyon';
+    if (searchType === 'RECONCILIATION') return 'Kayıtları Yeniden Eşleştirme';
     return searchType ?? '-';
 }
 
 export function getTjkTriggerKindText(searchType?: string) {
     if (searchType === 'MANUAL') return 'Manuel';
-    if (searchType === 'SCHEDULED') return 'Zamanlanmış';
+    if (searchType === 'SCHEDULED') return 'Otomatik';
     return searchType ?? '-';
 }
 
