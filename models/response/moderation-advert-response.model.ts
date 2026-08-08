@@ -11,11 +11,13 @@ export type ModerationAdvertStatus =
   | 'ARCHIVED';
 
 export interface ModerationAdvertResponse extends BaseResponse {
-  title?: string;
-  publishedAt?: string;
-  deletedAt?: string;
+  id?: string;
+  title?: string | null;
+  publishedAt?: string | null;
+  deletedAt?: string | null;
   status: ModerationAdvertStatus;
   version?: number;
-  categoryId?: string;
-  ownerUserId?: string;
+  categoryId?: string | null;
+  ownerUserId?: string | null;
+  mediaVersion?: number;
 }

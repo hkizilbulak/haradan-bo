@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { formatDateTimeForText } from '@/helpers/DateUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
 import { ModerationAdvertResponse } from '@/models';
-import { advertService, jobService, packageService, userService, tjkService } from '@/services';
+import { advertService, jobService, packageService, userService, tjkService, bannerService } from '@/services';
 import { toast } from 'react-toastify';
 import { Skeleton, TableSkeleton } from '@/components/Skeleton';
 
@@ -31,12 +31,13 @@ export default function Home() {
     const loadDashboardData = async () => {
         setLoadingStats(true);
         try {
-            const [advertsRes, usersRes, packagesRes, jobsRes, tjkRes] = await Promise.allSettled([
-                advertService.search({ pageRequest: { page: 0, size: 5 } }),
-                userService.search({ pageRequest: { page: 0, size: 100 } }),
+            const [advertsRes, usersRes, packagesRes, jobsRes, tjkRes, bannersRes] = await Promise.allSettled([
+                advertService.search({ filter: 'status==PENDING_REVIEW', pageRequest: { page: 0, size: 5 } }),
+                userService.fetchAll(),
                 packageService.search({ pageRequest: { page: 0, size: 100 } }),
                 jobService.search({ pageRequest: { page: 0, size: 100 } }),
                 tjkService.search({ pageRequest: { page: 0, size: 10 } }),
+                bannerService.search({ filter: 'status==ACTIVE', pageRequest: { page: 0, size: 100 } }),
             ]);
 
             let pendingCount = 0;
@@ -48,7 +49,7 @@ export default function Home() {
 
             let uCount = 0;
             if (usersRes.status === 'fulfilled') {
-                uCount = usersRes.value.page?.totalElements || (usersRes.value.content || []).length;
+                uCount = usersRes.value.length;
             }
 
             let pCount = 0;
@@ -68,12 +69,17 @@ export default function Home() {
                 ).length;
             }
 
+            let activeBannerCount = 0;
+            if (bannersRes.status === 'fulfilled') {
+                activeBannerCount = bannersRes.value.page?.totalElements || (bannersRes.value.content || []).length;
+            }
+
             setStats({
                 pendingAdvertsCount: pendingCount,
                 totalUsers: uCount,
                 totalPackages: pCount,
                 totalJobs: jCount,
-                activeBanners: 0,
+                activeBanners: activeBannerCount,
                 activeTjkRuns: tjkActiveCount,
             });
 
@@ -128,7 +134,7 @@ export default function Home() {
                                 onClick={() => void loadDashboardData()}
                             >
                                 <i className="fe fe-activity"></i>
-                                Canlı Sistem Özeti (Yenile)
+                                Verileri Yenile
                             </div>
                         </div>
 
@@ -238,7 +244,7 @@ export default function Home() {
                                         <i className="fe fe-package fs-3"></i>
                                     </div>
                                     <div className="d-flex flex-column gap-0.5">
-                                        <span className="fw-bold" style={{ fontSize: '13px', color: '#3730a3' }}>Dinamik Paket Kataloğu</span>
+                                        <span className="fw-bold" style={{ fontSize: '13px', color: '#3730a3' }}>Paketler</span>
                                         <h1 className="mb-0 fw-bold" style={{ fontSize: '28px', lineHeight: 1.2, color: '#312e81' }}>
                                             {loadingStats ? (
                                                 <Skeleton width="60px" height="28px" />
@@ -281,7 +287,7 @@ export default function Home() {
                                         <i className="fe fe-cpu fs-4"></i>
                                     </div>
                                     <div className="d-flex flex-column gap-0.5">
-                                        <span className="fw-bold" style={{ fontSize: '13px', color: '#be185d' }}>Tanımlı Zamanlanmış İşler (Joblar)</span>
+                                        <span className="fw-bold" style={{ fontSize: '13px', color: '#be185d' }}>Zamanlanmış İşler</span>
                                         <div className="d-flex align-items-center gap-2">
                                             <h2 className="mb-0 fw-bold" style={{ fontSize: '18px', lineHeight: 1, color: '#9d174d' }}>
                                                 {loadingStats ? (
@@ -343,7 +349,7 @@ export default function Home() {
                                         borderRadius: '12px',
                                         backgroundColor: '#fffbeb'
                                     }}
-                                    onClick={() => router.push('/notifications')}
+                                    onClick={() => router.push('/banners')}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.transform = 'translateY(-3px)';
                                         e.currentTarget.style.boxShadow = '0 10px 20px rgba(245, 158, 11, 0.08)';
@@ -356,13 +362,15 @@ export default function Home() {
                                     }}
                                 >
                                     <div className="d-flex align-items-center justify-content-center rounded-3" style={{ width: '42px', height: '42px', backgroundColor: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', flexShrink: 0 }}>
-                                        <i className="fe fe-mail fs-4"></i>
+                                        <i className="fe fe-image fs-4"></i>
                                     </div>
                                     <div className="d-flex flex-column gap-0.5">
-                                        <span className="fw-bold" style={{ fontSize: '13px', color: '#b45309' }}>Bildirim Şablonları & Kampanyalar</span>
+                                        <span className="fw-bold" style={{ fontSize: '13px', color: '#b45309' }}>Aktif Bannerlar</span>
                                         <div className="d-flex align-items-center gap-2">
                                             <h2 className="mb-0 fw-bold" style={{ fontSize: '18px', lineHeight: 1, color: '#78350f' }}>
-                                                Yönetim
+                                                {loadingStats ? (
+                                                    <Skeleton width="45px" height="20px" />
+                                                ) : stats.activeBanners}
                                             </h2>
                                         </div>
                                     </div>
@@ -404,7 +412,6 @@ export default function Home() {
                                                 <th className="px-4">İlan Başlığı</th>
                                                 <th>Durum</th>
                                                 <th>Yayın Tarihi</th>
-                                                <th>Versiyon</th>
                                                 <th className="text-end px-4">İşlem</th>
                                             </tr>
                                         </thead>
@@ -420,7 +427,6 @@ export default function Home() {
                                                     <td className="small text-muted">
                                                         {advert.publishedAt ? formatDateTimeForText(advert.publishedAt) : '-'}
                                                     </td>
-                                                    <td>{advert.version}</td>
                                                     <td className="text-end px-4">
                                                         <Button size="sm" variant="success" className="me-2" onClick={() => void handleApprove(advert)}>
                                                             Onayla

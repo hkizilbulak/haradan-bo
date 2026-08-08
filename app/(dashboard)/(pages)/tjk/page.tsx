@@ -1,6 +1,6 @@
 "use client"
-import React, { useState } from 'react';
-import { Badge, Button, Col, Container, Form, Modal, Offcanvas, Row, Table } from 'react-bootstrap';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, Badge, Button, Col, Container, Form, Modal, Offcanvas, Row, Table } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import Loading from '@/components/Loading';
@@ -9,28 +9,43 @@ import StatusBadge from '@/components/StatusBadge';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
 import { getTjkModeText, getTjkScopeText, getTjkTriggerKindText } from '@/helpers/EnumUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
-import useApi from '@/hooks/useApi';
+import useCursorApi from '@/hooks/useCursorApi';
 import useModal from '@/hooks/useModal';
 import { tjkService, TjkRunResponse, TjkItemError } from '@/services/tjk.service';
 import { PageHeading } from '@/widgets';
+import CursorPagination from '@/components/CursorPagination';
 import { toast } from 'react-toastify';
 
-const headItems = ['Mod', 'Durum', 'Kapsam', 'Kaynak', 'Tetik', 'Oluşturulma', ''];
+const headItems = ['Mod', 'Durum', 'Kapsam', 'Tetik', 'Oluşturulma', ''];
+
+function isCancellable(status: string) {
+  return status === 'QUEUED' || status === 'RUNNING';
+}
+
+function errorStatusText(status?: string) {
+  if (status === 'OPEN') return 'Açık';
+  if (status === 'RESOLVED') return 'Çözüldü';
+  if (status === 'IGNORED') return 'Yoksayıldı';
+  return status ?? '-';
+}
 
 function TriggerModal({ onClose, onSave }: { onClose: () => void; onSave: (value: { mode: string; sourceAdapter: string; scope: string; }) => void; }) {
   const values = { mode: 'FULL', sourceAdapter: 'TJK_HTTP', scope: 'HORSES' };
   const schema = Yup.object().shape({
     mode: Yup.string().required(),
-    sourceAdapter: Yup.string().required(),
   });
 
   return (
     <Offcanvas show={true} onHide={onClose} scroll placement="end">
       <Offcanvas.Header closeButton>
-        <Offcanvas.Title>TJK Senkron Başlat</Offcanvas.Title>
+        <Offcanvas.Title>Manuel Senkron Başlat</Offcanvas.Title>
       </Offcanvas.Header>
       <Offcanvas.Body>
-        <Formik initialValues={values} validationSchema={schema} onSubmit={onSave}>
+        <Formik
+          initialValues={values}
+          validationSchema={schema}
+          onSubmit={(formValues) => onSave({ ...formValues, sourceAdapter: 'TJK_HTTP' })}
+        >
           {({ handleSubmit, handleChange, values, isValid, isSubmitting }) => (
             <Form noValidate onSubmit={handleSubmit}>
               <Form.Group className="mb-3">
@@ -40,10 +55,6 @@ function TriggerModal({ onClose, onSave }: { onClose: () => void; onSave: (value
                   <option value="INCREMENTAL">Artımlı</option>
                   <option value="RECONCILIATION">Mutabakat</option>
                 </Form.Select>
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Kaynak</Form.Label>
-                <Form.Control name="sourceAdapter" value={values.sourceAdapter} onChange={handleChange} />
               </Form.Group>
               <Form.Group className="mb-3">
                 <Form.Label>Kapsam</Form.Label>
@@ -63,19 +74,26 @@ function TriggerModal({ onClose, onSave }: { onClose: () => void; onSave: (value
 function TjkErrorsModal({ runId, onClose }: { runId: string; onClose: () => void }) {
   const [items, setItems] = useState<TjkItemError[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const loadErrors = () => {
+  const loadErrors = useCallback(() => {
     setLoading(true);
+    setLoadError(null);
     tjkService.getItemErrors(runId)
-      .then(setItems)
-      .catch((err) => toast.error(getErrorMessage(err)))
+      .then((data) => {
+        setItems(data);
+        setLoadError(null);
+      })
+      .catch((err) => {
+        setItems([]);
+        setLoadError(getErrorMessage(err));
+      })
       .finally(() => setLoading(false));
-  };
+  }, [runId]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     loadErrors();
-  }, [runId]);
+  }, [loadErrors]);
 
   const handleAction = async (errorId: string, action: 'ignore' | 'resolve') => {
     try {
@@ -106,14 +124,20 @@ function TjkErrorsModal({ runId, onClose }: { runId: string; onClose: () => void
       </Modal.Header>
       <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
         {loading && <Loading />}
-        {!loading && items.length === 0 && <p className="text-muted">Bu koşuda hata kaydı yok.</p>}
-        {!loading && items.length > 0 && (
+        {!loading && loadError && (
+          <Alert variant="danger" className="d-flex justify-content-between align-items-center">
+            <span>{loadError}</span>
+            <Button size="sm" variant="outline-danger" onClick={loadErrors}>Tekrar Dene</Button>
+          </Alert>
+        )}
+        {!loading && !loadError && items.length === 0 && <p className="text-muted">Bu koşuda hata kaydı yok.</p>}
+        {!loading && !loadError && items.length > 0 && (
           <Table striped bordered hover size="sm">
             <thead>
               <tr>
                 <th>Durum</th>
                 <th>TJK No</th>
-                <th>Hata Sınıfı</th>
+                <th>Hata Türü</th>
                 <th>Mesaj</th>
                 <th>Tarih</th>
                 <th></th>
@@ -122,7 +146,7 @@ function TjkErrorsModal({ runId, onClose }: { runId: string; onClose: () => void
             <tbody>
               {items.map((item) => (
                 <tr key={item.id}>
-                  <td><Badge bg={statusVariant(item.status)}>{item.status}</Badge></td>
+                  <td><Badge bg={statusVariant(item.status)}>{errorStatusText(item.status)}</Badge></td>
                   <td>{item.tjkNumber ?? '-'}</td>
                   <td>{item.errorClass}</td>
                   <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.message}>{item.message}</td>
@@ -149,9 +173,9 @@ function TjkErrorsModal({ runId, onClose }: { runId: string; onClose: () => void
 }
 
 export default function TjkPage() {
-  const [{ data, isLoading, refetch }] = useApi<TjkRunResponse>({
+  const [{ data, isLoading, isRefreshing, isError, refetch, goNext, goPrev, canGoPrev, canGoNext, pageIndex }] = useCursorApi<TjkRunResponse>({
     service: tjkService,
-    params: { filter: '', pageRequest: { page: 0, size: 100, sort: [{ direction: 'DESC', property: 'createdAt' }] } },
+    pageSize: 20,
   });
   const { isModalOpen, openModal, closeModal, modalContent } = useModal();
   const [errorsRunId, setErrorsRunId] = useState<string | null>(null);
@@ -160,9 +184,19 @@ export default function TjkPage() {
     (run) => run.status === 'QUEUED' || run.status === 'RUNNING'
   );
 
+  useEffect(() => {
+    if (!hasActiveRun) {
+      return;
+    }
+    const id = window.setInterval(() => {
+      refetch({ silent: true });
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [hasActiveRun, refetch]);
+
   const openTriggerModal = () => {
     if (hasActiveRun) {
-      toast.warning('Hali hazırda kuyrukta veya çalışan bir senkronizasyon bulunmaktadır. Lütfen tamamlanmasını bekleyin veya mevcut işlemi iptal edin.');
+      toast.warning('Hali hazırda bekleyen veya çalışan bir senkronizasyon bulunmaktadır. Lütfen tamamlanmasını bekleyin veya mevcut işlemi iptal edin.');
       return;
     }
     openModal(<TriggerModal onClose={closeModal} onSave={handleTrigger} />);
@@ -172,6 +206,7 @@ export default function TjkPage() {
     try {
       await tjkService.trigger(values.mode, values.sourceAdapter, values.scope);
       closeModal();
+      toast.success('Senkron başlatma isteği alındı');
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -179,8 +214,17 @@ export default function TjkPage() {
   };
 
   const handleCancel = async (run: TjkRunResponse) => {
+    if (!isCancellable(run.status)) {
+      return;
+    }
     try {
-      await tjkService.cancel(run.id, run.version);
+      const latest = await tjkService.getById(run.id);
+      const result = await tjkService.cancel(latest.id, latest.version) as TjkRunResponse | undefined;
+      if (result?.status === 'CANCELLED') {
+        toast.success('İptal edildi');
+      } else {
+        toast.success('İptal istendi');
+      }
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -192,12 +236,15 @@ export default function TjkPage() {
       <td>{getTjkModeText(run.mode)}</td>
       <td><StatusBadge status={run.status} /></td>
       <td>{getTjkScopeText(run.scope)}</td>
-      <td>{run.sourceAdapter}</td>
       <td>{getTjkTriggerKindText(run.triggerKind)}</td>
       <td>{formatDateTimeForText(run.createdAt)}</td>
-      <td>
-        <Button size="sm" className="me-2" variant="primary" onClick={() => handleCancel(run)}>İptal</Button>
+      <td className="text-nowrap">
+        <div className="d-flex flex-wrap gap-1">
+        {isCancellable(run.status) && (
+          <Button size="sm" variant="primary" onClick={() => handleCancel(run)}>İptal</Button>
+        )}
         <Button size="sm" variant="outline-danger" onClick={() => setErrorsRunId(run.id)}>Hatalar</Button>
+        </div>
       </td>
     </tr>
   ));
@@ -206,13 +253,39 @@ export default function TjkPage() {
     <Container fluid className="p-3 lg:p-6">
       <Row>
         <Col lg={12}>
-          <PageHeading heading="TJK Senkron" createButtonText="Senkron Başlat" onCreate={openTriggerModal} />
+          <PageHeading heading="TJK Senkron" createButtonText="Manuel Senkron Başlat" onCreate={openTriggerModal} />
         </Col>
       </Row>
+      {hasActiveRun && (
+        <Alert variant="info" className="mb-3 d-flex justify-content-between align-items-center">
+          <span>Senkronizasyon devam ediyor. Durum otomatik olarak güncellenecektir.</span>
+          {isRefreshing && <span className="small text-muted">Yenileniyor…</span>}
+        </Alert>
+      )}
       {isModalOpen && modalContent}
       {errorsRunId && <TjkErrorsModal runId={errorsRunId} onClose={() => setErrorsRunId(null)} />}
-      {isLoading && <Loading />}
-      {!isLoading && <PrepareTable headItems={headItems} content={content} page={data?.page} onHandlePageChange={() => undefined} />}
+      {isLoading && !data && <Loading />}
+      {!isLoading && isError && !data && (
+        <Alert variant="danger" className="d-flex justify-content-between align-items-center">
+          <span>TJK kayıtları yüklenirken bir hata oluştu.</span>
+          <Button size="sm" variant="outline-danger" onClick={() => refetch()}>Tekrar Dene</Button>
+        </Alert>
+      )}
+      {!isLoading && !isError && (data?.content?.length ?? 0) === 0 && (
+        <Alert variant="light" className="border text-muted">Henüz TJK senkron kaydı yok. Manuel senkron başlatabilirsiniz.</Alert>
+      )}
+      {(data?.content?.length ?? 0) > 0 && (
+        <>
+          <PrepareTable headItems={headItems} content={content} page={undefined} onHandlePageChange={() => undefined} />
+          <CursorPagination
+            canGoPrev={canGoPrev}
+            canGoNext={canGoNext}
+            onPrev={goPrev}
+            onNext={goNext}
+            pageIndex={pageIndex}
+          />
+        </>
+      )}
     </Container>
   );
 }

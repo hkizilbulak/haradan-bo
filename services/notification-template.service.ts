@@ -23,6 +23,7 @@ export interface NotificationTemplateRequest {
   name: string;
   inAppTitleTemplate: string;
   inAppBodyTemplate: string;
+  resendTemplateId?: string | null;
   emailSubjectFallback?: string;
   isActive: boolean;
 }
@@ -53,6 +54,7 @@ export class NotificationTemplateService {
       name: request.name,
       inAppTitleTemplate: request.inAppTitleTemplate,
       inAppBodyTemplate: request.inAppBodyTemplate,
+      resendTemplateId: request.resendTemplateId === '' ? null : (request.resendTemplateId ?? undefined),
       emailSubjectFallback: request.emailSubjectFallback || undefined,
       isActive: request.isActive,
     });

@@ -7,5 +7,8 @@ export * from './package.service';
 export * from './campaign.service';
 export * from './job.service';
 export * from './notification-template.service';
+export * from './provider-email-template.service';
+export * from './media.service';
+export * from './profile.service';
 export * from './tjk.service';
 export * from './base.service';

@@ -1,7 +1,0 @@
-export enum advertByDopingTypeEnum {
-    EMERGENCY='EMERGENCY', 
-    MAINPAGE_SHOW_CASE='MAINPAGE_SHOW_CASE', 
-    TOP_ORDER='TOP_ORDER', 
-    SOCIAL='SOCIAL', 
-    UP_TO_DATE='UP_TO_DATE'
-  }

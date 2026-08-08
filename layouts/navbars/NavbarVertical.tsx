@@ -33,9 +33,7 @@ const NavbarVertical = (props: IProps) => {
 	const location = usePathname()
 	const CustomToggle = ({ children, eventKey, icon }: IToggleProps) => {
 		const { activeEventKey } = useContext(AccordionContext);
-		const decoratedOnClick = useAccordionButton(eventKey?.toString() as any, () =>
-			console.log('totally custom!')
-		);
+		const decoratedOnClick = useAccordionButton(eventKey?.toString() as any);
 		const isCurrentEventKey = activeEventKey === eventKey;
 		return (
 			<li className="nav-item">
@@ -55,9 +53,7 @@ const NavbarVertical = (props: IProps) => {
 	};
 	const CustomToggleLevel2 = ({ children, eventKey, icon }: IToggleProps) => {
 		const { activeEventKey } = useContext(AccordionContext);
-		const decoratedOnClick = useAccordionButton(eventKey?.toString() as any, () =>
-			console.log('totally custom!')
-		);
+		const decoratedOnClick = useAccordionButton(eventKey?.toString() as any);
 		const isCurrentEventKey = activeEventKey === eventKey;
 		return (
 			<Link

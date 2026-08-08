@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Badge, Button, Col, Container, Form, Modal, Offcanvas, Row, Table } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -7,55 +7,174 @@ import Loading from '@/components/Loading';
 import PrepareTable from '@/components/PrepareTable';
 import StatusBadge from '@/components/StatusBadge';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
-import { getJobTypeText } from '@/helpers/EnumUtils';
+import { getCronHint, getJobDisplayName, getJobRunStatusText, getJobTypeText } from '@/helpers/EnumUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
+import {
+  buildCronFromFriendly,
+  CRON_DAY_OPTIONS,
+  defaultFriendlySchedule,
+  formatTimeInput,
+  FriendlySchedule,
+  parseFriendlyCron,
+  parseTimeInput,
+} from '@/helpers/jobSchedule';
 import useApi from '@/hooks/useApi';
 import useModal from '@/hooks/useModal';
 import { jobService, JobRequest, JobResponse, JobHistoryItem } from '@/services/job.service';
 import { PageHeading } from '@/widgets';
 import { toast } from 'react-toastify';
 
-const headItems = ['Anahtar', 'Ad', 'Tip', 'Cron', 'Durum', 'Son Çalışma', ''];
+const headItems = ['Ad', 'Tip', 'Çalışma Sıklığı', 'Durum', 'Son Çalışma', 'Sonraki Çalışma', ''];
+const ALLOWED_SCHEDULED_JOBS = new Set(['TJK_SYNC', 'PACKAGE_EXPIRY_SCAN', 'MEDIA_RECONCILE']);
+
+type JobFormValues = {
+  identifier?: string;
+  expectedVersion: number;
+  cronExpression: string;
+  isActive: boolean;
+  timeoutMinutes: number;
+  scheduleMode: 'everyDay' | 'days';
+  days: number[];
+  time: string;
+};
+
+function toFormValues(job?: JobResponse): JobFormValues {
+  const parsed = parseFriendlyCron(job?.cronExpression) ?? defaultFriendlySchedule();
+  return {
+    identifier: job?.id,
+    expectedVersion: job?.version ?? 1,
+    cronExpression: job?.cronExpression ?? buildCronFromFriendly(parsed),
+    isActive: job?.isActive ?? true,
+    timeoutMinutes: Math.max(1, Math.round((job?.timeoutSeconds ?? 60) / 60)),
+    scheduleMode: parsed.everyDay ? 'everyDay' : 'days',
+    days: parsed.days.length ? parsed.days : [1, 2, 3, 4, 5],
+    time: formatTimeInput(parsed.hour, parsed.minute),
+  };
+}
 
 function JobModal({ selectedJob, onClose, onSave }: { selectedJob?: JobResponse; onClose: () => void; onSave: (value: JobRequest) => void; }) {
-  const values: JobRequest = selectedJob ? {
-    identifier: selectedJob.id,
-    expectedVersion: selectedJob.version,
-    cronExpression: selectedJob.cronExpression,
-    isActive: selectedJob.isActive,
-    timeoutSeconds: selectedJob.timeoutSeconds,
-  } : {
-    expectedVersion: 1,
-    cronExpression: '* * * * *',
-    isActive: true,
-    timeoutSeconds: 60,
-  };
+  const initial = useMemo(() => toFormValues(selectedJob), [selectedJob]);
 
   const schema = Yup.object().shape({
-    cronExpression: Yup.string().required('Cron zorunludur'),
-    timeoutSeconds: Yup.number().required('Timeout zorunludur'),
+    cronExpression: Yup.string().required('Zamanlama zorunludur'),
+    timeoutMinutes: Yup.number().min(1, 'En az 1 dakika').required('Süre zorunludur'),
+    time: Yup.string().required('Saat zorunludur'),
   });
+
+  const syncCronFromUi = (
+    setFieldValue: (field: string, value: unknown) => void,
+    next: Partial<Pick<JobFormValues, 'scheduleMode' | 'days' | 'time'>>,
+    current: JobFormValues,
+  ) => {
+    const scheduleMode = next.scheduleMode ?? current.scheduleMode;
+    const days = next.days ?? current.days;
+    const time = next.time ?? current.time;
+    const parsedTime = parseTimeInput(time) ?? { hour: 9, minute: 0 };
+    const schedule: FriendlySchedule = {
+      everyDay: scheduleMode === 'everyDay',
+      days: scheduleMode === 'everyDay' ? [0, 1, 2, 3, 4, 5, 6] : days,
+      hour: parsedTime.hour,
+      minute: parsedTime.minute,
+    };
+    void setFieldValue('cronExpression', buildCronFromFriendly(schedule));
+  };
 
   return (
     <Offcanvas show={true} onHide={onClose} scroll placement="end">
       <Offcanvas.Header closeButton>
-        <Offcanvas.Title>Job Düzenle</Offcanvas.Title>
+        <Offcanvas.Title>
+          {selectedJob ? getJobDisplayName(selectedJob.key, selectedJob.name) : 'İş Düzenle'}
+        </Offcanvas.Title>
       </Offcanvas.Header>
       <Offcanvas.Body>
-        <Formik initialValues={values} validationSchema={schema} onSubmit={onSave}>
-          {({ handleSubmit, handleChange, values, isValid, isSubmitting }) => (
+        <Formik
+          initialValues={initial}
+          validationSchema={schema}
+          onSubmit={(values) => {
+            onSave({
+              identifier: values.identifier,
+              expectedVersion: values.expectedVersion,
+              cronExpression: values.cronExpression.trim(),
+              isActive: values.isActive,
+              timeoutSeconds: Math.max(60, Math.round(values.timeoutMinutes) * 60),
+            });
+          }}
+        >
+          {({ handleSubmit, handleChange, values, setFieldValue, isValid, isSubmitting }) => (
             <Form noValidate onSubmit={handleSubmit}>
               <Form.Group className="mb-3">
-                <Form.Label>Cron</Form.Label>
-                <Form.Control name="cronExpression" value={values.cronExpression} onChange={handleChange} />
+                <Form.Label>Çalışma sıklığı</Form.Label>
+                <Form.Select
+                  value={values.scheduleMode}
+                  onChange={(e) => {
+                    const scheduleMode = e.target.value as 'everyDay' | 'days';
+                    void setFieldValue('scheduleMode', scheduleMode);
+                    syncCronFromUi(setFieldValue, { scheduleMode }, values);
+                  }}
+                >
+                  <option value="everyDay">Her gün</option>
+                  <option value="days">Belirli günler</option>
+                </Form.Select>
               </Form.Group>
+
+              {values.scheduleMode === 'days' && (
+                <Form.Group className="mb-3">
+                  <Form.Label>Günler</Form.Label>
+                  <div className="d-flex flex-wrap gap-2">
+                    {CRON_DAY_OPTIONS.map((day) => {
+                      const checked = values.days.includes(day.value);
+                      return (
+                        <Form.Check
+                          key={day.value}
+                          type="checkbox"
+                          id={`job-day-${day.value}`}
+                          label={day.label}
+                          checked={checked}
+                          onChange={() => {
+                            const days = checked
+                              ? values.days.filter((d) => d !== day.value)
+                              : [...values.days, day.value].sort((a, b) => a - b);
+                            void setFieldValue('days', days.length ? days : [day.value]);
+                            syncCronFromUi(setFieldValue, { days: days.length ? days : [day.value] }, values);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </Form.Group>
+              )}
+
               <Form.Group className="mb-3">
-                <Form.Label>Timeout (sn)</Form.Label>
-                <Form.Control type="number" name="timeoutSeconds" value={values.timeoutSeconds} onChange={handleChange} />
+                <Form.Label>Saat</Form.Label>
+                <Form.Control
+                  type="time"
+                  value={values.time}
+                  onChange={(e) => {
+                    void setFieldValue('time', e.target.value);
+                    syncCronFromUi(setFieldValue, { time: e.target.value }, values);
+                  }}
+                />
+                <Form.Text muted>{getCronHint(values.cronExpression)}</Form.Text>
               </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label>Maksimum Çalışma Süresi (dakika)</Form.Label>
+                <Form.Control
+                  type="number"
+                  min={1}
+                  name="timeoutMinutes"
+                  value={values.timeoutMinutes}
+                  onChange={handleChange}
+                />
+              </Form.Group>
+
               <Form.Group className="mb-3">
                 <Form.Check type="checkbox" name="isActive" label="Aktif" checked={values.isActive} onChange={handleChange} />
+                {!values.isActive && (
+                  <Form.Text muted className="d-block">Pasif işler zamanlanmış çalıştırılmaz; sonraki çalışma planlanmaz.</Form.Text>
+                )}
               </Form.Group>
+
               <Button disabled={!isValid || isSubmitting} variant="primary" as="input" type="submit" value="Kaydet" />
             </Form>
           )}
@@ -104,20 +223,16 @@ function JobHistoryModal({ jobId, jobName, onClose }: { jobId: string; jobName: 
                 <th>Başlangıç</th>
                 <th>Bitiş</th>
                 <th>Süre</th>
-                <th>Hata</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id}>
-                  <td><Badge bg={statusVariant(item.status)}>{item.status}</Badge></td>
+                  <td><Badge bg={statusVariant(item.status)}>{getJobRunStatusText(item.status)}</Badge></td>
                   <td>{item.executionType === 'MANUAL' ? 'Manuel' : 'Zamanlanmış'}</td>
                   <td>{item.startedAt ? formatDateTimeForText(item.startedAt) : '-'}</td>
                   <td>{item.completedAt ? formatDateTimeForText(item.completedAt) : '-'}</td>
                   <td>{item.durationMs != null ? `${(item.durationMs / 1000).toFixed(1)}s` : '-'}</td>
-                  <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.lastError ?? undefined}>
-                    {item.lastError ?? '-'}
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -151,6 +266,7 @@ export default function JobsPage() {
       await jobService.update(values.identifier, values);
       closeModal();
       refetch();
+      toast.success('Görev güncellendi');
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -159,25 +275,40 @@ export default function JobsPage() {
   const handleRun = async (job: JobResponse) => {
     try {
       await jobService.run(job.id);
+      toast.success('Çalıştırma isteği alındı');
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
   };
 
-  const content = data?.content?.map((job) => (
+  const visibleJobs = (data?.content ?? []).filter((job) =>
+    ALLOWED_SCHEDULED_JOBS.has(job.key) && ALLOWED_SCHEDULED_JOBS.has(job.jobType),
+  );
+  const content = visibleJobs.map((job) => (
     <tr key={job.id}>
-      <td>{job.key}</td>
-      <td>{job.name}</td>
+      <td>{getJobDisplayName(job.key, job.name)}</td>
       <td>{getJobTypeText(job.jobType)}</td>
-      <td>{job.cronExpression}</td>
+      <td>{getCronHint(job.cronExpression)}</td>
       <td><StatusBadge status={job.isActive ? 'ACTIVE' : 'INACTIVE'} /></td>
       <td>{job.lastRunAt ? formatDateTimeForText(job.lastRunAt) : '-'}</td>
       <td>
+        {!job.isActive
+          ? 'Pasif'
+          : (job.nextRunAt ? formatDateTimeForText(job.nextRunAt) : '-')}
+      </td>
+      <td>
         <Button size="sm" variant="outline-secondary" className="me-2" onClick={() => setHistoryJob(job)}>Geçmiş</Button>
-        <a className="font-medium text-cyan-600 me-3 cp" onClick={() => openJobModal(job)}>
-          <i className="fe fe-edit"></i>
-        </a>
+        <Button
+          size="sm"
+          variant="outline-primary"
+          className="me-2"
+          title="Düzenle"
+          aria-label="Düzenle"
+          onClick={() => openJobModal(job)}
+        >
+          Düzenle
+        </Button>
         <Button size="sm" variant="primary" onClick={() => handleRun(job)}>Çalıştır</Button>
       </td>
     </tr>
@@ -187,13 +318,19 @@ export default function JobsPage() {
     <Container fluid className="p-3 lg:p-6">
       <Row>
         <Col lg={12}>
-          <PageHeading heading="Joblar" showCreateButton={false} />
+          <PageHeading heading="Zamanlanmış Görevler" showCreateButton={false} />
         </Col>
       </Row>
       {isModalOpen && modalContent}
-      {historyJob && <JobHistoryModal jobId={historyJob.id} jobName={historyJob.name} onClose={() => setHistoryJob(null)} />}
+      {historyJob && (
+        <JobHistoryModal
+          jobId={historyJob.id}
+          jobName={getJobDisplayName(historyJob.key, historyJob.name)}
+          onClose={() => setHistoryJob(null)}
+        />
+      )}
       {isLoading && <Loading />}
-      {!isLoading && <PrepareTable headItems={headItems} content={content} page={data?.page} onHandlePageChange={() => undefined} />}
+      {!isLoading && <PrepareTable headItems={headItems} content={content} page={undefined} onHandlePageChange={() => undefined} />}
     </Container>
   );
 }

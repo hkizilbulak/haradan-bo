@@ -46,7 +46,7 @@ export const DashboardMenu: IMenuProps[] = [
 	},
 	{
 		id: uuid(),
-		title: 'Joblar',
+		title: 'Zamanlanmış Görevler',
 		icon: 'refresh-cw',
 		link: '/jobs'
 	},

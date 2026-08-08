@@ -3,6 +3,7 @@ import { API_URL } from '@/contants/urls';
 import { BaseResponse, PagedResponse, SearchParams } from '@/models/common';
 
 export interface PackageResponse extends BaseResponse {
+  id?: string;
   code: string;
   displayName: string;
   description?: string | null;
@@ -29,16 +30,14 @@ export interface PackageRequest {
   displayName: string;
   description?: string;
   badgeText?: string;
-  benefitsText: string;
+  benefits: string[];
   amountMinor?: number;
-  currencyCode: string;
   defaultDurationDays?: number | null;
   allowsUrgent: boolean;
   showcaseEligible: boolean;
   searchPriority: number;
   broadcastOnPublish: boolean;
   isActive: boolean;
-  sortOrder: number;
 }
 
 type PackageAdminListResponse = {
@@ -47,18 +46,10 @@ type PackageAdminListResponse = {
 
 const baseUrl = `${API_URL}v1/admin/packages`;
 
-function toBenefits(text: string) {
-  return text
-    .split('\n')
-    .map(item => item.trim())
-    .filter(Boolean);
-}
-
 function toNumber(value?: number | string | null) {
   if (value === undefined || value === null || value === '') {
     return undefined;
   }
-
   return Number(value);
 }
 
@@ -66,7 +57,10 @@ export class PackageService {
   search = async (_params: SearchParams<PackageResponse>): Promise<PagedResponse<PackageResponse>> => {
     const response = await axiosInstance.get(baseUrl);
     const data = response.data as PackageAdminListResponse;
-    const content = data.items ?? [];
+    const content = (data.items ?? []).slice().sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return a.code.localeCompare(b.code);
+    });
     return {
       content,
       page: {
@@ -80,22 +74,20 @@ export class PackageService {
 
   create = async (request: PackageRequest) => {
     await axiosInstance.post(baseUrl, {
-      code: request.code,
       displayName: request.displayName,
       description: request.description || undefined,
       badgeText: request.badgeText || undefined,
-      benefits: toBenefits(request.benefitsText),
+      benefits: request.benefits.filter((item) => item.trim()),
       displayPrice: request.amountMinor === undefined || request.amountMinor === null
         ? undefined
-        : { amountMinor: Number(request.amountMinor), currency: request.currencyCode },
-      currencyCode: request.currencyCode,
+        : { amountMinor: Number(request.amountMinor), currency: 'TRY' },
+      currencyCode: 'TRY',
       defaultDurationDays: toNumber(request.defaultDurationDays),
       allowsUrgent: request.allowsUrgent,
       showcaseEligible: request.showcaseEligible,
-      searchPriority: Number(request.searchPriority),
+      searchPriority: Number(request.searchPriority ?? 0),
       broadcastOnPublish: request.broadcastOnPublish,
       isActive: request.isActive,
-      sortOrder: Number(request.sortOrder),
     });
   };
 
@@ -109,19 +101,22 @@ export class PackageService {
       displayName: request.displayName,
       description: request.description || undefined,
       badgeText: request.badgeText || undefined,
-      benefits: toBenefits(request.benefitsText),
+      benefits: request.benefits.filter((item) => item.trim()),
       displayPrice: request.amountMinor === undefined || request.amountMinor === null
         ? undefined
-        : { amountMinor: Number(request.amountMinor), currency: request.currencyCode },
-      currencyCode: request.currencyCode,
+        : { amountMinor: Number(request.amountMinor), currency: 'TRY' },
+      currencyCode: 'TRY',
       defaultDurationDays: toNumber(request.defaultDurationDays),
       allowsUrgent: request.allowsUrgent,
       showcaseEligible: request.showcaseEligible,
-      searchPriority: Number(request.searchPriority),
+      searchPriority: Number(request.searchPriority ?? 0),
       broadcastOnPublish: request.broadcastOnPublish,
       isActive: request.isActive,
-      sortOrder: Number(request.sortOrder),
     });
+  };
+
+  reorder = async (items: Array<{ id: string; expectedVersion: number; sortOrder: number }>) => {
+    await axiosInstance.put(`${baseUrl}/reorder`, { items });
   };
 }
 

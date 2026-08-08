@@ -5,6 +5,7 @@ import { SessionResponse, SessionUserResponse } from "@/models";
 import { authService } from "@/services/auth.service";
 import { useRouter } from "next/navigation";
 import { subscribeToUnauthorizedEvent } from "@/helpers/api/authEvents";
+import { resolveSafeInternalPath } from "@/helpers/HelperUtils";
 
 type SignInOptions = {
   email?: string;
@@ -20,6 +21,7 @@ type AuthContextType = {
   hasAdminAccess: boolean;
   signIn: (provider: string, options?: SignInOptions) => Promise<{ ok: boolean; error: string | null }>;
   signOut: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -28,6 +30,7 @@ const AuthContext = createContext<AuthContextType>({
   hasAdminAccess: false,
   signIn: async () => ({ ok: false, error: "not_ready" }),
   signOut: async () => {},
+  refreshSession: async () => {},
 });
 
 function hasActiveAdminAccess(user?: SessionUserResponse | null) {
@@ -101,11 +104,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSession(nextSession);
       setStatus("authenticated");
 
-      if (options.callbackUrl) {
-        window.location.href = options.callbackUrl;
-      } else {
-        router.push("/");
-      }
+      const safePath = resolveSafeInternalPath(options.callbackUrl) || "/";
+      router.push(safePath);
 
       return { ok: true, error: null };
     } catch (error) {
@@ -119,10 +119,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     clearSession(true);
   };
 
+  const refreshSession = useCallback(async () => {
+    await loadSession();
+  }, [loadSession]);
+
   const hasAdminAccess = useMemo(() => hasActiveAdminAccess(session?.user), [session]);
 
   return (
-    <AuthContext.Provider value={{ session, status, hasAdminAccess, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, status, hasAdminAccess, signIn, signOut, refreshSession }}>
       {children}
     </AuthContext.Provider>
   );

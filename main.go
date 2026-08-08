@@ -98,24 +98,66 @@ func resolveBackendURL() string {
 	if backendURL == "" {
 		backendURL = strings.TrimRight(os.Getenv("NEXT_PUBLIC_API_URL"), "/")
 	}
+	// Localhost fallback keeps local `go run` usable without env; production must set BACKEND_API_URL.
+	// APP_ENV is unused here — do not invent environment detection.
 	if backendURL == "" {
 		backendURL = "http://localhost:3001"
-		log.Printf("BACKEND_API_URL not set, falling back to %s for local development", backendURL)
+		log.Printf("WARNING: BACKEND_API_URL not set; falling back to %s. Production must set BACKEND_API_URL.", backendURL)
 	}
 	return backendURL
 }
 
-func (s *appServer) handleRequest(w http.ResponseWriter, r *http.Request) {
-	origin := r.Header.Get("Origin")
-	if origin != "" {
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept")
+// isAllowedCORSOrigin mirrors same-origin BO browser traffic and an optional
+// comma-separated CORS_ALLOWED_ORIGINS allowlist. Arbitrary Origin reflection
+// with credentials is rejected.
+func isAllowedCORSOrigin(origin string, r *http.Request) bool {
+	if origin == "" {
+		return false
 	}
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return false
+	}
+	if strings.EqualFold(parsed.Host, r.Host) {
+		return true
+	}
+	for _, raw := range strings.Split(os.Getenv("CORS_ALLOWED_ORIGINS"), ",") {
+		allowed := strings.TrimSpace(raw)
+		if allowed != "" && allowed == origin {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *appServer) applyCORS(w http.ResponseWriter, r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	if !isAllowedCORSOrigin(origin, r) {
+		return false
+	}
+	w.Header().Set("Access-Control-Allow-Origin", origin)
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept")
+	w.Header().Set("Vary", "Origin")
+	return true
+}
+
+func (s *appServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
+		if !s.applyCORS(w, r) {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		return
+	}
+	if !s.applyCORS(w, r) {
+		// Non-preflight: continue without CORS headers (browser blocks cross-origin reads).
+		// Same-origin BO traffic never needs reflected arbitrary origins.
 	}
 
 	if strings.HasPrefix(r.URL.Path, "/api/session") {

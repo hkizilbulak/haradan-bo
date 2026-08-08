@@ -65,7 +65,33 @@ async function fetchAllRuns(status?: string): Promise<TjkRunResponse[]> {
 }
 
 export class TjkService {
-  search = async (_params: SearchParams<TjkRunResponse>): Promise<PagedResponse<TjkRunResponse>> => {
+  search = async (params: SearchParams<TjkRunResponse>): Promise<PagedResponse<TjkRunResponse>> => {
+    const limit = params.pageRequest.size ?? 10;
+
+    if (params.cursor !== undefined) {
+      const response = await axiosInstance.get(baseUrl, {
+        params: {
+          cursor: params.cursor || undefined,
+          limit,
+        },
+      });
+      const data = response.data as TjkRunListResponse;
+      const content = data.items ?? [];
+      const pageNumber = params.pageRequest.page ?? 0;
+      return {
+        content,
+        page: {
+          size: limit,
+          number: pageNumber,
+          totalElements: content.length,
+          totalPages: data.hasMore ? pageNumber + 2 : pageNumber + 1,
+          hasMore: Boolean(data.hasMore),
+          nextCursor: data.nextCursor ?? null,
+          cursorMode: true,
+        },
+      };
+    }
+
     const content = await fetchAllRuns(undefined);
     return {
       content,
@@ -79,23 +105,18 @@ export class TjkService {
   };
 
   trigger = async (mode: string, sourceAdapter: string, scope: string = 'HORSES') => {
-    try {
-      const response = await axiosInstance.post(baseUrl, { mode, sourceAdapter, scope });
-      return response.data;
-    } catch (error) {
-      console.error("TJK trigger error:", error);
-      throw error;
-    }
+    const response = await axiosInstance.post(baseUrl, { mode, sourceAdapter, scope });
+    return response.data;
   };
 
   cancel = async (runId: string, expectedVersion: number) => {
-    try {
-      const response = await axiosInstance.post(`${baseUrl}/${runId}/cancel`, { expectedVersion });
-      return response.data;
-    } catch (error) {
-      console.error("TJK cancel error:", error);
-      throw error;
-    }
+    const response = await axiosInstance.post(`${baseUrl}/${runId}/cancel`, { expectedVersion });
+    return response.data;
+  };
+
+  getById = async (runId: string): Promise<TjkRunResponse> => {
+    const response = await axiosInstance.get(`${baseUrl}/${runId}`);
+    return response.data as TjkRunResponse;
   };
 
   getItemErrors = async (runId: string): Promise<TjkItemError[]> => {

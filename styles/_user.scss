@@ -312,3 +312,36 @@
     background-position: -200% 0;
   }
 }
+
+// 10. CKEditor (Kartezya-like Classic UX)
+.ckeditor-wrapper {
+  .ck.ck-editor {
+    width: 100%;
+  }
+
+  .ck-editor__editable {
+    min-height: var(--ck-min-height, 180px);
+  }
+
+  .ck-content {
+    font-size: 0.95rem;
+  }
+}
+
+.rich-text-content {
+  p {
+    margin-bottom: 0.5rem;
+  }
+
+  ul,
+  ol {
+    padding-left: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+
+  blockquote {
+    border-left: 3px solid #cbd5e1;
+    padding-left: 0.75rem;
+    color: #475569;
+  }
+}

@@ -47,13 +47,12 @@ const SignIn = () => {
       await signIn("credentials", {
         email,
         password,
-        callbackUrl: `${window.location.origin}/`,
+        callbackUrl: "/",
       });
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
       toast.error(errorMsg);
-      console.error("Login error:", err);
     }
   };
 

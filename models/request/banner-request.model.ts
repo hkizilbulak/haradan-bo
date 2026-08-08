@@ -6,6 +6,6 @@ export interface BannerRequest extends BaseRequest {
   title?: string;
   altText?: string;
   targetUrl?: string;
-  sortOrder: number;
+  sortOrder?: number;
   expectedVersion?: number;
 }

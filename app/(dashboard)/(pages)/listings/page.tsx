@@ -1,62 +1,98 @@
 "use client"
-import React, { useState } from 'react';
-import { Button, Col, Container, Form, Modal, Row, Badge, Table } from 'react-bootstrap';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Button, Col, Container, Form, Modal, Row, Badge, Table, Alert, Accordion } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import Loading from '@/components/Loading';
 import PrepareTable from '@/components/PrepareTable';
 import StatusBadge from '@/components/StatusBadge';
+import { buildMediaUrl } from '@/contants/urls';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
+import {
+  getAdvertStatusText,
+  getPackageAssignmentSourceText,
+  getPackageAssignmentStatusText,
+} from '@/helpers/EnumUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
-import useApi from '@/hooks/useApi';
+import { canModerationAction } from '@/helpers/moderationActions';
+import useCursorApi from '@/hooks/useCursorApi';
 import { ModerationAdvertResponse } from '@/models';
-import { advertService, ModerationReasonRequest, AdvertPackageAssignment, AssignPackageRequest } from '@/services';
+import {
+  advertService,
+  ModerationReasonRequest,
+  AdvertPackageAssignment,
+  AssignPackageRequest,
+  packageService,
+  PackageResponse,
+} from '@/services';
 import { PageHeading } from '@/widgets';
 import AdvertFilter from '@/widgets/advert/AdvertFilter';
+import CursorPagination from '@/components/CursorPagination';
 
 const headItems = [
   'Başlık',
   'Yayın Tarihi',
-  'Silinme Tarihi',
-  'Kategorı',
-  'Sahip',
+  'Kategori',
   'Durum',
-  'Versiyon',
   ''
-]
+];
 
 function PackageModal({ advert, onClose, onDone }: { advert: ModerationAdvertResponse; onClose: () => void; onDone: () => void }) {
+  const advertId = advert.identifier ?? advert.id;
   const [tab, setTab] = useState<'assign' | 'history'>('assign');
+  const [packages, setPackages] = useState<PackageResponse[]>([]);
+  const [currentPackage, setCurrentPackage] = useState<AdvertPackageAssignment | null>(null);
   const [packageCode, setPackageCode] = useState('');
   const [assignReason, setAssignReason] = useState('');
   const [history, setHistory] = useState<AdvertPackageAssignment[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [loadingCurrent, setLoadingCurrent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const loadHistory = () => {
-    if (!advert.identifier) return;
+  useEffect(() => {
+    if (!advertId) {
+      return;
+    }
+
+    setLoadingCurrent(true);
+    Promise.all([
+      packageService.search({ pageRequest: { page: 0, size: 200 } }),
+      advertService.getPackage(advertId).catch(() => null),
+    ])
+      .then(([packagePage, assignment]) => {
+        setPackages((packagePage.content || []).filter((item) => item.isActive));
+        setCurrentPackage(assignment);
+        if (assignment?.packageCode) {
+          setPackageCode(assignment.packageCode);
+        }
+      })
+      .catch((err) => toast.error(getErrorMessage(err)))
+      .finally(() => setLoadingCurrent(false));
+  }, [advertId]);
+
+  const loadHistory = useCallback(() => {
+    if (!advertId) return;
     setHistoryLoading(true);
-    advertService.getPackageHistory(advert.identifier)
+    advertService.getPackageHistory(advertId)
       .then(setHistory)
       .catch((err) => toast.error(getErrorMessage(err)))
       .finally(() => setHistoryLoading(false));
-  };
+  }, [advertId]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
+  useEffect(() => {
     if (tab === 'history') {
       loadHistory();
     }
-  }, [tab]);
+  }, [tab, loadHistory]);
 
   const handleAssign = async () => {
-    if (!advert.identifier || !packageCode.trim()) return;
+    if (!advertId || !packageCode.trim() || submitting) return;
     setSubmitting(true);
     try {
       const request: AssignPackageRequest = {
         packageCode: packageCode.trim(),
         reason: assignReason.trim() || undefined,
       };
-      await advertService.assignPackage(advert.identifier, request);
+      await advertService.assignPackage(advertId, request);
       toast.success('Paket atandı');
       onDone();
     } catch (err) {
@@ -67,11 +103,30 @@ function PackageModal({ advert, onClose, onDone }: { advert: ModerationAdvertRes
   };
 
   const handleCancel = async () => {
-    if (!advert.identifier) return;
+    if (!advertId || submitting) return;
     setSubmitting(true);
     try {
-      await advertService.cancelPackage(advert.identifier);
+      await advertService.cancelPackage(advertId);
       toast.success('Paket iptal edildi');
+      onDone();
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUrgent = async (activate: boolean) => {
+    if (!advertId || submitting) return;
+    setSubmitting(true);
+    try {
+      if (activate) {
+        await advertService.activateUrgent(advertId);
+        toast.success('Acil ilan aktifleştirildi');
+      } else {
+        await advertService.deactivateUrgent(advertId);
+        toast.success('Acil ilan kapatıldı');
+      }
       onDone();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -93,28 +148,52 @@ function PackageModal({ advert, onClose, onDone }: { advert: ModerationAdvertRes
   return (
     <Modal show onHide={onClose} size="lg">
       <Modal.Header closeButton>
-        <Modal.Title>Paket İşlemleri — {advert.title ?? advert.identifier}</Modal.Title>
+        <Modal.Title>Paket İşlemleri — {advert.title ?? advertId}</Modal.Title>
       </Modal.Header>
       <Modal.Body>
         <div className="mb-3">
-          <Button size="sm" variant={tab === 'assign' ? 'primary' : 'outline-primary'} className="me-2" onClick={() => setTab('assign')}>Paket Ata / İptal</Button>
+          <Button size="sm" variant={tab === 'assign' ? 'primary' : 'outline-primary'} className="me-2" onClick={() => setTab('assign')}>Paket Ata / Acil</Button>
           <Button size="sm" variant={tab === 'history' ? 'primary' : 'outline-primary'} onClick={() => setTab('history')}>Geçmiş</Button>
         </div>
 
         {tab === 'assign' && (
           <>
-            <Form.Group className="mb-3">
-              <Form.Label>Paket Kodu</Form.Label>
-              <Form.Control value={packageCode} onChange={(e) => setPackageCode(e.target.value)} placeholder="Örn: PREMIUM" />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Sebep (opsiyonel)</Form.Label>
-              <Form.Control value={assignReason} onChange={(e) => setAssignReason(e.target.value)} />
-            </Form.Group>
-            <div className="d-flex gap-2">
-              <Button variant="success" disabled={!packageCode.trim() || submitting} onClick={handleAssign}>Paket Ata</Button>
-              <Button variant="danger" disabled={submitting} onClick={handleCancel}>Mevcut Paketi İptal Et</Button>
-            </div>
+            {loadingCurrent && <Loading />}
+            {!loadingCurrent && (
+              <>
+                {currentPackage ? (
+                  <Alert variant="info" className="py-2">
+                    Aktif paket: <strong>{currentPackage.packageCode}</strong> ({getPackageAssignmentStatusText(currentPackage.status)})
+                  </Alert>
+                ) : (
+                  <Alert variant="secondary" className="py-2">Aktif paket ataması yok.</Alert>
+                )}
+                <Form.Group className="mb-3">
+                  <Form.Label>Paket</Form.Label>
+                  <Form.Select value={packageCode} onChange={(e) => setPackageCode(e.target.value)}>
+                    <option value="">Paket seçin</option>
+                    {packages.map((item) => (
+                      <option key={item.code} value={item.code}>
+                        {item.displayName}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Label>Sebep (opsiyonel)</Form.Label>
+                  <Form.Control value={assignReason} onChange={(e) => setAssignReason(e.target.value)} />
+                </Form.Group>
+                <div className="d-flex flex-wrap gap-2 mb-3">
+                  <Button variant="success" disabled={!packageCode.trim() || submitting} onClick={() => void handleAssign()}>Paket Ata</Button>
+                  <Button variant="danger" disabled={submitting || !currentPackage} onClick={() => void handleCancel()}>Mevcut Paketi İptal Et</Button>
+                </div>
+                <hr />
+                <div className="d-flex flex-wrap gap-2">
+                  <Button variant="warning" disabled={submitting || !currentPackage} onClick={() => void handleUrgent(true)}>Acil Aktifleştir</Button>
+                  <Button variant="outline-secondary" disabled={submitting} onClick={() => void handleUrgent(false)}>Acil Kapat</Button>
+                </div>
+              </>
+            )}
           </>
         )}
 
@@ -138,10 +217,10 @@ function PackageModal({ advert, onClose, onDone }: { advert: ModerationAdvertRes
                   {history.map((item) => (
                     <tr key={item.id}>
                       <td>{item.packageCode}</td>
-                      <td><Badge bg={statusVariant(item.status)}>{item.status}</Badge></td>
+                      <td><Badge bg={statusVariant(item.status)}>{getPackageAssignmentStatusText(item.status)}</Badge></td>
                       <td>{formatDateTimeForText(item.startsAt)}</td>
                       <td>{item.endsAt ? formatDateTimeForText(item.endsAt) : '-'}</td>
-                      <td>{item.source}</td>
+                      <td>{getPackageAssignmentSourceText(item.source)}</td>
                       <td>{item.reason ?? '-'}</td>
                     </tr>
                   ))}
@@ -158,15 +237,99 @@ function PackageModal({ advert, onClose, onDone }: { advert: ModerationAdvertRes
   );
 }
 
+function AdvertDetailModal({ advertId, onClose }: { advertId: string; onClose: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState<Awaited<ReturnType<typeof advertService.getDetail>> | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    advertService.getDetail(advertId)
+      .then(setDetail)
+      .catch((err) => toast.error(getErrorMessage(err)))
+      .finally(() => setLoading(false));
+  }, [advertId]);
+
+  return (
+    <Modal show onHide={onClose} size="lg">
+      <Modal.Header closeButton>
+        <Modal.Title>İlan Detayı</Modal.Title>
+      </Modal.Header>
+      <Modal.Body>
+        {loading && <Loading />}
+        {!loading && detail && (
+          <>
+            <p className="mb-1"><strong>Başlık:</strong> {detail.title || '-'}</p>
+            <p className="mb-1"><strong>Durum:</strong> {getAdvertStatusText(detail.status)}</p>
+            <p className="mb-3"><strong>Kategori:</strong> {detail.categoryId || '-'}</p>
+            {detail.media && detail.media.length > 0 && (
+              <div className="d-flex flex-wrap gap-2 mb-3">
+                {detail.media.map((item) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={item.assetId}
+                    src={buildMediaUrl(item.assetId, 'DETAIL')}
+                    alt="İlan görseli"
+                    style={{ width: 96, height: 72, objectFit: 'cover', borderRadius: 6 }}
+                  />
+                ))}
+              </div>
+            )}
+            {detail.statusHistory && detail.statusHistory.length > 0 && (
+              <Table size="sm" bordered>
+                <thead>
+                  <tr>
+                    <th>Önceki</th>
+                    <th>Yeni</th>
+                    <th>Sebep</th>
+                    <th>Tarih</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.statusHistory.map((item, index) => (
+                    <tr key={`${item.createdAt}-${index}`}>
+                      <td>{item.fromStatus ? getAdvertStatusText(item.fromStatus) : '-'}</td>
+                      <td>{getAdvertStatusText(item.toStatus)}</td>
+                      <td>{item.reason ?? '-'}</td>
+                      <td>{formatDateTimeForText(item.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+            <Accordion className="mt-3">
+              <Accordion.Item eventKey="0">
+                <Accordion.Header>Teknik Bilgiler</Accordion.Header>
+                <Accordion.Body className="small text-muted">
+                  <div>Sahip: <code>{detail.ownerUserId}</code></div>
+                  <div>Versiyon: {detail.version}</div>
+                  <div>İlan kimliği: <code>{detail.id ?? advertId}</code></div>
+                </Accordion.Body>
+              </Accordion.Item>
+            </Accordion>
+          </>
+        )}
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" onClick={onClose}>Kapat</Button>
+      </Modal.Footer>
+    </Modal>
+  );
+}
+
 export default function Adverts() {
   const [pendingAction, setPendingAction] = useState<{
     advert: ModerationAdvertResponse;
     action: 'reject' | 'requestChanges' | 'suspend';
   } | null>(null);
   const [packageAdvert, setPackageAdvert] = useState<ModerationAdvertResponse | null>(null);
+  const [detailAdvertId, setDetailAdvertId] = useState<string | null>(null);
   const [reason, setReason] = useState('');
+  const [actionBusy, setActionBusy] = useState(false);
 
-  const [{ data, isLoading, handleFilter, handlePageChange, refetch }] = useApi<ModerationAdvertResponse>({ service: advertService });
+  const [{ data, isLoading, isError, handleFilter, refetch, goNext, goPrev, canGoPrev, canGoNext, pageIndex }] = useCursorApi<ModerationAdvertResponse>({
+    service: advertService,
+    pageSize: 10,
+  });
 
   const closeActionModal = () => {
     setPendingAction(null);
@@ -179,20 +342,31 @@ export default function Adverts() {
   };
 
   const handleApprove = async (advert: ModerationAdvertResponse) => {
-    if (!advert.identifier || !advert.version) {
+    const advertId = advert.identifier ?? advert.id;
+    if (!advertId || !advert.version || actionBusy) {
       return;
     }
 
+    setActionBusy(true);
     try {
-      await advertService.approve(advert.identifier, advert.version);
+      await advertService.approve(advertId, advert.version);
+      toast.success('İlan onaylandı');
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error));
+    } finally {
+      setActionBusy(false);
     }
   };
 
   const handleReasonedAction = async () => {
-    if (!pendingAction?.advert.identifier || !pendingAction.advert.version) {
+    const advertId = pendingAction?.advert.identifier ?? pendingAction?.advert.id;
+    if (!advertId || !pendingAction?.advert.version || actionBusy) {
+      return;
+    }
+
+    if (reason.trim().length === 0) {
+      toast.error('Gerekçe zorunludur');
       return;
     }
 
@@ -201,52 +375,71 @@ export default function Adverts() {
       reason: reason.trim(),
     };
 
+    setActionBusy(true);
     try {
       if (pendingAction.action === 'reject') {
-        await advertService.reject(pendingAction.advert.identifier, payload);
+        await advertService.reject(advertId, payload);
       } else if (pendingAction.action === 'requestChanges') {
-        await advertService.requestChanges(pendingAction.advert.identifier, payload);
+        await advertService.requestChanges(advertId, payload);
       } else {
-        await advertService.suspend(pendingAction.advert.identifier, payload);
+        await advertService.suspend(advertId, payload);
       }
 
+      toast.success('Moderasyon işlemi tamamlandı');
       closeActionModal();
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error));
+    } finally {
+      setActionBusy(false);
     }
   };
 
-  const content = data?.content?.map((advert) => (
-    <tr key={advert.identifier}>
-      <td>{advert.title}</td>
-      <td>{advert.publishedAt ? new Date(advert.publishedAt).toLocaleString('tr-TR') : ''}</td>
-      <td>{advert.deletedAt ? new Date(advert.deletedAt).toLocaleString('tr-TR') : ''}</td>
-      <td>{advert.categoryId}</td>
-      <td>{advert.ownerUserId}</td>
-      <td><StatusBadge status={advert.status} /></td>
-      <td>{advert.version}</td>
-      <td>
-        <Button size="sm" className="me-2" variant="success" onClick={() => void handleApprove(advert)}>
-          Onayla
-        </Button>
-        <Button size="sm" className="me-2" variant="warning" onClick={() => openActionModal(advert, 'requestChanges')}>
-          Düzeltme İste
-        </Button>
-        <Button size="sm" className="me-2" variant="danger" onClick={() => openActionModal(advert, 'reject')}>
-          Reddet
-        </Button>
-        <Button size="sm" variant="secondary" onClick={() => openActionModal(advert, 'suspend')}>
-          Askıya Al
-        </Button>
-        <Button size="sm" className="ms-2" variant="info" onClick={() => setPackageAdvert(advert)}>
-          Paket
-        </Button>
-      </td>
-    </tr>));
+  const content = data?.content?.map((advert) => {
+    const advertId = advert.identifier ?? advert.id;
+    const canApprove = canModerationAction(advert.status, 'approve');
+    const canRequestChanges = canModerationAction(advert.status, 'requestChanges');
+    const canReject = canModerationAction(advert.status, 'reject');
+    const canSuspend = canModerationAction(advert.status, 'suspend');
+    return (
+      <tr key={advertId}>
+        <td>{advert.title}</td>
+        <td>{advert.publishedAt ? formatDateTimeForText(advert.publishedAt) : '-'}</td>
+        <td>{advert.categoryId || '-'}</td>
+        <td><StatusBadge status={advert.status} /></td>
+        <td className="d-flex flex-wrap gap-1">
+          <Button size="sm" variant="outline-primary" onClick={() => setDetailAdvertId(advertId!)}>
+            Detay
+          </Button>
+          {canApprove && (
+            <Button size="sm" variant="success" disabled={actionBusy} onClick={() => void handleApprove(advert)}>
+              Onayla
+            </Button>
+          )}
+          {canRequestChanges && (
+            <Button size="sm" variant="warning" onClick={() => openActionModal(advert, 'requestChanges')}>
+              Düzeltme İste
+            </Button>
+          )}
+          {canReject && (
+            <Button size="sm" variant="danger" onClick={() => openActionModal(advert, 'reject')}>
+              Reddet
+            </Button>
+          )}
+          {canSuspend && (
+            <Button size="sm" variant="secondary" onClick={() => openActionModal(advert, 'suspend')}>
+              Askıya Al
+            </Button>
+          )}
+          <Button size="sm" variant="info" onClick={() => setPackageAdvert(advert)}>
+            Paket
+          </Button>
+        </td>
+      </tr>
+    );
+  });
 
   return (
-
     <Container fluid className="p-3 lg:p-6">
       <Row>
         <Col lg={12} md={12} sm={12}>
@@ -268,18 +461,40 @@ export default function Adverts() {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={closeActionModal}>Vazgeç</Button>
-          <Button variant="primary" disabled={reason.trim().length === 0} onClick={() => void handleReasonedAction()}>
+          <Button variant="primary" disabled={reason.trim().length === 0 || actionBusy} onClick={() => void handleReasonedAction()}>
             Kaydet
           </Button>
         </Modal.Footer>
       </Modal>
 
       {packageAdvert && <PackageModal advert={packageAdvert} onClose={() => setPackageAdvert(null)} onDone={() => { setPackageAdvert(null); refetch(); }} />}
+      {detailAdvertId && <AdvertDetailModal advertId={detailAdvertId} onClose={() => setDetailAdvertId(null)} />}
 
       {isLoading && <Loading />}
 
-      {!isLoading && <PrepareTable headItems={headItems} content={content} page={data?.page} onHandlePageChange={(page) => handlePageChange(page)} />}
-    </Container>
+      {!isLoading && isError && (
+        <Alert variant="danger" className="d-flex justify-content-between align-items-center">
+          <span>İlanlar yüklenirken bir hata oluştu.</span>
+          <Button size="sm" variant="outline-danger" onClick={() => refetch()}>Tekrar Dene</Button>
+        </Alert>
+      )}
 
+      {!isLoading && !isError && (data?.content?.length ?? 0) === 0 && (
+        <Alert variant="light" className="border text-muted">Moderasyon kuyruğunda ilan bulunmuyor.</Alert>
+      )}
+
+      {!isLoading && !isError && (data?.content?.length ?? 0) > 0 && (
+        <>
+          <PrepareTable headItems={headItems} content={content} page={undefined} onHandlePageChange={() => undefined} />
+          <CursorPagination
+            canGoPrev={canGoPrev}
+            canGoNext={canGoNext}
+            onPrev={goPrev}
+            onNext={goNext}
+            pageIndex={pageIndex}
+          />
+        </>
+      )}
+    </Container>
   );
 }

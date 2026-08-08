@@ -2,7 +2,7 @@
 import { categoryService } from "@/services";
 import { PageHeading } from "@/widgets";
 import { useState, ReactNode, useEffect, useCallback } from "react";
-import { Col, Form, Row, Container, Button, Pagination, Badge, Modal, Card, Spinner } from "react-bootstrap";
+import { Alert, Col, Form, Row, Container, Button, Pagination, Badge, Modal, Card, Spinner } from "react-bootstrap";
 import SortableTree, {
   toggleExpandedForAll,
   GetTreeItemChildrenFn,
@@ -13,6 +13,7 @@ import { SearchParams } from "@/models/common";
 import { EntityStatusEnum } from "@/models/enums";
 import { getErrorMessage } from "@/helpers/HelperUtils";
 import { toast } from "react-toastify";
+import CategoryPropertiesModal from "@/widgets/category/CategoryPropertiesModal";
 
 type GenerateNodePropsParams = {
   node: any;
@@ -71,12 +72,13 @@ export default function Categories() {
   // Form Fields
   const [categoryName, setCategoryName] = useState("");
   const [slug, setSlug] = useState("");
-  const [sortOrder, setSortOrder] = useState("");
 
   // Delete Confirmation Modal State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [propertiesNode, setPropertiesNode] = useState<any>(null);
 
   const searchParams = {
     filter: showDeleted ? "" : "status==ACTIVE",
@@ -87,7 +89,7 @@ export default function Categories() {
     },
   } as SearchParams<CategoryResponse>;
 
-  const [{ data, isLoading, refetch }] = useApi<CategoryResponse>({
+  const [{ data, isLoading, isError, refetch }] = useApi<CategoryResponse>({
     service: categoryService,
     params: searchParams,
   });
@@ -99,9 +101,7 @@ export default function Categories() {
 
   const handleNameChange = (val: string) => {
     setCategoryName(val);
-    if (!slug || slug === slugify(categoryName)) {
-      setSlug(slugify(val));
-    }
+    setSlug(slugify(val));
   };
 
   const openCreateModal = () => {
@@ -109,7 +109,6 @@ export default function Categories() {
     setSelectedNode(null);
     setCategoryName("");
     setSlug("");
-    setSortOrder("");
     setFormModalOpen(true);
   };
 
@@ -118,7 +117,6 @@ export default function Categories() {
     setSelectedNode(rowInfo.node);
     setCategoryName("");
     setSlug("");
-    setSortOrder("");
     setFormModalOpen(true);
   };
 
@@ -128,7 +126,6 @@ export default function Categories() {
     setSelectedNode(node);
     setCategoryName(node.name || "");
     setSlug(node.slug || "");
-    setSortOrder(node.sortOrder != null ? String(node.sortOrder) : "");
     setFormModalOpen(true);
   };
 
@@ -145,36 +142,32 @@ export default function Categories() {
 
     setSubmitting(true);
     let finalSlug = slug.trim() || slugify(categoryName);
-    const orderNum = sortOrder !== "" ? Number(sortOrder) : undefined;
 
     try {
       if (modalMode === "create") {
         await categoryService.save({
           name: categoryName,
           slug: finalSlug,
-          sortOrder: orderNum,
           status: EntityStatusEnum.ACTIVE,
         });
-        toast.success("Kategori başarıyla eklendi 🎉");
+        toast.success("Kategori başarıyla eklendi");
       } else if (modalMode === "addChild") {
         await categoryService.save({
           name: categoryName,
           slug: finalSlug,
-          sortOrder: orderNum,
           parentId: selectedNode?.identifier,
           status: EntityStatusEnum.ACTIVE,
         });
-        toast.success("Alt kategori başarıyla eklendi 🎉");
+        toast.success("Alt kategori başarıyla eklendi");
       } else if (modalMode === "edit") {
         await categoryService.update({
           identifier: selectedNode?.identifier,
           expectedVersion: selectedNode?.version ?? 0,
           name: categoryName,
           slug: finalSlug,
-          sortOrder: orderNum,
           status: EntityStatusEnum.ACTIVE,
         });
-        toast.success("Kategori güncellendi ✨");
+        toast.success("Kategori güncellendi");
       }
 
       setFormModalOpen(false);
@@ -188,19 +181,17 @@ export default function Categories() {
             await categoryService.save({
               name: categoryName,
               slug: uniqueSlug,
-              sortOrder: orderNum,
               status: EntityStatusEnum.ACTIVE,
             });
           } else if (modalMode === "addChild") {
             await categoryService.save({
               name: categoryName,
               slug: uniqueSlug,
-              sortOrder: orderNum,
               parentId: selectedNode?.identifier,
               status: EntityStatusEnum.ACTIVE,
             });
           }
-          toast.success(`Kategori benzersiz adres (${uniqueSlug}) ile eklendi.`);
+          toast.success('Kategori başarıyla eklendi. Bağlantı adresi otomatik oluşturuldu.');
           setFormModalOpen(false);
           refetch();
           return;
@@ -282,13 +273,78 @@ export default function Categories() {
     }
   }
 
+  function collectSiblingNodes(tree: TreeItem[], parentId?: string | null): TreeItem[] {
+    if (!parentId) {
+      return tree;
+    }
+    const visit = (nodes: TreeItem[]): TreeItem[] | null => {
+      for (const item of nodes) {
+        if (item.identifier === parentId) {
+          return Array.isArray(item.children) ? (item.children as TreeItem[]) : [];
+        }
+        if (Array.isArray(item.children)) {
+          const found = visit(item.children as TreeItem[]);
+          if (found) {
+            return found;
+          }
+        }
+      }
+      return null;
+    };
+    return visit(tree) ?? [];
+  }
+
   async function moveNode(rowInfo: OnMoveNodeParams) {
-    const { node, nextParentNode } = rowInfo;
+    if (moving) {
+      return;
+    }
+
+    const { node, nextParentNode, treeData: movedTree } = rowInfo;
+    const nextParentId = nextParentNode?.identifier as string | undefined;
+    const previousParentId = (node.parentId as string | undefined) || undefined;
+    const parentChanged = (previousParentId || undefined) !== (nextParentId || undefined);
+
+    setMoving(true);
     try {
-      await categoryService.reparent(node.identifier, node.version, nextParentNode?.identifier);
+      let movedVersion = Math.max(1, node.version ?? 1);
+
+      if (parentChanged) {
+        const reparentVersion = await categoryService.reparent(
+          node.identifier,
+          movedVersion,
+          nextParentId,
+        );
+        if (typeof reparentVersion === 'number') {
+          movedVersion = reparentVersion;
+        }
+      }
+
+      const siblings = collectSiblingNodes(
+        Array.isArray(movedTree) && movedTree.length > 0 ? movedTree : treeData,
+        nextParentId,
+      );
+
+      const items = siblings
+        .filter((sibling) => Boolean(sibling.identifier))
+        .map((sibling, index) => ({
+          id: String(sibling.identifier),
+          expectedVersion:
+            sibling.identifier === node.identifier
+              ? movedVersion
+              : Math.max(1, sibling.version ?? 1),
+          sortOrder: index,
+        }));
+
+      if (items.length > 0) {
+        await categoryService.reorderCategories(items);
+      }
+
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error));
+      refetch();
+    } finally {
+      setMoving(false);
     }
   }
 
@@ -315,9 +371,9 @@ export default function Categories() {
     );
   };
 
-  const prepareNodes = useCallback((category: CategoryResponse) => {
+  const prepareNodes = useCallback((category: CategoryResponse, parentId?: string) => {
     const childrenData: any = category.children?.map((childCategory) => {
-      return prepareNodes(childCategory);
+      return prepareNodes(childCategory, category.identifier);
     });
 
     return {
@@ -327,6 +383,7 @@ export default function Categories() {
       sortOrder: category.sortOrder,
       version: category.version,
       status: category.status,
+      parentId: parentId ?? category.parentId,
       children: childrenData,
       expanded: true,
     } as TreeItem;
@@ -353,7 +410,7 @@ export default function Categories() {
               </div>
               <div>
                 <h5 className="mb-0 fw-bold text-dark" style={{ fontSize: '16px', letterSpacing: '-0.2px' }}>
-                  Kategori Yönetimi Kataloğu
+                  Kategoriler
                 </h5>
                 <small className="text-muted">Kategorileri ekleyebilir, sürükleyerek alt kategori yapabilir veya düzenleyebilirsiniz.</small>
               </div>
@@ -386,19 +443,25 @@ export default function Categories() {
               </Form.Group>
             </Col>
             <Col lg={8} md={6} sm={12} className="d-flex justify-content-lg-end align-items-center gap-2 flex-wrap">
-              <Pagination className="mb-0 me-2">
-                <Pagination.First disabled={!searchFoundCount} onClick={selectPrevMatch} />
-                <Pagination.Last disabled={!searchFoundCount} onClick={selectNextMatch} />
-              </Pagination>
-              <span className="small text-muted me-3">
-                {searchFoundCount > 0 ? searchFocusIndex + 1 : 0} / {searchFoundCount || 0}
-              </span>
-              <Button size="sm" variant="outline-secondary" className="me-2" onClick={() => expand(true)}>
-                <i className="fe fe-chevron-down me-1" /> Tümünü Aç
-              </Button>
-              <Button size="sm" variant="outline-secondary" className="me-3" onClick={() => expand(false)}>
-                <i className="fe fe-chevron-up me-1" /> Tümünü Kapa
-              </Button>
+              {(treeData?.length ?? 0) > 0 && (
+                <>
+                  <Pagination className="mb-0 me-2">
+                    <Pagination.First disabled={!searchFoundCount} onClick={selectPrevMatch} />
+                    <Pagination.Last disabled={!searchFoundCount} onClick={selectNextMatch} />
+                  </Pagination>
+                  {searchFoundCount > 0 && (
+                    <span className="small text-muted me-3">
+                      {searchFocusIndex + 1} / {searchFoundCount}
+                    </span>
+                  )}
+                  <Button size="sm" variant="outline-secondary" className="me-2" onClick={() => expand(true)}>
+                    <i className="fe fe-chevron-down me-1" /> Tümünü Aç
+                  </Button>
+                  <Button size="sm" variant="outline-secondary" className="me-3" onClick={() => expand(false)}>
+                    <i className="fe fe-chevron-up me-1" /> Tümünü Kapa
+                  </Button>
+                </>
+              )}
               <Form.Check
                 type="switch"
                 id="show-deleted-switch-main"
@@ -412,13 +475,20 @@ export default function Categories() {
 
           <hr className="my-3" style={{ borderColor: '#f1f5f9' }} />
 
+          {!isLoading && isError && (
+            <Alert variant="danger" className="d-flex justify-content-between align-items-center">
+              <span>Kategoriler yüklenemedi. Güncel kayıtlar alınmadan düzenleme yapılamaz.</span>
+              <Button size="sm" variant="outline-danger" onClick={() => refetch()}>Tekrar Dene</Button>
+            </Alert>
+          )}
+
           <div style={{ height: "62vh" }}>
             {isLoading && (
               <div className="p-5 text-center">
                 <Spinner animation="border" role="status" variant="primary" />
               </div>
             )}
-            {!isLoading && treeData && treeData.length > 0 ? (
+            {!isLoading && !isError && treeData && treeData.length > 0 ? (
               <SortableTree
                 treeData={treeData}
                 onChange={(nextTreeData) => setTreeData(nextTreeData)}
@@ -438,7 +508,7 @@ export default function Categories() {
                   const slugStr = node.slug ? String(node.slug).toLowerCase() : "";
                   return nameStr.includes(q) || slugStr.includes(q);
                 }}
-                canDrag={({ node }) => !node.dragDisabled}
+                canDrag={({ node }) => !moving && !node.dragDisabled}
                 generateNodeProps={(rowInfo) => {
                   const isDeleted = rowInfo.node.status === EntityStatusEnum.DELETED;
                   return {
@@ -454,6 +524,15 @@ export default function Categories() {
                               onClick={() => openAddChildModal(rowInfo)}
                             >
                               <i className="fe fe-plus-square"></i>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="light"
+                              className="p-1 px-2 text-info border-0 bg-light rounded-2"
+                              title="Özellikler"
+                              onClick={() => setPropertiesNode(rowInfo.node)}
+                            >
+                              <i className="fe fe-list"></i>
                             </Button>
                             <Button
                               size="sm"
@@ -489,12 +568,11 @@ export default function Categories() {
                     ],
                     title: (
                       <span>
-                        <strong className="text-dark">{rowInfo.node.name}</strong>{" "}
-                        <small className="text-muted ms-1">({rowInfo.node.slug})</small>
+                        <strong className="text-dark">{rowInfo.node.name}</strong>
                         {isDeleted && <Badge bg="danger" className="ms-2">Silinmiş / Pasif</Badge>}
                       </span>
                     ),
-                    subtitle: `Sıra: ${rowInfo.node.sortOrder ?? 0}`,
+                    subtitle: isDeleted ? 'Pasif kategori' : undefined,
                     style: {
                       height: "52px",
                       opacity: isDeleted ? 0.55 : 1,
@@ -502,10 +580,10 @@ export default function Categories() {
                   };
                 }}
               />
-            ) : !isLoading && (
+            ) : !isLoading && !isError && (
               <div className="p-5 text-center text-muted border rounded-3 bg-light">
                 <i className="fe fe-folder fs-1 mb-2 d-block text-secondary"></i>
-                Gösterilecek kategori bulunamadı.
+                Henüz kategori bulunmuyor. İlk kategoriyi ekleyin.
               </div>
             )}
           </div>
@@ -516,9 +594,9 @@ export default function Categories() {
       <Modal show={formModalOpen} onHide={() => setFormModalOpen(false)} centered animation>
         <Modal.Header closeButton className="border-0 pb-0">
           <Modal.Title className="fw-bold">
-            {modalMode === "create" && "✨ Yeni Ana Kategori Ekle"}
-            {modalMode === "addChild" && `➕ Alt Kategori Ekle (${selectedNode?.name})`}
-            {modalMode === "edit" && `✏️ Kategoriyi Düzenle (${selectedNode?.name})`}
+            {modalMode === "create" && "Yeni Ana Kategori"}
+            {modalMode === "addChild" && `Alt Kategori Ekle (${selectedNode?.name})`}
+            {modalMode === "edit" && `Kategoriyi Düzenle (${selectedNode?.name})`}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body className="py-3">
@@ -532,26 +610,20 @@ export default function Categories() {
             />
           </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label className="fw-semibold">
-              Slug <small className="text-muted font-normal">(Opsiyonel — Otomatik Oluşturulur)</small>
-            </Form.Label>
-            <Form.Control
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              placeholder="Boş bırakabilirsiniz (örn: ingiliz-atlari)"
-            />
-          </Form.Group>
+          <Form.Text muted className="d-block mb-3">
+            Kategori bağlantısı addan otomatik oluşturulur.
+          </Form.Text>
 
-          <Form.Group className="mb-3">
-            <Form.Label className="fw-semibold">Sıra Numarası</Form.Label>
-            <Form.Control
-              type="number"
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-              placeholder="Örn: 1"
-            />
-          </Form.Group>
+          {(modalMode === "create" || modalMode === "addChild") && (
+            <Form.Text muted className="d-block mb-3">
+              Yeni kategori ilgili kardeş listesinin sonuna eklenir. Sıra ağaç sürükle-bırak ile düzenlenir.
+            </Form.Text>
+          )}
+          {modalMode === "edit" && (
+            <Form.Text muted className="d-block mb-3">
+              Sıra ağaçta sürükle-bırak ile düzenlenir.
+            </Form.Text>
+          )}
         </Modal.Body>
         <Modal.Footer className="border-0 pt-0">
           <Button variant="outline-secondary" onClick={() => setFormModalOpen(false)}>
@@ -580,7 +652,7 @@ export default function Categories() {
               <div className="d-flex gap-2">
                 <i className="fe fe-alert-circle text-warning fs-4 flex-shrink-0 mt-1"></i>
                 <div>
-                  <strong className="text-warning-emphasis d-block mb-1">⚠️ Dikkat: Alt Kategoriler De Silinecek!</strong>
+                  <strong className="text-warning-emphasis d-block mb-1">Dikkat: Alt kategoriler de silinecek</strong>
                   <span className="small text-dark-emphasis">
                     Bu kategorinin altında <strong>{nodeToDelete.children.length} adet alt kategori</strong> bulunmaktadır. Bu ana kategoriyi silerseniz bağlı olan tüm alt kategoriler de otomatik olarak silinecektir (pasife alınacaktır).
                   </span>
@@ -599,6 +671,14 @@ export default function Categories() {
           </div>
         </Modal.Body>
       </Modal>
+
+      {propertiesNode?.identifier && (
+        <CategoryPropertiesModal
+          categoryId={propertiesNode.identifier}
+          categoryName={String(propertiesNode.name ?? '')}
+          onClose={() => setPropertiesNode(null)}
+        />
+      )}
     </Container>
   );
 }

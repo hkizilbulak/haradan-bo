@@ -8,11 +8,17 @@ export interface Page {
   totalElements: number;
   totalPages: number;
   number: number;
+  /** Present when server uses opaque cursor pagination */
+  hasMore?: boolean;
+  nextCursor?: string | null;
+  cursorMode?: boolean;
 }
 
 export interface SearchParams<T> {
   filter?: string;
   pageRequest: PageParams<T>;
+  /** Opaque server cursor; never parse/modify */
+  cursor?: string | null;
 }
 
 export interface PageParams<T> {
