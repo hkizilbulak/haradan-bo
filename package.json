@@ -9,6 +9,8 @@
     "worker": "powershell -ExecutionPolicy Bypass -File ./scripts/run-worker.ps1",
     "worker:mac": "bash ./scripts/run-worker.sh",
     "build": "next build",
+    "local": "npm run build && ./scripts/run-local.sh",
+    "local:start": "./scripts/run-local.sh",
     "start": "next start",
     "lint": "next lint",
     "test:sanitize-html": "node --experimental-strip-types helpers/sanitizeHtml.test.ts",
