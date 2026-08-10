@@ -18,8 +18,8 @@ BE worker: TJK, medya ve diğer arka plan işlerini ayrı süreçte yürütür.
 
 ## Gereksinimler
 
-- Go
-- Node.js ve npm
+- `PATH` üzerinden erişilebilen Go
+- `PATH` üzerinden erişilebilen Node.js ve npm
 - `haradan-be` deposu
 - BE deposunda yerel ve Git tarafından yok sayılan `.env`
 - BO deposunda yerel ve Git tarafından yok sayılan `.env.local`
@@ -61,17 +61,19 @@ Gerçek erişim anahtarlarını, parolaları veya token'ları dokümana ya da Gi
 
 ## Normal tam-stack başlangıç
 
-BO deposunda:
+macOS, Windows veya Linux üzerinde BO deposunda:
 
 ```bash
 npm run start:all
 ```
 
-Bu komut:
+Bu platformlar arası komut:
 
-- `make api` ile BE API'yi `:3001` üzerinde,
-- `make worker` ile BE worker'ı,
-- `npm run local:start` ile BO'yu `:8080` üzerinde başlatır.
+- BE `.env` dosyasını okuyup API'yi `:3001` üzerinde,
+- aynı BE ortamıyla worker'ı,
+- BO `.env.local` dosyasını okuyup BO'yu `:8080` üzerinde başlatır.
+
+`start:all` doğrudan Node.js ve `go run` kullanır; Bash, Make, Git Bash, WSL veya Windows için ek `set` komutları gerektirmez.
 
 Hazır olduğunda `http://localhost:8080` adresini açın. `Ctrl+C` üç süreci de durdurur.
 
@@ -81,16 +83,9 @@ Hazır olduğunda `http://localhost:8080` adresini açın. `Ctrl+C` üç süreci
 npm run build
 ```
 
-## Servisleri ayrı başlatma
+## Bireysel başlangıç komutları
 
-BE deposunda, ayrı terminallerde:
-
-```bash
-make api
-make worker
-```
-
-BO deposunda:
+BO komutları Windows, macOS ve Linux üzerinde çalışır:
 
 ```bash
 npm run local
@@ -99,6 +94,15 @@ npm run local:start
 
 - `npm run local`: önce Next.js statik çıktısını oluşturur, sonra BO Go sunucusunu başlatır.
 - `npm run local:start`: mevcut `out/` çıktısını build etmeden başlatır.
+
+BE için mevcut isteğe bağlı macOS/Linux Make kolaylık komutları ayrı terminallerde kullanılabilir:
+
+```bash
+make api
+make worker
+```
+
+Windows veya normal tam-stack başlangıç için Make gerekli değildir; `npm run start:all` kullanın.
 
 ## Arayüz geliştirme ve hot reload
 
@@ -112,7 +116,7 @@ npm run dev
 - BO Go proxy: `http://localhost:8080`
 - BE API: `http://localhost:3001`
 
-Hot reload için tarayıcıda `http://localhost:3000` açılmalıdır; `:8080` mevcut statik `out/` içeriğini sunar. API ve worker için BE komutlarını, Go proxy için `npm run local:start` komutunu ayrı terminallerde çalıştırın.
+Hot reload için tarayıcıda `http://localhost:3000` açılmalıdır; `:8080` mevcut statik `out/` içeriğini sunar. Platformlar arası API, worker ve Go proxy başlangıcı için `npm run start:all` komutunu, Next.js için `npm run dev` komutunu ayrı terminallerde çalıştırın.
 
 Worker; TJK senkronizasyonu, medya işleme ve diğer kuyruklanmış arka plan işlerinin tamamlanması için gereklidir.
 

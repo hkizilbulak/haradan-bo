@@ -1,7 +1,9 @@
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
-const { execFileSync, spawn } = require('child_process');
+const { spawn } = require('child_process');
+const dotenv = require('dotenv');
+const treeKill = require('tree-kill');
 
 const boDir = path.resolve(__dirname, '..');
 const beDir = process.env.HARADAN_BE_DIR
@@ -26,13 +28,21 @@ function assertFile(filename, message) {
 
 function validateSetup() {
   assertDirectory(beDir, `haradan-be bulunamadı: ${beDir}\nHARADAN_BE_DIR ile konumu belirtebilirsiniz.`);
-  assertFile(path.join(beDir, 'Makefile'), `haradan-be Makefile bulunamadı: ${beDir}`);
   assertFile(path.join(beDir, '.env'), `BE .env bulunamadı: ${path.join(beDir, '.env')}`);
   assertFile(path.join(boDir, '.env.local'), `BO .env.local bulunamadı: ${path.join(boDir, '.env.local')}`);
   assertDirectory(
     path.join(boDir, 'out'),
     'BO out/ bulunamadı. Önce `npm run build` çalıştırın.',
   );
+}
+
+function environmentFromFile(filename, overrides = {}) {
+  const parsed = dotenv.parse(fs.readFileSync(filename));
+  return {
+    ...parsed,
+    ...process.env,
+    ...overrides,
+  };
 }
 
 function prefixOutput(stream, label, destination) {
@@ -54,10 +64,10 @@ function prefixOutput(stream, label, destination) {
   });
 }
 
-function startService(label, command, args, cwd) {
+function startService(label, command, args, cwd, env) {
   const child = spawn(command, args, {
     cwd,
-    env: process.env,
+    env,
     detached: false,
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -97,55 +107,19 @@ function startService(label, command, args, cwd) {
   return service;
 }
 
-function processTree(rootPid) {
-  if (process.platform === 'win32') {
-    return [rootPid];
-  }
-
-  try {
-    const rows = execFileSync('ps', ['-axo', 'pid=,ppid='], { encoding: 'utf8' });
-    const childrenByParent = new Map();
-
-    for (const row of rows.split('\n')) {
-      const [pidText, parentPidText] = row.trim().split(/\s+/);
-      const pid = Number(pidText);
-      const parentPid = Number(parentPidText);
-      if (!Number.isInteger(pid) || !Number.isInteger(parentPid)) {
-        continue;
-      }
-      const children = childrenByParent.get(parentPid) || [];
-      children.push(pid);
-      childrenByParent.set(parentPid, children);
-    }
-
-    const result = [];
-    function visit(pid) {
-      for (const childPid of childrenByParent.get(pid) || []) {
-        visit(childPid);
-      }
-      result.push(pid);
-    }
-    visit(rootPid);
-    return result;
-  } catch (_error) {
-    return [rootPid];
-  }
-}
-
 function signalService(service, signal) {
   if (service.closed || !service.child.pid) {
-    return;
+    return Promise.resolve();
   }
 
-  for (const pid of processTree(service.child.pid)) {
-    try {
-      process.kill(pid, signal);
-    } catch (error) {
-      if (error.code !== 'ESRCH') {
+  return new Promise((resolve) => {
+    treeKill(service.child.pid, signal, (error) => {
+      if (error && error.code !== 'ESRCH' && !/no such process|not found/i.test(error.message)) {
         process.stderr.write(`[START] ${service.label} durdurulamadı: ${error.message}\n`);
       }
-    }
-  }
+      resolve();
+    });
+  });
 }
 
 function delay(milliseconds) {
@@ -157,14 +131,14 @@ async function stopService(service, signal) {
     return;
   }
 
-  signalService(service, signal);
+  await signalService(service, signal);
   const stopped = await Promise.race([
     service.exitPromise.then(() => true),
     delay(5000).then(() => false),
   ]);
 
   if (!stopped) {
-    signalService(service, 'SIGKILL');
+    await signalService(service, 'SIGKILL');
     await Promise.race([service.exitPromise, delay(2000)]);
   }
 }
@@ -217,6 +191,19 @@ async function waitForReady(label, url, timeoutMilliseconds = 45000) {
 async function main() {
   validateSetup();
 
+  const beEnvironment = environmentFromFile(path.join(beDir, '.env'));
+  const apiEnvironment = {
+    ...beEnvironment,
+    HTTP_ADDR: ':3001',
+  };
+  const boEnvironment = environmentFromFile(path.join(boDir, '.env.local'));
+  if (boEnvironment.PORT === undefined) {
+    boEnvironment.PORT = '8080';
+  }
+  if (boEnvironment.BACKEND_API_URL === undefined) {
+    boEnvironment.BACKEND_API_URL = 'http://localhost:3001';
+  }
+
   process.once('SIGINT', () => {
     void shutdown(0, 'Haradan yerel servisleri durduruluyor.', 'SIGINT');
   });
@@ -229,9 +216,9 @@ async function main() {
     void shutdown(0, 'Haradan yerel servisleri durduruluyor.', 'SIGTERM');
   });
 
-  startService('API', 'make', ['api'], beDir);
-  startService('WORKER', 'make', ['worker'], beDir);
-  startService('BO', 'npm', ['run', 'local:start'], boDir);
+  startService('API', 'go', ['run', './cmd/api'], beDir, apiEnvironment);
+  startService('WORKER', 'go', ['run', './cmd/worker'], beDir, beEnvironment);
+  startService('BO', 'go', ['run', 'main.go'], boDir, boEnvironment);
 
   try {
     await Promise.all([
