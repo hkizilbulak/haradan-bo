@@ -1,109 +1,134 @@
-# 🏇 Haradan Backoffice (BO)
+# Haradan Backoffice (BO)
 
-Next.js (SSG) ve Go (BFF Proxy) mimarisine sahip **Haradan.com Yönetim Paneli** tekil binary sunucu uygulaması.
+Haradan BO, Next.js ile statik olarak üretilen yönetim arayüzünü sunan ve tarayıcı ile Haradan Backend arasında oturum/API proxy görevi gören Go uygulamasıdır.
 
----
+## Yerel mimari
 
-## 📐 Sistem Mimarisi
+```text
+Tarayıcı
+  │
+  ▼
+BO Go sunucusu :8080
+  │
+  ▼
+BE API :3001
 
-```mermaid
-flowchart LR
-    subgraph Browser ["Tarayıcı (Client)"]
-        UI["Haradan BO Arayüzü"]
-    end
-
-    subgraph BO ["Haradan BO (Port 8080)"]
-        GoServer["Go Server (main.go)"]
-        StaticHTML["Statik HTML/JS (out/)"]
-        SessionManager["HttpOnly Cookie & Auth Proxy"]
-    end
-
-    subgraph Backend ["Haradan BE (Port 3001)"]
-        BEApi["Go REST API (cmd/api)"]
-        TJKWorker["TJK Sync Worker"]
-    end
-
-    UI -->|"Sayfa İstekleri"| StaticHTML
-    UI -->|"/api/session/*"| SessionManager
-    SessionManager -->|"/v1/* Proxy"| BEApi
-    BEApi --> TJKWorker
+BE worker: TJK, medya ve diğer arka plan işlerini ayrı süreçte yürütür.
 ```
 
----
+## Gereksinimler
 
-## 🚀 Adım Adım Çalıştırma Rehberi
+- Go
+- Node.js ve npm
+- `haradan-be` deposu
+- BE deposunda yerel ve Git tarafından yok sayılan `.env`
+- BO deposunda yerel ve Git tarafından yok sayılan `.env.local`
+- BO bağımlılıkları için `npm install`
 
-Projeyi yerelde eksiksiz çalıştırmak için sırasıyla aşağıdaki adımlar uygulanır:
+Varsayılan klasör yapısı şöyledir:
 
-### 1️⃣ Adım: Backend'i (`haradan-be`) Başlatma (Port 3001)
-
-1. Terminalde (`haradan-be` dizininde):
-
-```powershell
-cd haradan-be
-$env:HTTP_ADDR=":3001"
-Get-Content .env | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$' -and $matches[1].Trim() -ne 'HTTP_ADDR') { [System.Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), 'Process') } }
-go run ./cmd/api
+```text
+parent/
+├── haradan-be/
+└── haradan-bo/
 ```
 
-eğer mac kullanıyorsan
-...
-export HTTP_ADDR=":3001"
-set -a
-source .env
-set +a
-export HTTP_ADDR=":3001"
-go run ./cmd/api
-...
+BE farklı bir konumdaysa tam veya BO'ya göre göreli yol verilebilir:
 
-*(Opsiyonel: TJK Senkronizasyonunu backend tarafında aktif etmek için `$env:TJK_ENABLED="true"` ekleyebilirsiniz.)*
-
----
-
-### 2️⃣ Adım: BO Proxy Sunucusunu (`haradan-bo`) Başlatma (Port 8080)
-
-2. Terminalde (`haradan-bo` dizininde):
-
-```powershell
-cd haradan-bo
-$env:PORT="8080"
-$env:BACKEND_API_URL="http://localhost:3001"
-go run main.go
+```bash
+HARADAN_BE_DIR=/path/to/haradan-be npm run start:all
 ```
 
-> 🌐 **Erişim Adresi:** Tarayıcınızdan **`http://localhost:8080`** adresine gidin.
+## BO ortam ayarları
 
----
+Yerel `.env.local` örneği:
 
-### 🛠️ Geliştirme (Development) Modu (Opsiyonel)
+```dotenv
+PORT=8080
+BACKEND_API_URL=http://localhost:3001
+```
 
-Arayüz kodlarında canlı (hot-reload) değişiklik yapmak istiyorsanız Next.js dev sunucusunu da başlatabilirsiniz:
+- `.env.local` Git tarafından yok sayılır ve commit edilmemelidir.
+- `PORT` verilmezse `8080` kullanılır.
+- `BACKEND_API_URL` verilmezse `http://localhost:3001` kullanılır.
+- `NEXT_PUBLIC_API_URL` yalnızca geriye dönük uyumluluk fallback'idir.
+- `NEXT_PUBLIC_DEV_PROXY_URL` yalnızca Next.js geliştirme modu için anlamlıdır.
+- `CORS_ALLOWED_ORIGINS` isteğe bağlı, virgülle ayrılmış ek origin listesidir.
+- `NEXTAUTH_URL` artık kullanılmaz.
+- `NEXTAUTH_SECRET` mevcut runtime tarafından kullanılmaz.
 
-```powershell
-cd haradan-bo
+Gerçek erişim anahtarlarını, parolaları veya token'ları dokümana ya da Git'e eklemeyin.
+
+## Normal tam-stack başlangıç
+
+BO deposunda:
+
+```bash
+npm run start:all
+```
+
+Bu komut:
+
+- `make api` ile BE API'yi `:3001` üzerinde,
+- `make worker` ile BE worker'ı,
+- `npm run local:start` ile BO'yu `:8080` üzerinde başlatır.
+
+Hazır olduğunda `http://localhost:8080` adresini açın. `Ctrl+C` üç süreci de durdurur.
+
+`start:all`, Git'te takip edilen `out/` içeriğini beklenmedik şekilde yeniden üretmemek için otomatik build çalıştırmaz. `out/` yoksa önce şunu çalıştırın:
+
+```bash
+npm run build
+```
+
+## Servisleri ayrı başlatma
+
+BE deposunda, ayrı terminallerde:
+
+```bash
+make api
+make worker
+```
+
+BO deposunda:
+
+```bash
+npm run local
+npm run local:start
+```
+
+- `npm run local`: önce Next.js statik çıktısını oluşturur, sonra BO Go sunucusunu başlatır.
+- `npm run local:start`: mevcut `out/` çıktısını build etmeden başlatır.
+
+## Arayüz geliştirme ve hot reload
+
+UI üzerinde aktif geliştirme yaparken:
+
+```bash
 npm run dev
 ```
 
-> ⚡ **Not:** `npm run dev` kullanıldığında da `go run main.go` (`8080`) ve `haradan-be` (`3001`) arkada çalışıyor olmalıdır. Uygulama ana erişim adresi **`http://localhost:8080`** üzerindendir.
+- Next.js geliştirme sunucusu ve hot reload: `http://localhost:3000`
+- BO Go proxy: `http://localhost:8080`
+- BE API: `http://localhost:3001`
 
----
+Hot reload için tarayıcıda `http://localhost:3000` açılmalıdır; `:8080` mevcut statik `out/` içeriğini sunar. API ve worker için BE komutlarını, Go proxy için `npm run local:start` komutunu ayrı terminallerde çalıştırın.
 
-## 🔑 Varsayılan Giriş Bilgileri
+Worker; TJK senkronizasyonu, medya işleme ve diğer kuyruklanmış arka plan işlerinin tamamlanması için gereklidir.
 
-| Parametre | Değer |
-| :--- | :--- |
-| **E-posta** | `admin@kartezya.com` |
-| **Şifre** | `haraa` |
-| **Erişim Adresi** | `http://localhost:8080/login` |
+## Kısa sorun giderme
 
----
+- **Port kullanımda:** `3000`, `3001` veya `8080` üzerindeki eski yerel süreçleri durdurun.
+- **BE `.env` bulunamadı:** `haradan-be/.env` dosyasını güvenli yerel değerlerle oluşturun; commit etmeyin.
+- **BO `.env.local` bulunamadı:** yukarıdaki secretsız örneği kullanarak dosyayı oluşturun.
+- **`out/` yok veya eski:** `npm run build` çalıştırın; yalnızca beklenen üretilmiş değişiklikleri koruyun.
+- **API health yanıt vermiyor:** `http://localhost:3001/api/health` adresini ve BE terminal çıktısını kontrol edin.
 
-## ⚙️ Yapılandırma & Detaylar
+## Docker
 
-- **HttpOnly Cookie Yönetimi:** Access ve Refresh token'lar güvenli bir şekilde `main.go` tarafından cookie olarak tutulur.
-- **TJK Senkronizasyon Adaptörü:** TJK senkronizasyonu başlatırken Kaynak Adaptörü olarak **`TJK_HTTP`** kullanılır.
-- **Docker İle Çalıştırma:**
-  ```bash
-  docker build -t haradan-bo .
-  docker run -p 8080:8080 haradan-bo
-  ```
+Docker imajı statik BO çıktısını Go binary içine gömer:
+
+```bash
+docker build -t haradan-bo .
+docker run -p 8080:8080 haradan-bo
+```

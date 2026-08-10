@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "start:all": "node scripts/start-all.js",
     "be": "powershell -ExecutionPolicy Bypass -File ./scripts/run-be.ps1",
     "be:mac": "bash ./scripts/run-be.sh",
     "worker": "powershell -ExecutionPolicy Bypass -File ./scripts/run-worker.ps1",
