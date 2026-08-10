@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "start:all": "node scripts/start-all.js",
+    "dev:all": "node scripts/start-all.js",
     "proxy": "go run main.go",
     "be": "cd ../haradan-be && go run ./cmd/api",
     "be:mac": "bash ./scripts/run-be.sh",

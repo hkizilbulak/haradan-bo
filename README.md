@@ -33,7 +33,18 @@ flowchart LR
 
 ## 🚀 Adım Adım Çalıştırma Rehberi
 
-Projeyi yerelde eksiksiz çalıştırmak için sırasıyla aşağıdaki adımlar uygulanır:
+### ⚡ Tek Komut İle Her Şeyi Başlatma (Tavsiye Edilen)
+
+`haradan-bo` dizinindeyken tek bir komutla hem Backend'i (`3001`) hem de BO Proxy'yi (`8080`) aynı anda başlatabilirsiniz:
+
+```bash
+cd haradan-bo
+npm run start:all
+```
+
+---
+
+### 🟢 Ayrı Ayrı Başlatmak İsterseniz:
 
 ### 1️⃣ Adım: Backend'i (`haradan-be`) Başlatma (Port 3001)
 
