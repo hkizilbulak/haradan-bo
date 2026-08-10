@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "be": "powershell -ExecutionPolicy Bypass -File ./scripts/run-be.ps1",
+    "proxy": "go run main.go",
+    "be": "cd ../haradan-be && go run ./cmd/api",
     "be:mac": "bash ./scripts/run-be.sh",
     "worker": "powershell -ExecutionPolicy Bypass -File ./scripts/run-worker.ps1",
     "worker:mac": "bash ./scripts/run-worker.sh",

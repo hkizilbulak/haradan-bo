@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"embed"
@@ -16,6 +17,30 @@ import (
 	"sync"
 	"time"
 )
+
+func loadDotEnv(filename string) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			val := strings.Trim(strings.TrimSpace(parts[1]), `"'`)
+			if os.Getenv(key) == "" {
+				os.Setenv(key, val)
+			}
+		}
+	}
+}
 
 //go:embed all:out
 var content embed.FS
@@ -82,6 +107,9 @@ type relayedMediaUploadResponse struct {
 }
 
 func main() {
+	loadDotEnv(".env")
+	loadDotEnv(".env.local")
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

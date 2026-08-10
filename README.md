@@ -37,37 +37,23 @@ Projeyi yerelde eksiksiz çalıştırmak için sırasıyla aşağıdaki adımlar
 
 ### 1️⃣ Adım: Backend'i (`haradan-be`) Başlatma (Port 3001)
 
-1. Terminalde (`haradan-be` dizininde):
+Terminalde (`haradan-be` dizininde):
 
-```powershell
+```bash
 cd haradan-be
-$env:HTTP_ADDR=":3001"
-Get-Content .env | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$' -and $matches[1].Trim() -ne 'HTTP_ADDR') { [System.Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), 'Process') } }
 go run ./cmd/api
 ```
 
-eğer mac kullanıyorsan
-...
-export HTTP_ADDR=":3001"
-set -a
-source .env
-set +a
-export HTTP_ADDR=":3001"
-go run ./cmd/api
-...
-
-*(Opsiyonel: TJK Senkronizasyonunu backend tarafında aktif etmek için `$env:TJK_ENABLED="true"` ekleyebilirsiniz.)*
+*(Ortam değişkenleri `.env` dosyasından otomatik yüklenir. Port varsayılan `:3001`'dir.)*
 
 ---
 
 ### 2️⃣ Adım: BO Proxy Sunucusunu (`haradan-bo`) Başlatma (Port 8080)
 
-2. Terminalde (`haradan-bo` dizininde):
+Terminalde (`haradan-bo` dizininde):
 
-```powershell
+```bash
 cd haradan-bo
-$env:PORT="8080"
-$env:BACKEND_API_URL="http://localhost:3001"
 go run main.go
 ```
 
