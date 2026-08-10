@@ -12,6 +12,26 @@ const services = [];
 let stopping = false;
 let shutdownPromise;
 
+function parseEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return {};
+  const content = fs.readFileSync(filePath, 'utf8');
+  const env = {};
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const match = trimmed.match(/^([^=]+)=(.*)$/);
+    if (match) {
+      const key = match[1].trim();
+      let val = match[2].trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      env[key] = val;
+    }
+  }
+  return env;
+}
+
 function assertDirectory(directory, message) {
   if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) {
     throw new Error(message);
@@ -26,7 +46,6 @@ function assertFile(filename, message) {
 
 function validateSetup() {
   assertDirectory(beDir, `haradan-be bulunamadı: ${beDir}\nHARADAN_BE_DIR ile konumu belirtebilirsiniz.`);
-  assertFile(path.join(beDir, 'Makefile'), `haradan-be Makefile bulunamadı: ${beDir}`);
   assertFile(path.join(beDir, '.env'), `BE .env bulunamadı: ${path.join(beDir, '.env')}`);
   assertFile(path.join(boDir, '.env.local'), `BO .env.local bulunamadı: ${path.join(boDir, '.env.local')}`);
   assertDirectory(
@@ -54,10 +73,16 @@ function prefixOutput(stream, label, destination) {
   });
 }
 
-function startService(label, command, args, cwd) {
+function startService(label, rawCommand, args, cwd, customEnv = {}) {
+  const isWin = process.platform === 'win32';
+  let command = rawCommand;
+  if (isWin && command === 'npm') {
+    command = 'npm.cmd';
+  }
+
   const child = spawn(command, args, {
     cwd,
-    env: process.env,
+    env: { ...process.env, ...customEnv },
     detached: false,
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -137,6 +162,15 @@ function signalService(service, signal) {
     return;
   }
 
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('taskkill', ['/F', '/T', '/PID', String(service.child.pid)], { stdio: 'ignore' });
+    } catch (_error) {
+      // process already exited
+    }
+    return;
+  }
+
   for (const pid of processTree(service.child.pid)) {
     try {
       process.kill(pid, signal);
@@ -163,7 +197,7 @@ async function stopService(service, signal) {
     delay(5000).then(() => false),
   ]);
 
-  if (!stopped) {
+  if (!stopped && process.platform !== 'win32') {
     signalService(service, 'SIGKILL');
     await Promise.race([service.exitPromise, delay(2000)]);
   }
@@ -223,15 +257,34 @@ async function main() {
   process.once('SIGTERM', () => {
     void shutdown(0, 'Haradan yerel servisleri durduruluyor.', 'SIGTERM');
   });
-  // npm may close its child with SIGHUP after Ctrl+C. Handling it gives the
-  // orchestrator a chance to finish any cleanup still in progress.
   process.once('SIGHUP', () => {
     void shutdown(0, 'Haradan yerel servisleri durduruluyor.', 'SIGTERM');
   });
 
-  startService('API', 'make', ['api'], beDir);
-  startService('WORKER', 'make', ['worker'], beDir);
-  startService('BO', 'npm', ['run', 'local:start'], boDir);
+  const beEnv = parseEnvFile(path.join(beDir, '.env'));
+  const boEnv = parseEnvFile(path.join(boDir, '.env.local'));
+
+  const apiEnv = {
+    ...beEnv,
+    HTTP_ADDR: ':3001',
+  };
+
+  const workerEnv = {
+    ...beEnv,
+    TJK_ENABLED: process.env.TJK_ENABLED || beEnv.TJK_ENABLED || 'true',
+    STORAGE_PROVIDER: process.env.STORAGE_PROVIDER || beEnv.STORAGE_PROVIDER || 'b2',
+    IMAGE_PROCESSOR_PROVIDER: process.env.IMAGE_PROCESSOR_PROVIDER || beEnv.IMAGE_PROCESSOR_PROVIDER || 'tinify',
+    S3_ENDPOINT: process.env.S3_ENDPOINT || beEnv.S3_ENDPOINT || 'http://localhost:9000',
+    S3_REGION: process.env.S3_REGION || beEnv.S3_REGION || 'us-east-1',
+    S3_BUCKET: process.env.S3_BUCKET || beEnv.S3_BUCKET || 'test',
+    S3_ACCESS_KEY: process.env.S3_ACCESS_KEY || beEnv.S3_ACCESS_KEY || 'test',
+    S3_SECRET_KEY: process.env.S3_SECRET_KEY || beEnv.S3_SECRET_KEY || 'test',
+    TINIFY_API_KEY: process.env.TINIFY_API_KEY || beEnv.TINIFY_API_KEY || 'test',
+  };
+
+  startService('API', 'go', ['run', './cmd/api'], beDir, apiEnv);
+  startService('WORKER', 'go', ['run', './cmd/worker'], beDir, workerEnv);
+  startService('BO', 'go', ['run', 'main.go'], boDir, boEnv);
 
   try {
     await Promise.all([
