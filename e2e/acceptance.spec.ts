@@ -142,11 +142,40 @@ test.describe.serial('Haradan final acceptance', () => {
 
   test('categories and business-friendly properties create, edit and reorder', async () => {
     await openPage(page, '/categories', 'Kategoriler');
+    const createdCategoryIds = new Map<string, string>();
     for (const name of [categoryA, categoryB]) {
       await page.getByRole('button', { name: 'Yeni Kategori Ekle' }).click();
       const modal = page.locator('.modal.show');
       await modal.locator('input').first().fill(name);
+
+      const createResponsePromise = page.waitForResponse((response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/api/v1/admin/categories'),
+      );
+      const refreshResponsePromise = page.waitForResponse((response) =>
+        response.request().method() === 'GET' && response.url().includes('/api/v1/admin/categories?'),
+      );
       await modal.getByRole('button', { name: 'Kaydet' }).click();
+
+      const createResponse = await createResponsePromise;
+      expect(createResponse.status()).toBe(201);
+      const created = await createResponse.json() as { id: string; isActive: boolean; name: string };
+      expect(created).toMatchObject({ isActive: true, name });
+      createdCategoryIds.set(name, created.id);
+
+      const refreshResponse = await refreshResponsePromise;
+      expect(refreshResponse.ok()).toBeTruthy();
+      const refreshed = await refreshResponse.json() as {
+        items: Array<{ id: string; isActive: boolean; name: string; parentId?: string }>;
+      };
+      expect(refreshed.items).toContainEqual(expect.objectContaining({
+        id: created.id,
+        isActive: true,
+        name,
+      }));
+
+      const activeRootCount = refreshed.items.filter((item) => item.isActive && !item.parentId).length;
+      await expect(page.getByText(`Toplam ${activeRootCount} Kategori`, { exact: true })).toBeVisible();
+      await expect(page.getByRole('dialog')).toBeHidden();
       await expect(page.getByText(name, { exact: true })).toBeVisible();
     }
 
@@ -154,17 +183,47 @@ test.describe.serial('Haradan final acceptance', () => {
     await categoryRow.getByTitle('Düzenle').click();
     const editModal = page.locator('.modal.show');
     await editModal.locator('input').first().fill(`${categoryB} Güncel`);
+
+    const updateResponsePromise = page.waitForResponse((response) =>
+      response.request().method() === 'PATCH' && /\/api\/v1\/admin\/categories\/[0-9a-f-]{36}$/.test(response.url()),
+    );
+    const updateRefreshPromise = page.waitForResponse((response) =>
+      response.request().method() === 'GET' && response.url().includes('/api/v1/admin/categories?'),
+    );
     await editModal.getByRole('button', { name: 'Güncelle' }).click();
+
+    const updateResponse = await updateResponsePromise;
+    expect(updateResponse.ok()).toBeTruthy();
+    const updateRefresh = await updateRefreshPromise;
+    const updatedList = await updateRefresh.json() as { items: Array<{ id: string; name: string }> };
+    expect(updatedList.items).toContainEqual(expect.objectContaining({
+      id: createdCategoryIds.get(categoryB),
+      name: `${categoryB} Güncel`,
+    }));
+    await expect(page.getByRole('dialog')).toBeHidden();
     await expect(page.getByText(`${categoryB} Güncel`, { exact: true })).toBeVisible();
     categoryRow = page.locator('.rst__rowContents').filter({ hasText: `${categoryB} Güncel` });
 
     const reorderResponse = page.waitForResponse((response) =>
       response.request().method() === 'PUT' && response.url().endsWith('/api/v1/admin/categories/reorder'),
     );
+    const reorderRefreshPromise = page.waitForResponse((response) =>
+      response.request().method() === 'GET' && response.url().includes('/api/v1/admin/categories?'),
+    );
     const source = page.locator('.rst__node').filter({ hasText: `${categoryB} Güncel` }).locator('.rst__moveHandle');
     const target = page.locator('.rst__node').filter({ hasText: categoryA }).locator('.rst__rowContents');
     await source.dragTo(target);
-    await reorderResponse;
+    expect((await reorderResponse).ok()).toBeTruthy();
+    const reorderRefresh = await reorderRefreshPromise;
+    const reorderedList = await reorderRefresh.json() as {
+      items: Array<{ id: string; sortOrder: number }>;
+    };
+    const reorderedA = reorderedList.items.find((item) => item.id === createdCategoryIds.get(categoryA));
+    const reorderedB = reorderedList.items.find((item) => item.id === createdCategoryIds.get(categoryB));
+    expect(reorderedA).toBeDefined();
+    expect(reorderedB).toBeDefined();
+    expect(reorderedB!.sortOrder).toBeLessThan(reorderedA!.sortOrder);
+    categoryRow = page.locator('.rst__rowContents').filter({ hasText: `${categoryB} Güncel` });
 
     await categoryRow.getByTitle('Özellikler').click();
     const properties = page.locator('.modal.show').first();
@@ -200,6 +259,20 @@ test.describe.serial('Haradan final acceptance', () => {
     await propertyForm.getByRole('button', { name: 'Kaydet' }).click();
     await assertNoTechnicalLeaks(properties);
     await expect(properties).not.toContainText(/STRING|INTEGER|BOOLEAN|SINGLE_SELECT|JSON/i);
+
+    await properties.locator('.btn-close').click();
+    await expect(page.getByRole('dialog')).toBeHidden();
+    const reloadResponsePromise = page.waitForResponse((response) =>
+      response.request().method() === 'GET' && response.url().includes('/api/v1/admin/categories?'),
+    );
+    await page.reload();
+    const reloadResponse = await reloadResponsePromise;
+    const reloaded = await reloadResponse.json() as { items: Array<{ id: string; name: string }> };
+    expect(reloaded.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: createdCategoryIds.get(categoryA), name: categoryA }),
+      expect.objectContaining({ id: createdCategoryIds.get(categoryB), name: `${categoryB} Güncel` }),
+    ]));
+    await expect(page.getByText(`${categoryB} Güncel`, { exact: true })).toBeVisible();
   });
 
   test('packages visual editor, live preview, edit and reorder', async () => {
@@ -225,6 +298,17 @@ test.describe.serial('Haradan final acceptance', () => {
   });
 
   test('banner visual UX and unconfigured storage feedback', async () => {
+    const pageErrors: string[] = [];
+    const unexpectedConsoleErrors: string[] = [];
+    const recordPageError = (error: Error) => pageErrors.push(error.message);
+    const recordConsoleError = (message: import('@playwright/test').ConsoleMessage) => {
+      if (message.type() === 'error' && /AxiosError|Network Error|Uncaught/i.test(message.text())) {
+        unexpectedConsoleErrors.push(message.text());
+      }
+    };
+    page.on('pageerror', recordPageError);
+    page.on('console', recordConsoleError);
+
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
     await page.route(`**/api/v1/media/${bannerAssetId}/BANNER`, (route) => route.fulfill({ status: 200, contentType: 'image/png', body: png }));
     await openPage(page, '/banners', 'Bannerlar');
@@ -240,9 +324,30 @@ test.describe.serial('Haradan final acceptance', () => {
     await page.getByRole('button', { name: 'Banner Ekle' }).click();
     panel = page.locator('.offcanvas.show');
     await expect(panel.locator('select[name="placement"] option')).toHaveText(['Ana Sayfa', 'İlan Detay', 'Arama']);
-    await panel.locator('input[type="file"]').setInputFiles({ name: 'banner.png', mimeType: 'image/png', buffer: png });
-    await expect(page.getByText(/gerekli hizmet şu anda kullanılamıyor/i)).toBeVisible();
+    const uploadInput = panel.locator('input[type="file"]');
+    const uploadResponsePromise = page.waitForResponse((response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/bo/media-upload',
+    );
+    await uploadInput.setInputFiles({ name: 'banner.png', mimeType: 'image/png', buffer: png });
+
+    const uploadResponse = await uploadResponsePromise;
+    expect(uploadResponse.status()).toBe(503);
+    const uploadError = await uploadResponse.json() as { code?: string; message?: string };
+    expect(uploadError).toMatchObject({ code: 'DEPENDENCY_UNAVAILABLE' });
+    expect(uploadError.message).toMatch(/Görsel yükleme .* yapılandırılmadı/i);
+    await expect(page.getByRole('alert').filter({ hasText: uploadError.message! })).toBeVisible();
+    await expect(uploadInput).toBeEnabled();
+    await expect(uploadInput).toHaveValue('');
+    await expect(panel.getByText(/Görsel (yükleniyor|işleniyor)/i)).toHaveCount(0);
+    await expect(panel.locator('img[alt="Banner önizleme"]')).toHaveCount(0);
+    await expect(page.getByText('Görsel yüklendi', { exact: true })).toHaveCount(0);
+    await expect(panel.locator('input[name="title"]')).toBeEnabled();
+    expect(pageErrors).toEqual([]);
+    expect(unexpectedConsoleErrors).toEqual([]);
     await assertNoTechnicalLeaks(panel);
+
+    page.off('pageerror', recordPageError);
+    page.off('console', recordConsoleError);
   });
 
   test('campaign provider state and safe rich-content preview', async () => {
@@ -287,8 +392,8 @@ test.describe.serial('Haradan final acceptance', () => {
   });
 
   test('TJK queued cancel, immediate retrigger and fake full sync', async () => {
-    await openPage(page, '/tjk', 'TJK Senkron');
-    await page.getByRole('button', { name: 'Manuel Senkron Başlat' }).click();
+    await openPage(page, '/tjk', 'TJK Senkronizasyonu');
+    await page.getByRole('button', { name: 'Şimdi Senkronize Et' }).click();
     await page.locator('.offcanvas.show input[type="submit"]').click();
     let newest = page.locator('tbody tr').first();
     await expect(newest).toContainText('Bekliyor');
@@ -297,7 +402,7 @@ test.describe.serial('Haradan final acceptance', () => {
     await expect(newest).toContainText('İptal');
     await expect(page.locator('body')).not.toContainText(/beklenmeyen bir hata|generic|expectedVersion/i);
 
-    await page.getByRole('button', { name: 'Manuel Senkron Başlat' }).click();
+    await page.getByRole('button', { name: 'Şimdi Senkronize Et' }).click();
     await page.locator('.offcanvas.show input[type="submit"]').click();
     newest = page.locator('tbody tr').first();
     await expect(newest).toContainText('Bekliyor');
