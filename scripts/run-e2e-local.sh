@@ -71,6 +71,39 @@ wait_for_url() {
 
 (cd "$be_root" && go run ./cmd/migrate up) >"$runtime_dir/migrate.log" 2>&1
 
+e2e_category_refs="$(psql "$required_db" -Atc "
+SELECT count(*)
+FROM hrd_adverts a
+JOIN hrd_categories c ON c.id = a.category_id
+WHERE c.name LIKE 'E2E Kategori %'
+")"
+if [[ "$e2e_category_refs" != '0' ]]; then
+  echo 'Refusing to remove E2E categories referenced by adverts.' >&2
+  exit 1
+fi
+
+psql "$required_db" -v ON_ERROR_STOP=1 -c "
+DELETE FROM hrd_category_properties
+WHERE category_id IN (
+  SELECT id FROM hrd_categories WHERE name LIKE 'E2E Kategori %'
+);
+
+UPDATE hrd_categories
+SET parent_id = NULL
+WHERE name LIKE 'E2E Kategori %'
+  AND parent_id IN (
+    SELECT id FROM hrd_categories WHERE name LIKE 'E2E Kategori %'
+  );
+
+DELETE FROM hrd_categories
+WHERE name LIKE 'E2E Kategori %';
+" >"$runtime_dir/category-cleanup.log" 2>&1
+
+psql "$required_db" -v ON_ERROR_STOP=1 -c "
+DELETE FROM hrd_banners
+WHERE title LIKE 'E2E Banner %';
+" >"$runtime_dir/banner-cleanup.log" 2>&1
+
 active_tjk="$(psql "$required_db" -Atc "select count(*) from hrd_tjk_sync_runs where status in ('QUEUED','RUNNING')")"
 if [[ "$active_tjk" != '0' ]]; then
   echo 'haradan_test contains an active TJK run; cancel it before acceptance.' >&2
@@ -81,13 +114,13 @@ fi
 pids+=("$!")
 wait_for_url 'http://127.0.0.1:18081/TR/YarisSever/Query/DataRows/Atlar?PageNumber=1'
 
-(cd "$be_root" && HTTP_ADDR=:3001 go run ./cmd/api) >"$runtime_dir/backend.log" 2>&1 &
+(cd "$be_root" && HTTP_ADDR=:8080 go run ./cmd/api) >"$runtime_dir/backend.log" 2>&1 &
 pids+=("$!")
-wait_for_url 'http://127.0.0.1:3001/api/health'
+wait_for_url 'http://127.0.0.1:8080/api/health'
 
 node -e '
 const payload = {email: process.env.E2E_ADMIN_EMAIL, password: process.env.E2E_ADMIN_PASSWORD, firstName: "E2E", lastName: "Yönetici"};
-fetch("http://127.0.0.1:3001/api/v1/auth/register", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(payload)})
+fetch("http://127.0.0.1:8080/api/v1/auth/register", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(payload)})
   .then(async (response) => { if (response.status !== 201) throw new Error(`admin seed registration failed: ${response.status}`); })
   .catch((error) => { console.error(error.message); process.exit(1); });
 '
@@ -114,9 +147,9 @@ SELECT '${E2E_BANNER_ID}', 'HOMEPAGE', 'INACTIVE', '${E2E_BANNER_ASSET_ID}',
 FROM hrd_users WHERE email_normalized=lower('${E2E_ADMIN_EMAIL}');
 " >"$runtime_dir/seed.log" 2>&1
 
-(cd "$bo_root" && BACKEND_API_URL='http://127.0.0.1:3001' PORT=8080 go run .) >"$runtime_dir/bo.log" 2>&1 &
+(cd "$bo_root" && BACKEND_API_URL='http://127.0.0.1:8080' PORT=3000 go run .) >"$runtime_dir/bo.log" 2>&1 &
 pids+=("$!")
-wait_for_url 'http://127.0.0.1:8080/login'
+wait_for_url 'http://127.0.0.1:3000/login'
 
 (
   while [[ ! -f "$worker_marker" ]]; do sleep 0.1; done
@@ -126,10 +159,12 @@ wait_for_url 'http://127.0.0.1:8080/login'
 pids+=("$!")
 
 cd "$bo_root"
-npx playwright test
+npx playwright test "$@"
 
-horse_count="$(psql "$required_db" -Atc "select count(*) from hrd_horses where tjk_number='E2E-${E2E_RUN_ID}' and original_name='E2E TAY ${E2E_RUN_ID}'")"
-if [[ "$horse_count" != '1' ]]; then
-  echo 'Fake TJK horse was not persisted.' >&2
-  exit 1
+if [[ -f "$worker_marker" ]]; then
+  horse_count="$(psql "$required_db" -Atc "select count(*) from hrd_horses where tjk_number='E2E-${E2E_RUN_ID}' and original_name='E2E TAY ${E2E_RUN_ID}'")"
+  if [[ "$horse_count" != '1' ]]; then
+    echo 'Fake TJK horse was not persisted.' >&2
+    exit 1
+  fi
 fi

@@ -10,7 +10,7 @@ export default defineConfig({
   reporter: [['line']],
   outputDir: '/private/tmp/haradan-playwright-results',
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:8080',
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
     headless: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

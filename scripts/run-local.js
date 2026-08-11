@@ -16,6 +16,17 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function addAllowedOrigin(value, requiredOrigin) {
+  const origins = (value || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (!origins.includes(requiredOrigin)) {
+    origins.push(requiredOrigin);
+  }
+  return origins.join(',');
+}
+
 function signalChildTree(signal) {
   if (!child || !child.pid) {
     return Promise.resolve();
@@ -63,11 +74,15 @@ async function main() {
     ...process.env,
   };
   if (environment.PORT === undefined) {
-    environment.PORT = '8080';
+    environment.PORT = '3000';
   }
   if (environment.BACKEND_API_URL === undefined) {
-    environment.BACKEND_API_URL = 'http://localhost:3001';
+    environment.BACKEND_API_URL = 'http://localhost:8080';
   }
+  environment.CORS_ALLOWED_ORIGINS = addAllowedOrigin(
+    environment.CORS_ALLOWED_ORIGINS,
+    'http://localhost:3001',
+  );
 
   child = spawn('go', ['run', 'main.go'], {
     cwd: boDir,

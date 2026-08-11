@@ -6,6 +6,7 @@ const dotenv = require('dotenv');
 const treeKill = require('tree-kill');
 
 const boDir = path.resolve(__dirname, '..');
+const developmentMode = process.argv.slice(2).includes('--dev');
 const beDir = process.env.HARADAN_BE_DIR
   ? path.resolve(boDir, process.env.HARADAN_BE_DIR)
   : path.resolve(boDir, '..', 'haradan-be');
@@ -43,6 +44,17 @@ function environmentFromFile(filename, overrides = {}) {
     ...process.env,
     ...overrides,
   };
+}
+
+function addAllowedOrigin(value, requiredOrigin) {
+  const origins = (value || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (!origins.includes(requiredOrigin)) {
+    origins.push(requiredOrigin);
+  }
+  return origins.join(',');
 }
 
 function prefixOutput(stream, label, destination) {
@@ -194,14 +206,17 @@ async function main() {
   const beEnvironment = environmentFromFile(path.join(beDir, '.env'));
   const apiEnvironment = {
     ...beEnvironment,
-    HTTP_ADDR: ':3001',
+    HTTP_ADDR: ':8080',
   };
-  const boEnvironment = environmentFromFile(path.join(boDir, '.env.local'));
-  if (boEnvironment.PORT === undefined) {
-    boEnvironment.PORT = '8080';
-  }
-  if (boEnvironment.BACKEND_API_URL === undefined) {
-    boEnvironment.BACKEND_API_URL = 'http://localhost:3001';
+  const boEnvironment = environmentFromFile(path.join(boDir, '.env.local'), {
+    PORT: '3000',
+    BACKEND_API_URL: 'http://localhost:8080',
+  });
+  if (developmentMode) {
+    boEnvironment.CORS_ALLOWED_ORIGINS = addAllowedOrigin(
+      boEnvironment.CORS_ALLOWED_ORIGINS,
+      'http://localhost:3001',
+    );
   }
 
   process.once('SIGINT', () => {
@@ -219,12 +234,23 @@ async function main() {
   startService('API', 'go', ['run', './cmd/api'], beDir, apiEnvironment);
   startService('WORKER', 'go', ['run', './cmd/worker'], beDir, beEnvironment);
   startService('BO', 'go', ['run', 'main.go'], boDir, boEnvironment);
+  if (developmentMode) {
+    const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const nextEnvironment = environmentFromFile(path.join(boDir, '.env.local'), {
+      NEXT_PUBLIC_DEV_PROXY_URL: 'http://localhost:3000',
+    });
+    startService('NEXT', npmCommand, ['run', 'dev'], boDir, nextEnvironment);
+  }
 
   try {
-    await Promise.all([
-      waitForReady('API', 'http://localhost:3001/api/health'),
-      waitForReady('BO', 'http://localhost:8080'),
-    ]);
+    const readinessChecks = [
+      waitForReady('API', 'http://localhost:8080/api/health'),
+      waitForReady('BO', 'http://localhost:3000'),
+    ];
+    if (developmentMode) {
+      readinessChecks.push(waitForReady('Next.js', 'http://localhost:3001/login'));
+    }
+    await Promise.all(readinessChecks);
   } catch (error) {
     if (!stopping) {
       await shutdown(1, error.message);
@@ -234,8 +260,10 @@ async function main() {
   if (!stopping) {
     process.stdout.write(
       '\nHaradan local stack ready\n' +
-      'BO:  http://localhost:8080\n' +
-      'API: http://localhost:3001\n\n',
+      'BO:   http://localhost:3000\n' +
+      (developmentMode ? 'NEXT: http://localhost:3001\n' : '') +
+      'API:  http://localhost:8080\n' +
+      (developmentMode ? 'OPEN: http://localhost:3001\n\n' : 'OPEN: http://localhost:3000\n\n'),
     );
   }
 

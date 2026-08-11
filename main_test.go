@@ -96,3 +96,56 @@ func TestMediaUploadRelayRejectsUnsupportedTypeBeforeInitiation(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestDevelopmentCORSPreflightAllowsExactCredentialedOrigin(t *testing.T) {
+	t.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3001")
+	srv := &appServer{}
+	req := httptest.NewRequest(http.MethodOptions, "http://localhost:3000/api/session", nil)
+	req.Host = "localhost:3000"
+	req.Header.Set("Origin", "http://localhost:3001")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	req.Header.Set("Access-Control-Request-Headers", "Content-Type")
+	rec := httptest.NewRecorder()
+
+	srv.handleRequest(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d", rec.Code, http.StatusOK)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3001" {
+		t.Fatalf("Access-Control-Allow-Origin=%q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Fatalf("Access-Control-Allow-Credentials=%q", got)
+	}
+	if !strings.Contains(rec.Header().Get("Access-Control-Allow-Methods"), http.MethodPost) {
+		t.Fatalf("Access-Control-Allow-Methods=%q", rec.Header().Get("Access-Control-Allow-Methods"))
+	}
+	if !strings.Contains(rec.Header().Get("Access-Control-Allow-Headers"), "Content-Type") {
+		t.Fatalf("Access-Control-Allow-Headers=%q", rec.Header().Get("Access-Control-Allow-Headers"))
+	}
+	if got := rec.Header().Get("Vary"); got != "Origin" {
+		t.Fatalf("Vary=%q", got)
+	}
+}
+
+func TestDevelopmentCORSPreflightRejectsUnlistedOrigin(t *testing.T) {
+	t.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3001")
+	srv := &appServer{}
+	req := httptest.NewRequest(http.MethodOptions, "http://localhost:3000/api/session", nil)
+	req.Host = "localhost:3000"
+	req.Header.Set("Origin", "http://malicious.example")
+	rec := httptest.NewRecorder()
+
+	srv.handleRequest(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status=%d, want %d", rec.Code, http.StatusForbidden)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("Access-Control-Allow-Origin=%q, want empty", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "" {
+		t.Fatalf("Access-Control-Allow-Credentials=%q, want empty", got)
+	}
+}

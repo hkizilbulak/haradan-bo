@@ -5,15 +5,18 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -82,14 +85,20 @@ type relayedMediaUploadResponse struct {
 }
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatalf("Server stopped with error: %v", err)
+	}
+}
+
+func run() error {
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "3000"
 	}
 
 	subFS, err := fs.Sub(content, "out")
 	if err != nil {
-		log.Fatalf("Failed to create sub filesystem: %v", err)
+		return err
 	}
 
 	server := &appServer{
@@ -99,12 +108,39 @@ func main() {
 		subFS:      subFS,
 	}
 
-	http.HandleFunc("/", server.handleRequest)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", server.handleRequest)
+	httpServer := &http.Server{
+		Addr:              ":" + port,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 
 	log.Printf("Server starting on port %s...", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+	errCh := make(chan error, 1)
+	go func() {
+		err := httpServer.ListenAndServe()
+		if errors.Is(err, http.ErrServerClosed) {
+			err = nil
+		}
+		errCh <- err
+	}()
+
+	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	select {
+	case err := <-errCh:
+		return err
+	case <-signalCtx.Done():
 	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		return err
+	}
+	return <-errCh
 }
 
 func resolveBackendURL() string {
@@ -115,7 +151,7 @@ func resolveBackendURL() string {
 	// Localhost fallback keeps local `go run` usable without env; production must set BACKEND_API_URL.
 	// APP_ENV is unused here — do not invent environment detection.
 	if backendURL == "" {
-		backendURL = "http://localhost:3001"
+		backendURL = "http://localhost:8080"
 		log.Printf("WARNING: BACKEND_API_URL not set; falling back to %s. Production must set BACKEND_API_URL.", backendURL)
 	}
 	return backendURL
