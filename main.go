@@ -84,7 +84,7 @@ type relayedMediaUploadResponse struct {
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "3000"
 	}
 
 	subFS, err := fs.Sub(content, "out")
@@ -115,7 +115,7 @@ func resolveBackendURL() string {
 	// Localhost fallback keeps local `go run` usable without env; production must set BACKEND_API_URL.
 	// APP_ENV is unused here — do not invent environment detection.
 	if backendURL == "" {
-		backendURL = "http://localhost:3001"
+		backendURL = "http://localhost:8080"
 		log.Printf("WARNING: BACKEND_API_URL not set; falling back to %s. Production must set BACKEND_API_URL.", backendURL)
 	}
 	return backendURL

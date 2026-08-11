@@ -16,8 +16,8 @@ const authClient = axios.create({
 });
 
 function getDevUrl(path: string) {
-  if (typeof window !== 'undefined' && window.location.port === '3000') {
-    return (process.env.NEXT_PUBLIC_DEV_PROXY_URL || 'http://localhost:8080') + path;
+  if (typeof window !== 'undefined' && window.location.port === '3001') {
+    return (process.env.NEXT_PUBLIC_DEV_PROXY_URL || 'http://localhost:3000') + path;
   }
   return path;
 }

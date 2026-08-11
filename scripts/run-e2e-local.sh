@@ -81,13 +81,13 @@ fi
 pids+=("$!")
 wait_for_url 'http://127.0.0.1:18081/TR/YarisSever/Query/DataRows/Atlar?PageNumber=1'
 
-(cd "$be_root" && HTTP_ADDR=:3001 go run ./cmd/api) >"$runtime_dir/backend.log" 2>&1 &
+(cd "$be_root" && HTTP_ADDR=:8080 go run ./cmd/api) >"$runtime_dir/backend.log" 2>&1 &
 pids+=("$!")
-wait_for_url 'http://127.0.0.1:3001/api/health'
+wait_for_url 'http://127.0.0.1:8080/api/health'
 
 node -e '
 const payload = {email: process.env.E2E_ADMIN_EMAIL, password: process.env.E2E_ADMIN_PASSWORD, firstName: "E2E", lastName: "Yönetici"};
-fetch("http://127.0.0.1:3001/api/v1/auth/register", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(payload)})
+fetch("http://127.0.0.1:8080/api/v1/auth/register", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(payload)})
   .then(async (response) => { if (response.status !== 201) throw new Error(`admin seed registration failed: ${response.status}`); })
   .catch((error) => { console.error(error.message); process.exit(1); });
 '
@@ -114,9 +114,9 @@ SELECT '${E2E_BANNER_ID}', 'HOMEPAGE', 'INACTIVE', '${E2E_BANNER_ASSET_ID}',
 FROM hrd_users WHERE email_normalized=lower('${E2E_ADMIN_EMAIL}');
 " >"$runtime_dir/seed.log" 2>&1
 
-(cd "$bo_root" && BACKEND_API_URL='http://127.0.0.1:3001' PORT=8080 go run .) >"$runtime_dir/bo.log" 2>&1 &
+(cd "$bo_root" && BACKEND_API_URL='http://127.0.0.1:8080' PORT=3000 go run .) >"$runtime_dir/bo.log" 2>&1 &
 pids+=("$!")
-wait_for_url 'http://127.0.0.1:8080/login'
+wait_for_url 'http://127.0.0.1:3000/login'
 
 (
   while [[ ! -f "$worker_marker" ]]; do sleep 0.1; done
