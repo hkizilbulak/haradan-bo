@@ -22,6 +22,17 @@ const server = http.createServer((request, response) => {
     return;
   }
 
+  if (url.pathname === '/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri') {
+    response.end('<div class="grid_8"><span>İsim</span><span>' + horseName + '</span></div>');
+    return;
+  }
+
+  if (url.pathname === '/TR/YarisSever/Query/Pedigri/Pedigri' ||
+      url.pathname === '/TR/YarisSever/Query/Kardes/Kardes') {
+    response.end('<div class="grid_24"><table><tbody></tbody></table></div>');
+    return;
+  }
+
   response.end('<html><body></body></html>');
 });
 
