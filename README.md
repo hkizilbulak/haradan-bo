@@ -1,28 +1,20 @@
 # Haradan Backoffice (BO)
 
-Haradan BO, Next.js ile statik olarak üretilen yönetim arayüzünü sunan ve tarayıcı ile Haradan Backend arasında oturum/API proxy görevi gören Go uygulamasıdır.
+Haradan BO; Next.js yönetim arayüzünü sunan ve tarayıcı ile Haradan Backend arasında HttpOnly oturum/API proxy'si olan Go runtime'dır. Admin erişimi `ADMIN_BO` audience ile yalnız BO üzerinden yapılır.
 
-## Yerel port standardı
+## Mimari ve API sınırı
 
-| Component | Local port | Purpose |
-| --- | ---: | --- |
-| BO runtime | 3000 | Normal BO UI + Go session/API proxy |
-| Next dev | 3001 | BO frontend hot reload/development |
-| BE API | 8080 | Haradan backend REST API |
-| Worker | none | Background jobs |
+- BO browser trafiği Go session proxy üzerinden BE'ye gider; admin token'ları tarayıcı JavaScript'ine açılmaz.
+- API'nin kaynak sözleşmesi BE deposundaki `api/openapi.yaml` dosyasıdır. BO değişiklikleri bu public/admin ayrımını korumalı; FE geliştiricisi BE veya BO source kodunu değiştirmeden sözleşme üzerinden ilerleyebilmelidir.
+- Gelecekteki React Native Web/Android/iOS uygulamaları BO proxy'sini kullanmamalı; BE public API'ye bearer token ile `PUBLIC_WEB` veya `MOBILE` audience üzerinden doğrudan bağlanmalıdır.
+- BE API ve worker ayrıdır. Worker HTTP portu açmadan TJK, medya ve bildirim işlerini yürütür.
+- TJK, Resend, S3 uyumlu/Backblaze B2 ve Tinify sağlayıcıları BE tarafında environment ile yapılandırılır; BO'ya provider secret'ı verilmez.
 
-`3000` mevcut BO runtime'a aittir. Gelecekte eklenecek son kullanıcı Haradan FE için portlar ayrı ele alınmalı ve bu portlar sessizce yeniden kullanılmamalıdır.
+## İlk kurulum
 
-## Gereksinimler
+Gereksinimler: Go, Node.js/npm, PostgreSQL'e erişebilen `haradan-be` deposu, BE'de Git tarafından yok sayılan `.env` ve BO'da Git tarafından yok sayılan `.env.local`.
 
-- `PATH` üzerinden erişilebilen Go
-- `PATH` üzerinden erişilebilen Node.js ve npm
-- `haradan-be` deposu
-- BE deposunda yerel ve Git tarafından yok sayılan `.env`
-- BO deposunda yerel ve Git tarafından yok sayılan `.env.local`
-- BO bağımlılıkları için `npm install`
-
-Varsayılan klasör yapısı şöyledir:
+Varsayılan klasör yapısı:
 
 ```text
 parent/
@@ -30,99 +22,72 @@ parent/
 └── haradan-bo/
 ```
 
-BE farklı bir konumdaysa tam veya BO'ya göre göreli yol verilebilir:
+BE farklı konumdaysa tam veya BO'ya göre göreli yol verin:
 
 ```bash
 HARADAN_BE_DIR=/path/to/haradan-be npm run start:all
 ```
 
-## BO ortam ayarları
+BO'nun temel yerel ayarları `PORT`, `BACKEND_API_URL`, `NEXT_PUBLIC_DEV_PROXY_URL` ve kesin `CORS_ALLOWED_ORIGINS` allowlist'idir. Varsayılanlar sırasıyla `3000`, `http://localhost:8080`, `http://localhost:3000` ve dev origin olarak `http://localhost:3001` ile uyumludur. `NEXT_PUBLIC_API_URL` yalnız eski uyumluluk fallback'idir; `NEXTAUTH_URL` ve `NEXTAUTH_SECRET` mevcut runtime tarafından kullanılmaz. Secret, parola veya token'ları README'ye/Git'e yazmayın.
 
-Yerel `.env.local` örneği:
+## Yerel portlar
 
-```dotenv
-PORT=3000
-BACKEND_API_URL=http://localhost:8080
-NEXT_PUBLIC_DEV_PROXY_URL=http://localhost:3000
-CORS_ALLOWED_ORIGINS=http://localhost:3001
-```
+| Bileşen | Yerel port | Amaç |
+| --- | ---: | --- |
+| BO runtime | 3000 | Normal UI + Go session/API proxy |
+| Next.js dev | 3001 | Hot reload |
+| BE API | 8080 | REST API |
+| Worker | yok | Arka plan işleri |
 
-- `.env.local` Git tarafından yok sayılır ve commit edilmemelidir.
-- `PORT` verilmezse yerel BO launcher'ı ve Go sunucusu `3000` kullanır.
-- `BACKEND_API_URL` verilmezse `http://localhost:8080` kullanılır.
-- `NEXT_PUBLIC_DEV_PROXY_URL`, yalnızca Next.js geliştirme modundaki tarayıcı isteklerini BO Go session/API proxy'sine yönlendirir.
-- Yerel launcher'lar `http://localhost:3001` origin'ini credential kullanan geliştirme istekleri için kesin CORS allowlist'e ekler. Wildcard kullanılmaz; production CORS davranışı gevşetilmez.
-- `NEXT_PUBLIC_API_URL` yalnızca geriye dönük uyumluluk fallback'idir.
-- `NEXTAUTH_URL` ve `NEXTAUTH_SECRET` mevcut runtime tarafından kullanılmaz.
+`3000` mevcut BO runtime'a aittir; gelecekteki public son kullanıcı FE portu değildir.
 
-Gerçek erişim anahtarlarını, parolaları veya token'ları dokümana ya da Git'e eklemeyin.
+## Normal çalışma ve hot reload
 
-## Normal çalışma
-
-BO deposunda:
+İlk kurulum ve normal tam stack:
 
 ```bash
+npm install
 npm run start:all
 ```
 
-Bu platformlar arası komut BE API'yi `:8080`, worker'ı ve BO Go runtime'ını `:3000` üzerinde başlatır. Hazır olduğunda `http://localhost:3000` adresini açın.
+Komut BE API'yi `:8080`, worker'ı ve BO Go runtime'ını `:3000` üzerinde başlatır. `http://localhost:3000` adresini açın. `start:all` takip edilen `out/` içeriğini kendiliğinden üretmez; çıktı yoksa veya bilinçli olarak yenilenecekse önce `npm run build` çalıştırın.
 
-Komut doğrudan Node.js ve `go run` kullanır; Bash, Make, `.sh`, Git Bash veya WSL gerektirmez. Bir servis beklenmedik şekilde kapanırsa tüm stack durdurulur. `Ctrl+C` tüm child process ağaçlarını temizler.
-
-`start:all`, Git'te takip edilen `out/` içeriğini beklenmedik şekilde yeniden üretmemek için otomatik build çalıştırmaz. `out/` yoksa önce `npm run build` çalıştırın.
-
-## Geliştirme ve hot reload
-
-Tam geliştirme stack'i için:
+Hot reload kullanan tam geliştirme stack'i:
 
 ```bash
 npm run dev:all
 ```
 
-Bu komut şunları birlikte başlatır:
+Bu modda BO proxy `:3000`, Next.js `:3001`, BE API `:8080` ve worker birlikte çalışır; tarayıcıda `http://localhost:3001` açılır. Credential kullanan `/api` istekleri kesin CORS allowlist'iyle BO proxy'ye gider. Her iki launcher da platformlar arasıdır, gerekli bir süreç kapanınca stack'i durdurur ve `Ctrl+C` ile child process'leri temizler.
 
-- BE API: `http://localhost:8080`
-- worker: HTTP portu yok
-- BO Go session/API proxy: `http://localhost:3000`
-- Next.js hot reload: `http://localhost:3001`
+## Servisleri ayrı çalıştırma
 
-Geliştirme sırasında tarayıcıda `http://localhost:3001` adresini açın. Next.js sayfasının credential kullanan `/api` istekleri BO Go proxy'sine gider; session cookie'leri ve API çağrıları buradan BE'ye taşınır.
-
-`dev:all` de Bash/Make kullanmaz, required-process fail-fast davranışına sahiptir ve `Ctrl+C` ile tüm child process ağaçlarını durdurur.
-
-## Bireysel komutlar
-
-| Command | Result |
+| Komut | Sonuç |
 | --- | --- |
-| `npm run local` | Next static build + BO runtime on `http://localhost:3000` |
-| `npm run local:start` | Existing `out/` + BO runtime on `http://localhost:3000` |
-| `npm run dev` | Next.js hot reload on `http://localhost:3001` |
+| `npm run build` | Next.js statik BO çıktısını üretir |
+| `npm run local` | Build + BO runtime `:3000` |
+| `npm run local:start` | Mevcut `out/` + BO runtime `:3000` |
+| `npm run dev` | Yalnız Next.js hot reload `:3001` |
 | `npm run start:all` | BO `:3000` + BE API `:8080` + worker |
-| `npm run dev:all` | Next `:3001` + BO proxy `:3000` + BE API `:8080` + worker |
+| `npm run dev:all` | Next.js `:3001` + BO proxy `:3000` + BE API `:8080` + worker |
 
-BE ayrı terminallerde platformlar arası şu komutlarla çalıştırılabilir:
+BE ayrı terminallerde `go run ./cmd/dev api` ve `go run ./cmd/dev worker` ile çalıştırılabilir. Make kurulu ortamlarda BE'deki `make api`/`make worker` yalnız isteğe bağlı kolaylıklardır; Bash, Make, `.sh`, Git Bash veya WSL zorunlu değildir.
 
-```bash
-go run ./cmd/dev api
-go run ./cmd/dev worker
-```
+## Veritabanı ve TJK işletim notları
 
-İlk komut API'yi `:8080` üzerinde başlatır; worker HTTP portu açmaz.
+BO veritabanına doğrudan bağlanmaz. PostgreSQL şeması ve ileri yönlü Goose migrasyonları BE'ye aittir; Haradan tabloları `hrd_` öneklidir ve güncel seviye `00016_campaign_email_provider_template.sql`'dir. Release'te migrasyonları kontrollü olarak API/worker rollout'undan önce uygulayın; production veya ortak test veritabanında yıkıcı down işlemi yapmayın.
+
+TJK ekranları FULL senkronizasyonun gerçek durumunu göstermelidir: sayfalı/checkpoint'li ve idempotent akış; retry/lease kaybında terminal hata; doğrulanmış `Toplam 0` ile EOF; malformed 200 yanıtında retry; doğru sayaçlar; enrichment eksiklerinde `PARTIAL_SUCCESS`. `INCREMENTAL` ve `RECONCILIATION` halen FULL'e yönlenen uyumluluk modlarıdır. Seed zamanlama varsayılan olarak pasiftir; etkinleştirilirse `Europe/Istanbul` saat diliminde Salı/Perşembe/Cumartesi 00:10 çalışır.
+
+11 Ağustos 2026 tarihli sınırlı gerçek kabulde ilk sayfa 50/50 benzersiz kayıtla geçti, detay/pedigree/sibling ayrıştırmaları doğrulandı ve kaynak yaklaşık 72.674 kayıt bildirdi. Yaklaşık 1.454 sayfa ve 218 binin üzerinde enrichment isteği gerektirebilecek tam gerçek koşu yapılmadı; tüm verinin bugün veritabanında olduğu gösterilmemelidir. Tam koşu kontrollü, uzun ömürlü ve izlenen bir operasyon ortamında ayrıca yürütülmelidir.
+
+## Production dağıtımı
+
+BO, BE API, worker, PostgreSQL ve gelecekteki public React Native/Web istemcileri bağımsız deploy birimleridir. Production'da `start:all`, kardeş repo yolu, localhost, `.env.local`, Make veya Bash'e bağımlı olunmamalıdır. BO'ya build-time public URL'leri ve runtime `PORT`, backend URL/cookie/CORS ayarları verilir; veritabanı, JWT ve provider secret'ları BE/worker tarafında kalır. Docker imajı statik `out/` çıktısını Go binary içine gömer; deploy sonrasında BO oturum akışını ve BE `/api/health` erişimini doğrulayın.
 
 ## Kısa sorun giderme
 
-- **Port kullanımda:** `3000`, `3001` veya `8080` üzerindeki eski yerel süreçleri durdurun.
-- **BE `.env` bulunamadı:** `haradan-be/.env` dosyasını güvenli yerel değerlerle oluşturun; commit etmeyin.
-- **BO `.env.local` bulunamadı:** yukarıdaki secretsız örneği kullanarak dosyayı oluşturun.
-- **`out/` yok veya eski:** `npm run build` çalıştırın; yalnızca beklenen üretilmiş değişiklikleri koruyun.
-- **API health yanıt vermiyor:** `http://localhost:8080/api/health` adresini ve BE terminal çıktısını kontrol edin.
-- **Next dev session isteği başarısız:** tarayıcıyı `http://localhost:3001` ile açtığınızı ve BO proxy'nin `http://localhost:3000` üzerinde çalıştığını doğrulayın.
-
-## Docker
-
-Docker imajı statik BO çıktısını Go binary içine gömer:
-
-```bash
-docker build -t haradan-bo .
-docker run -p 3000:3000 haradan-bo
-```
+- `3000`, `3001` veya `8080` doluysa eski yerel süreci durdurun.
+- BE bulunamıyorsa `HARADAN_BE_DIR` yolunu; API yanıt vermiyorsa `http://localhost:8080/api/health` ve BE loglarını kontrol edin.
+- `out/` yok/eskiyse bilinçli olarak `npm run build` çalıştırın.
+- Next dev oturumu başarısızsa tarayıcı origin'inin `http://localhost:3001`, proxy'nin `http://localhost:3000` ve CORS allowlist'inin kesin olduğunu doğrulayın.
