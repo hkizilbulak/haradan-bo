@@ -4,6 +4,7 @@ import { API_URL } from '@/contants/urls';
 import { PagedResponse, SearchParams } from '@/models/common';
 import { UserRequest } from '@/models/request/user-request.model';
 import { UserResponse } from '@/models/response/user-response.model';
+import { toCanonicalPhoneTR } from '@/helpers/phone';
 
 type AdminUserListItem = Omit<UserResponse, 'identifier'> & { id: string };
 
@@ -17,6 +18,10 @@ type UserFilterParams = {
   q?: string;
   role?: string;
   status?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
 };
 
 export interface SecurityEvent {
@@ -54,6 +59,18 @@ function parseFilter(filter?: string): UserFilterParams {
     }
     if (key === 'status') {
       acc.status = value;
+    }
+    if (key === 'firstName') {
+      acc.firstName = value.replace(/\*/g, '');
+    }
+    if (key === 'lastName') {
+      acc.lastName = value.replace(/\*/g, '');
+    }
+    if (key === 'email') {
+      acc.email = value.replace(/\*/g, '');
+    }
+    if (key === 'phone') {
+      acc.phone = value.replace(/\*/g, '');
     }
 
     return acc;
@@ -128,11 +145,55 @@ export class UserService {
       items.push(...(data.items ?? []));
 
       if (!data.hasMore || !data.nextCursor) {
-        return withIdentifiers(items);
+        break;
       }
 
       cursor = data.nextCursor;
     }
+
+    let mapped = withIdentifiers(items);
+
+    if (params.firstName && params.firstName.trim() !== '') {
+      const term = params.firstName.trim().toLowerCase();
+      mapped = mapped.filter((u) => u.firstName?.toLowerCase().includes(term));
+    }
+    if (params.lastName && params.lastName.trim() !== '') {
+      const term = params.lastName.trim().toLowerCase();
+      mapped = mapped.filter((u) => u.lastName?.toLowerCase().includes(term));
+    }
+    if (params.email && params.email.trim() !== '') {
+      const term = params.email.trim().toLowerCase();
+      mapped = mapped.filter((u) => u.email?.toLowerCase().includes(term));
+    }
+    if (params.phone && params.phone.trim() !== '') {
+      const term = params.phone.trim().replace(/\s+/g, '');
+      mapped = mapped.filter((u) => u.phone && u.phone.replace(/\s+/g, '').includes(term));
+    }
+
+    return mapped;
+  };
+
+  checkDuplicate = async (email: string, phone?: string | null, excludeUserId?: string): Promise<{ emailExists: boolean; phoneExists: boolean }> => {
+    const allUsers = await this.fetchAll();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone ? toCanonicalPhoneTR(phone) : null;
+
+    let emailExists = false;
+    let phoneExists = false;
+
+    for (const u of allUsers) {
+      const uId = u.identifier ?? u.id;
+      if (excludeUserId && uId === excludeUserId) continue;
+
+      if (u.email && u.email.trim().toLowerCase() === cleanEmail) {
+        emailExists = true;
+      }
+      if (cleanPhone && u.phone && toCanonicalPhoneTR(u.phone) === cleanPhone) {
+        phoneExists = true;
+      }
+    }
+
+    return { emailExists, phoneExists };
   };
 
   changeRole = async (userId: string, request: UserRequest) => {

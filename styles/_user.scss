@@ -73,9 +73,36 @@
   transform: scale(1.05);
 }
 
-// 3. Table Visual Enhancements
+// 3. Table Visual Enhancements (Kartezya 1:1 Style)
+.page-container {
+  padding: 1.5rem;
+
+  @media (max-width: 768px) {
+    padding: 0.75rem;
+  }
+}
+
+.table-wrapper {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.table-box {
+  border-radius: 8px;
+  overflow: hidden;
+  border: none;
+  margin: 0;
+}
+
 .table {
   margin-bottom: 0;
+  width: 100%;
+  border-collapse: collapse;
+
+  thead tr {
+    background-color: #f8fafc;
+    border-bottom: 2px solid #dee2e6;
+  }
 
   thead th {
     background-color: #f8fafc;
@@ -86,6 +113,8 @@
     letter-spacing: 0.04em;
     border-bottom: 1px solid #e2e8f0;
     padding: 0.875rem 1rem;
+    vertical-align: middle;
+    white-space: nowrap;
   }
 
   tbody td {
@@ -94,6 +123,7 @@
     color: #334155;
     border-bottom: 1px solid #f1f5f9;
     font-size: 0.875rem;
+    white-space: nowrap;
   }
 
   tbody tr {
@@ -106,6 +136,12 @@
     &:last-child td {
       border-bottom: none;
     }
+  }
+
+  /* İşlemler kolonu sağa hizalı */
+  th:last-child,
+  td:last-child {
+    text-align: right;
   }
 }
 
