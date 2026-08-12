@@ -27,6 +27,18 @@
     transform: translateY(-2px);
     box-shadow: 0 12px 28px -4px rgba(15, 23, 42, 0.08), 0 4px 8px -2px rgba(15, 23, 42, 0.03) !important;
   }
+
+  &.login-card {
+    border: none !important;
+    box-shadow:
+      0 0 40px rgba(148, 163, 184, 0.12),
+      0 0 80px rgba(148, 163, 184, 0.08),
+      0 0 120px rgba(148, 163, 184, 0.05),
+      0 25px 60px rgba(0, 0, 0, 0.7) !important;
+    border-radius: 14px !important;
+    background-color: #222c3a !important;
+    outline: none !important;
+  }
 }
 
 .card-header {
