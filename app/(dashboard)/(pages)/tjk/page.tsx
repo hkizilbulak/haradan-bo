@@ -122,7 +122,6 @@ function TjkErrorsModal({ runId, onClose }: { runId: string; onClose: () => void
   const [items, setItems] = useState<TjkItemError[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [showTransient, setShowTransient] = useState(true);
 
   const loadErrors = useCallback(() => {
     setLoading(true);
@@ -165,31 +164,12 @@ function TjkErrorsModal({ runId, onClose }: { runId: string; onClose: () => void
     }
   };
 
-  const transientCount = items.filter((item) => item.errorClass === 'TRANSIENT').length;
-  const displayedItems = showTransient ? items : items.filter((item) => item.errorClass !== 'TRANSIENT');
-
   return (
     <Modal show onHide={onClose} size="xl" centered dialogClassName="resizable-modal">
       <Modal.Header closeButton className="d-flex justify-content-between align-items-center">
-        <div className="d-flex align-items-center gap-2 flex-wrap">
-          <Modal.Title className="h5 mb-0">Senkron Hataları ve Uyarıları</Modal.Title>
-          <Button
-            size="sm"
-            variant={showTransient ? "outline-secondary" : "warning"}
-            className="ms-2 d-inline-flex align-items-center gap-1 fw-semibold"
-            onClick={() => setShowTransient(!showTransient)}
-          >
-            <i className={showTransient ? "fe fe-eye-off" : "fe fe-eye"}></i>
-            {showTransient ? "TRANSIENT Hatalarını Gizle" : "TRANSIENT Hatalarını Göster"}
-            {transientCount > 0 && <Badge bg={showTransient ? "secondary" : "dark"} className="ms-1">{transientCount}</Badge>}
-          </Button>
-        </div>
+        <Modal.Title className="h5 mb-0">Senkron Hataları ve Uyarıları</Modal.Title>
       </Modal.Header>
       <Modal.Body style={{ maxHeight: '75vh', overflowY: 'auto' }}>
-        <Alert variant="info" className="py-2 small mb-3">
-          <strong>Bilgilendirme:</strong> <code>TRANSIENT</code> uyarısı içeren kayıtlar geçici bildirimlerdir. TJK sitesinde o ata ait aşım/yavru verisi bulunmadığında veya anlık sunucu yanıt vermediğinde oluşur.
-        </Alert>
-
         {loading && <Loading />}
         {!loading && loadError && (
           <Alert variant="danger" className="d-flex justify-content-between align-items-center">
@@ -198,10 +178,7 @@ function TjkErrorsModal({ runId, onClose }: { runId: string; onClose: () => void
           </Alert>
         )}
         {!loading && !loadError && items.length === 0 && <p className="text-muted py-4 text-center">Bu koşuda hata kaydı yok.</p>}
-        {!loading && !loadError && items.length > 0 && displayedItems.length === 0 && (
-          <p className="text-muted py-4 text-center">TRANSIENT hataları gizlendi. Listelenecek kritik hata kaydı yok.</p>
-        )}
-        {!loading && !loadError && displayedItems.length > 0 && (
+        {!loading && !loadError && items.length > 0 && (
           <div className="table-responsive">
             <Table striped bordered hover size="sm" className="align-middle">
               <thead>
@@ -215,7 +192,7 @@ function TjkErrorsModal({ runId, onClose }: { runId: string; onClose: () => void
                 </tr>
               </thead>
               <tbody>
-                {displayedItems.map((item) => (
+                {items.map((item) => (
                   <tr key={item.id}>
                     <td><Badge bg={statusVariant(item.status)}>{errorStatusText(item.status)}</Badge></td>
                     <td className="fw-semibold">{item.tjkNumber ?? '-'}</td>
