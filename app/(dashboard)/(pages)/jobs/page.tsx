@@ -23,6 +23,7 @@ import useModal from '@/hooks/useModal';
 import { jobService, JobRequest, JobResponse, JobHistoryItem } from '@/services/job.service';
 import { PageHeading } from '@/widgets';
 import { toast } from 'react-toastify';
+import { Edit } from 'react-feather';
 
 const headItems = ['Ad', 'Tip', 'Çalışma Sıklığı', 'Durum', 'Son Çalışma', 'Sonraki Çalışma', ''];
 const ALLOWED_SCHEDULED_JOBS = new Set(['TJK_SYNC', 'PACKAGE_EXPIRY_SCAN', 'MEDIA_RECONCILE']);
@@ -307,7 +308,7 @@ export default function JobsPage() {
           aria-label="Düzenle"
           onClick={() => openJobModal(job)}
         >
-          Düzenle
+          <Edit size={14} />
         </Button>
         <Button size="sm" variant="primary" onClick={() => handleRun(job)}>Çalıştır</Button>
       </td>

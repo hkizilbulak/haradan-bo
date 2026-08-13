@@ -12,6 +12,7 @@ import useModal from '@/hooks/useModal';
 import { couponService, CouponResponse, CreateCouponPayload, UpdateCouponPayload } from '@/services/coupon.service';
 import { PageHeading } from '@/widgets';
 import { toast } from 'react-toastify';
+import { Edit } from 'react-feather';
 
 const headItems = ['Kupon Kodu', 'Adı', 'İndirim', 'Kullanım Limiti', 'Geçerlilik Tarihi', 'Kapsam', 'Durum', ''];
 
@@ -428,8 +429,15 @@ export default function CouponsPage() {
         </Badge>
       </td>
       <td className="text-nowrap">
-        <Button size="sm" variant="outline-primary" className="me-2" onClick={() => openEditModal(c)}>
-          Düzenle
+        <Button
+          size="sm"
+          variant="outline-primary"
+          className="me-2"
+          title="Düzenle"
+          aria-label="Kupon Düzenle"
+          onClick={() => openEditModal(c)}
+        >
+          <Edit size={14} />
         </Button>
         <Button size="sm" variant={c.isActive ? 'outline-warning' : 'outline-success'} onClick={() => handleToggleActive(c)}>
           {c.isActive ? 'Pasif Et' : 'Aktif Et'}
