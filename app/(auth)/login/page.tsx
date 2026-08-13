@@ -68,7 +68,7 @@ const SignIn = () => {
         width: "100vw",
         height: "100vh",
         zIndex: 99999,
-        backgroundColor: "#070a0f",
+        backgroundColor: "#000000",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -101,7 +101,6 @@ const SignIn = () => {
                     color: "#00c6fb",
                     textTransform: "uppercase",
                     fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-                    textShadow: "0 0 30px rgba(0, 198, 251, 0.2), 0 0 60px rgba(0, 198, 251, 0.08)",
                   }}
                 >
                   HARADAN
@@ -138,7 +137,7 @@ const SignIn = () => {
                     <div>
                       <label
                         className="small fw-semibold mb-1 d-block"
-                        style={{ color: "#94a3b8", fontSize: "0.85rem" }}
+                        style={{ color: "#ffffff", fontSize: "0.85rem" }}
                       >
                         E-posta <span style={{ color: "#ef4444" }}>*</span>
                       </label>
@@ -170,7 +169,7 @@ const SignIn = () => {
                     <div>
                       <label
                         className="small fw-semibold mb-1 d-block"
-                        style={{ color: "#94a3b8", fontSize: "0.85rem" }}
+                        style={{ color: "#ffffff", fontSize: "0.85rem" }}
                       >
                         Şifre <span style={{ color: "#ef4444" }}>*</span>
                       </label>
@@ -221,7 +220,7 @@ const SignIn = () => {
                       <Link
                         href="/reset-password"
                         className="small text-decoration-none"
-                        style={{ color: "#64748b", fontSize: "0.82rem" }}
+                        style={{ color: "#919eab", fontSize: "0.82rem" }}
                       >
                         Şifremi Unuttum
                       </Link>
@@ -232,15 +231,12 @@ const SignIn = () => {
                       <Button
                         disabled={!isValid || isSubmitting}
                         type="submit"
+                        variant="primary"
                         style={{
-                          background: "linear-gradient(135deg, #7c5cfc 0%, #a855f7 100%)",
-                          border: "none",
                           borderRadius: "8px",
                           padding: "0.7rem",
                           fontSize: "0.95rem",
                           fontWeight: 600,
-                          boxShadow: "0 4px 14px rgba(124, 92, 252, 0.35)",
-                          color: "#ffffff",
                           transition: "all 0.2s ease",
                         }}
                       >

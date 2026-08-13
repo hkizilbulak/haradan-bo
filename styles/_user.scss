@@ -30,13 +30,9 @@
 
   &.login-card {
     border: none !important;
-    box-shadow:
-      0 0 40px rgba(148, 163, 184, 0.12),
-      0 0 80px rgba(148, 163, 184, 0.08),
-      0 0 120px rgba(148, 163, 184, 0.05),
-      0 25px 60px rgba(0, 0, 0, 0.7) !important;
-    border-radius: 14px !important;
-    background-color: #222c3a !important;
+    box-shadow: 0 1rem 3rem rgba(255, 255, 255, 0.15) !important;
+    border-radius: 12px !important;
+    background-color: #212b36 !important;
     outline: none !important;
   }
 }
