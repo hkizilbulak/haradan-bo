@@ -226,7 +226,7 @@ const NavbarVertical = (props: IProps) => {
 								return (
 									<Card bsPrefix="nav-item" key={index}>
 										{isExternal ? (
-											<a href={menu.link} target="_blank" rel="noopener noreferrer" className={`nav-link ${location === menu.link ? 'active' : ''} ${menu.title === 'Haradan.com' ? 'bg-primary text-white' : ''}`}>
+											<a href={menu.link} target="_blank" rel="noopener noreferrer" className={`nav-link ${location === menu.link ? 'active' : ''}`}>
 												{typeof menu.icon === 'string' ? (
 													<i className={`nav-icon fe fe-${menu.icon} me-2`}></i>
 												) : (menu.icon)}
@@ -238,7 +238,7 @@ const NavbarVertical = (props: IProps) => {
 												) : ('')}
 											</a>
 										) : (
-											<Link href={menu.link || '#'} className={`nav-link ${location === menu.link ? 'active' : ''} ${menu.title === 'Haradan.com' ? 'bg-primary text-white' : ''}`}>
+											<Link href={menu.link || '#'} className={`nav-link ${location === menu.link ? 'active' : ''}`}>
 												{typeof menu.icon === 'string' ? (
 													<i className={`nav-icon fe fe-${menu.icon} me-2`}></i>
 												) : (menu.icon)}
