@@ -1,14 +1,14 @@
 "use client";
-import { Row, Col, Card, Form, Button, Alert } from "react-bootstrap";
+import React, { useEffect, useState } from "react";
+import { Card, Form, Button, Alert, InputGroup } from "react-bootstrap";
 import useMounted from "@/hooks/useMounted";
 import { useAuth, useSession } from "@/context/AuthContext";
 import { Formik } from "formik";
 import * as Yup from "yup";
-import FormTextField from "@/components/FormTextField";
-import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { getErrorMessage } from "@/helpers/HelperUtils";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface FormData {
   email: string;
@@ -20,6 +20,7 @@ const SignIn = () => {
   const { data: session } = useSession();
   const { signIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -29,8 +30,8 @@ const SignIn = () => {
   }, [router, session]);
 
   const initialValues: FormData = {
-    email: "", //"huseyinkizilbulak76@hotmail.com",
-    password: "", //"haraa",
+    email: "",
+    password: "",
   };
 
   const validationSchema = Yup.object().shape({
@@ -57,51 +58,190 @@ const SignIn = () => {
   };
 
   return (
-    <Row className="align-items-center justify-content-center g-0 min-vh-100">
-      <Col xxl={4} lg={6} md={8} xs={12} className="py-8 py-xl-0">
-        <Card className="smooth-shadow-md">
-          <Card.Body className="p-6">
-            <div className="d-flex justify-content-center align-items-center mb-6">
-              <p className="h3 fw-bold">Giriş Yap</p>
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: "100vw",
+        height: "100vh",
+        zIndex: 99999,
+        backgroundColor: "#000000",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflowY: "auto",
+        padding: 0,
+        margin: 0,
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: "430px" }}>
+        <Card
+          className="login-card"
+          style={{
+            outline: "none",
+          }}
+        >
+          <Card.Body style={{ padding: "2.8rem 2.2rem" }}>
+            {/* Logo Header */}
+            <div className="text-center" style={{ marginBottom: "2rem" }}>
+              <div
+                style={{
+                  fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+                  lineHeight: 1,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "2.6rem",
+                    fontWeight: 900,
+                    letterSpacing: "3px",
+                    color: "#00c6fb",
+                    textTransform: "uppercase",
+                    fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+                  }}
+                >
+                  HARADAN
+                </div>
+              </div>
             </div>
+
             {error && (
-              <Alert variant="danger" onClose={() => setError(null)} dismissible>
+              <Alert
+                variant="danger"
+                className="py-2 text-center small mb-3"
+                style={{
+                  backgroundColor: "rgba(239, 68, 68, 0.2)",
+                  color: "#fca5a5",
+                  border: "1px solid rgba(239, 68, 68, 0.4)",
+                  borderRadius: "8px",
+                }}
+                onClose={() => setError(null)}
+                dismissible
+              >
                 {error}
               </Alert>
             )}
+
             {hasMounted && (
               <Formik
                 initialValues={initialValues}
                 validationSchema={validationSchema}
                 onSubmit={handleSubmit}
               >
-                {({ handleSubmit, isValid, isSubmitting }) => (
-                  <Form noValidate onSubmit={handleSubmit}>
-                    <FormTextField
-                      as={Col}
-                      md={12}
-                      controlId="validationEmail"
-                      label="E-posta Adresi"
-                      type="text"
-                      name="email"
-                    />
-                    <FormTextField
-                      as={Col}
-                      md={12}
-                      controlId="validationPassword"
-                      label="Şifreniz"
-                      type="password"
-                      name="password"
-                    />
-                    <div className="d-grid">
+                {({ handleSubmit, handleChange, values, errors, touched, isValid, isSubmitting }) => (
+                  <Form noValidate onSubmit={handleSubmit} className="d-flex flex-column gap-3">
+                    {/* E-posta Input */}
+                    <div>
+                      <label
+                        className="small fw-semibold mb-1 d-block"
+                        style={{ color: "#ffffff", fontSize: "0.85rem" }}
+                      >
+                        E-posta <span style={{ color: "#ef4444" }}>*</span>
+                      </label>
+                      <Form.Control
+                        type="email"
+                        name="email"
+                        value={values.email}
+                        onChange={handleChange}
+                        isInvalid={touched.email && Boolean(errors.email)}
+                        placeholder="admin@haradan.com"
+                        style={{
+                          backgroundColor: "#e2ebf8",
+                          color: "#0f172a",
+                          border: "none",
+                          borderRadius: "8px",
+                          padding: "0.65rem 0.9rem",
+                          fontSize: "0.92rem",
+                          fontWeight: 500,
+                        }}
+                      />
+                      {touched.email && errors.email && (
+                        <div className="text-danger small mt-1" style={{ fontSize: "0.8rem" }}>
+                          {errors.email}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Şifre Input */}
+                    <div>
+                      <label
+                        className="small fw-semibold mb-1 d-block"
+                        style={{ color: "#ffffff", fontSize: "0.85rem" }}
+                      >
+                        Şifre <span style={{ color: "#ef4444" }}>*</span>
+                      </label>
+                      <InputGroup>
+                        <Form.Control
+                          type={showPassword ? "text" : "password"}
+                          name="password"
+                          value={values.password}
+                          onChange={handleChange}
+                          isInvalid={touched.password && Boolean(errors.password)}
+                          placeholder="••••••••"
+                          style={{
+                            backgroundColor: "#e2ebf8",
+                            color: "#0f172a",
+                            border: "none",
+                            borderTopLeftRadius: "8px",
+                            borderBottomLeftRadius: "8px",
+                            padding: "0.65rem 0.9rem",
+                            fontSize: "0.92rem",
+                            fontWeight: 500,
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="light"
+                          onClick={() => setShowPassword(!showPassword)}
+                          style={{
+                            backgroundColor: "#e2ebf8",
+                            border: "none",
+                            borderTopRightRadius: "8px",
+                            borderBottomRightRadius: "8px",
+                            color: "#64748b",
+                            padding: "0 0.8rem",
+                          }}
+                        >
+                          <i className={showPassword ? "fe fe-eye-off" : "fe fe-eye"}></i>
+                        </Button>
+                      </InputGroup>
+                      {touched.password && errors.password && (
+                        <div className="text-danger small mt-1" style={{ fontSize: "0.8rem" }}>
+                          {errors.password}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Şifremi Unuttum Link */}
+                    <div className="text-end" style={{ marginTop: "-4px" }}>
+                      <Link
+                        href="/reset-password"
+                        className="small text-decoration-none"
+                        style={{ color: "#919eab", fontSize: "0.82rem" }}
+                      >
+                        Şifremi Unuttum
+                      </Link>
+                    </div>
+
+                    {/* Giriş Yap Button */}
+                    <div className="d-grid mt-2">
                       <Button
                         disabled={!isValid || isSubmitting}
-                        variant="primary"
-                        as="input"
-                        size="lg"
                         type="submit"
-                        value="Giriş Yap"
-                      />
+                        variant="primary"
+                        style={{
+                          borderRadius: "8px",
+                          padding: "0.7rem",
+                          fontSize: "0.95rem",
+                          fontWeight: 600,
+                          transition: "all 0.2s ease",
+                        }}
+                      >
+                        {isSubmitting ? "Giriş Yapılıyor..." : "Giriş Yap"}
+                      </Button>
                     </div>
                   </Form>
                 )}
@@ -109,8 +249,8 @@ const SignIn = () => {
             )}
           </Card.Body>
         </Card>
-      </Col>
-    </Row>
+      </div>
+    </div>
   );
 };
 

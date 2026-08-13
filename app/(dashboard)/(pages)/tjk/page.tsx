@@ -122,6 +122,7 @@ function TjkErrorsModal({ runId, onClose }: { runId: string; onClose: () => void
   const [items, setItems] = useState<TjkItemError[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [showTransient, setShowTransient] = useState(true);
 
   const loadErrors = useCallback(() => {
     setLoading(true);
@@ -164,12 +165,31 @@ function TjkErrorsModal({ runId, onClose }: { runId: string; onClose: () => void
     }
   };
 
+  const transientCount = items.filter((item) => item.errorClass === 'TRANSIENT').length;
+  const displayedItems = showTransient ? items : items.filter((item) => item.errorClass !== 'TRANSIENT');
+
   return (
-    <Modal show onHide={onClose} size="lg">
-      <Modal.Header closeButton>
-        <Modal.Title>Senkron Hataları</Modal.Title>
+    <Modal show onHide={onClose} size="xl" centered dialogClassName="resizable-modal">
+      <Modal.Header closeButton className="d-flex justify-content-between align-items-center">
+        <div className="d-flex align-items-center gap-2 flex-wrap">
+          <Modal.Title className="h5 mb-0">Senkron Hataları ve Uyarıları</Modal.Title>
+          <Button
+            size="sm"
+            variant={showTransient ? "outline-secondary" : "warning"}
+            className="ms-2 d-inline-flex align-items-center gap-1 fw-semibold"
+            onClick={() => setShowTransient(!showTransient)}
+          >
+            <i className={showTransient ? "fe fe-eye-off" : "fe fe-eye"}></i>
+            {showTransient ? "TRANSIENT Hatalarını Gizle" : "TRANSIENT Hatalarını Göster"}
+            {transientCount > 0 && <Badge bg={showTransient ? "secondary" : "dark"} className="ms-1">{transientCount}</Badge>}
+          </Button>
+        </div>
       </Modal.Header>
-      <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+      <Modal.Body style={{ maxHeight: '75vh', overflowY: 'auto' }}>
+        <Alert variant="info" className="py-2 small mb-3">
+          <strong>Bilgilendirme:</strong> <code>TRANSIENT</code> uyarısı içeren kayıtlar geçici bildirimlerdir. TJK sitesinde o ata ait aşım/yavru verisi bulunmadığında veya anlık sunucu yanıt vermediğinde oluşur.
+        </Alert>
+
         {loading && <Loading />}
         {!loading && loadError && (
           <Alert variant="danger" className="d-flex justify-content-between align-items-center">
@@ -177,39 +197,44 @@ function TjkErrorsModal({ runId, onClose }: { runId: string; onClose: () => void
             <Button size="sm" variant="outline-danger" onClick={loadErrors}>Tekrar Dene</Button>
           </Alert>
         )}
-        {!loading && !loadError && items.length === 0 && <p className="text-muted">Bu koşuda hata kaydı yok.</p>}
-        {!loading && !loadError && items.length > 0 && (
-          <Table striped bordered hover size="sm">
-            <thead>
-              <tr>
-                <th>Durum</th>
-                <th>TJK No</th>
-                <th>Hata Türü</th>
-                <th>Mesaj</th>
-                <th>Tarih</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.id}>
-                  <td><Badge bg={statusVariant(item.status)}>{errorStatusText(item.status)}</Badge></td>
-                  <td>{item.tjkNumber ?? '-'}</td>
-                  <td>{item.errorClass}</td>
-                  <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.message}>{item.message}</td>
-                  <td>{formatDateTimeForText(item.createdAt)}</td>
-                  <td>
-                    {item.status === 'OPEN' && (
-                      <>
-                        <Button size="sm" variant="success" className="me-1" onClick={() => handleAction(item.id, 'resolve')}>Çözüldü</Button>
-                        <Button size="sm" variant="secondary" onClick={() => handleAction(item.id, 'ignore')}>Yoksay</Button>
-                      </>
-                    )}
-                  </td>
+        {!loading && !loadError && items.length === 0 && <p className="text-muted py-4 text-center">Bu koşuda hata kaydı yok.</p>}
+        {!loading && !loadError && items.length > 0 && displayedItems.length === 0 && (
+          <p className="text-muted py-4 text-center">TRANSIENT hataları gizlendi. Listelenecek kritik hata kaydı yok.</p>
+        )}
+        {!loading && !loadError && displayedItems.length > 0 && (
+          <div className="table-responsive">
+            <Table striped bordered hover size="sm" className="align-middle">
+              <thead>
+                <tr>
+                  <th style={{ width: '90px' }}>Durum</th>
+                  <th style={{ width: '100px' }}>TJK No</th>
+                  <th style={{ width: '130px' }}>Hata Türü</th>
+                  <th>Detaylı Hata Mesajı</th>
+                  <th style={{ width: '160px' }}>Tarih</th>
+                  <th style={{ width: '150px' }} className="text-end">İşlem</th>
                 </tr>
-              ))}
-            </tbody>
-          </Table>
+              </thead>
+              <tbody>
+                {displayedItems.map((item) => (
+                  <tr key={item.id}>
+                    <td><Badge bg={statusVariant(item.status)}>{errorStatusText(item.status)}</Badge></td>
+                    <td className="fw-semibold">{item.tjkNumber ?? '-'}</td>
+                    <td><Badge bg={item.errorClass === 'TRANSIENT' ? 'light' : 'danger'} className={item.errorClass === 'TRANSIENT' ? 'text-dark border' : 'text-white'}>{item.errorClass}</Badge></td>
+                    <td style={{ wordBreak: 'break-word', minWidth: '300px' }}>{item.message}</td>
+                    <td className="small text-muted">{formatDateTimeForText(item.createdAt)}</td>
+                    <td className="text-end">
+                      {item.status === 'OPEN' && (
+                        <>
+                          <Button size="sm" variant="success" className="me-1 py-0 px-2" onClick={() => handleAction(item.id, 'resolve')}>Çözüldü</Button>
+                          <Button size="sm" variant="secondary" className="py-0 px-2" onClick={() => handleAction(item.id, 'ignore')}>Yoksay</Button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
         )}
       </Modal.Body>
       <Modal.Footer>

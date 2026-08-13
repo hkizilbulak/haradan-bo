@@ -130,7 +130,8 @@ class AdvertService {
                     status: status || undefined,
                 },
             });
-            const content = response.items.map(toModerationAdvert);
+            const rawItems = response?.items ?? [];
+            const content = rawItems.map(toModerationAdvert);
             const pageNumber = params.pageRequest.page ?? 0;
             return {
                 content,
@@ -138,9 +139,9 @@ class AdvertService {
                     size: limit,
                     number: pageNumber,
                     totalElements: content.length,
-                    totalPages: response.hasMore ? pageNumber + 2 : pageNumber + 1,
-                    hasMore: Boolean(response.hasMore),
-                    nextCursor: response.nextCursor ?? null,
+                    totalPages: response?.hasMore ? pageNumber + 2 : pageNumber + 1,
+                    hasMore: Boolean(response?.hasMore),
+                    nextCursor: response?.nextCursor ?? null,
                     cursorMode: true,
                 },
             };
@@ -197,8 +198,9 @@ class AdvertService {
                 undefined,
                 { params: { cursor, limit: 50 } },
             );
-            items.push(...response.items);
-            if (!response.hasMore || !response.nextCursor) {
+            const rawItems = response?.items ?? [];
+            items.push(...rawItems);
+            if (!response?.hasMore || !response?.nextCursor) {
                 return items;
             }
             cursor = response.nextCursor;
@@ -226,9 +228,10 @@ class AdvertService {
                     status: status || undefined,
                 },
             });
-            items.push(...response.items);
-            hasMore = response.hasMore;
-            cursor = response.nextCursor;
+            const rawItems = response?.items ?? [];
+            items.push(...rawItems);
+            hasMore = Boolean(response?.hasMore);
+            cursor = response?.nextCursor;
         }
 
         return items.map(toModerationAdvert);

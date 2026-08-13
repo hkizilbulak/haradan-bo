@@ -15,6 +15,7 @@ import { notificationTemplateService, NotificationTemplateRequest, NotificationT
 import { providerEmailTemplateService, ProviderEmailTemplateSummary } from '@/services/provider-email-template.service';
 import { PageHeading } from '@/widgets';
 import { toast } from 'react-toastify';
+import { Edit } from 'react-feather';
 import axios from 'axios';
 
 const headItems = ['Olay', 'Ad', 'E-posta Tasarım Şablonu', 'Durum', 'Güncelleme', ''];
@@ -253,7 +254,7 @@ export default function NotificationsPage() {
           aria-label="Düzenle"
           onClick={() => openTemplateModal(template)}
         >
-          Düzenle
+          <Edit size={14} />
         </Button>
       </td>
     </tr>
