@@ -409,3 +409,40 @@
     color: #475569;
   }
 }
+
+// 11. Mouse Resizable Modal Window
+.resizable-modal {
+  max-width: 95vw !important;
+
+  .modal-content {
+    resize: both;
+    overflow: hidden;
+    min-width: 520px;
+    min-height: 380px;
+    max-width: 95vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2) !important;
+  }
+
+  .modal-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+  }
+
+  .modal-footer {
+    position: relative;
+
+    &::after {
+      content: '◢';
+      position: absolute;
+      right: 5px;
+      bottom: 2px;
+      font-size: 14px;
+      color: #64748b;
+      pointer-events: none;
+    }
+  }
+}
