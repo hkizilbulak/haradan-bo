@@ -111,7 +111,7 @@ export default function Home() {
 
     return (
         <Fragment>
-            <Container fluid className="px-6 py-4">
+            <Container fluid className="p-3 p-lg-4">
 
                 {/* Hoş Geldiniz Mesajı (Kartezya HR Style Header) */}
                 <Row className="mb-4 align-items-center">

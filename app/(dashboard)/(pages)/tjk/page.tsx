@@ -17,7 +17,7 @@ import { PageHeading } from '@/widgets';
 import CursorPagination from '@/components/CursorPagination';
 import { toast } from 'react-toastify';
 
-const headItems = ['Tür', 'Durum', 'Kapsam', 'Başlatılma Şekli', 'Başlangıç', 'Bitiş / Süre', 'Sonuç', ''];
+const headItems = ['Tür', 'Durum', 'Kapsam', 'Başlatılma Şekli', 'Başlangıç', 'Bitiş / Süre', 'Sonuç', 'İşlemler'];
 
 function isCancellable(status: string) {
   return status === 'QUEUED' || status === 'RUNNING';
@@ -34,12 +34,22 @@ function formatRunEnd(run: TjkRunResponse) {
   const duration = totalSeconds < 60
     ? `${totalSeconds} sn`
     : `${Math.floor(totalSeconds / 60)} dk ${totalSeconds % 60} sn`;
-  return `${formatDateTimeForText(run.completedAt)} (${duration})`;
+  return (
+    <div className="lh-sm">
+      <div>{formatDateTimeForText(run.completedAt)}</div>
+      <div className="small text-muted">({duration})</div>
+    </div>
+  );
 }
 
 function formatRunResult(run: TjkRunResponse) {
   if (run.status === 'QUEUED' || run.status === 'RUNNING') return '-';
-  return `Toplam ${run.totalCount} · Yeni ${run.createdCount} · Güncellenen ${run.updatedCount} · Değişmeyen ${run.unchangedCount} · Hata ${run.failedCount}`;
+  return (
+    <div className="lh-sm">
+      <div>Toplam {run.totalCount} · Yeni {run.createdCount} · Güncellenen {run.updatedCount}</div>
+      <div className="text-muted">Değişmeyen {run.unchangedCount} · Hata {run.failedCount}</div>
+    </div>
+  );
 }
 
 function errorStatusText(status?: string) {
@@ -48,6 +58,7 @@ function errorStatusText(status?: string) {
   if (status === 'IGNORED') return 'Yoksayıldı';
   return status ?? '-';
 }
+
 
 function TriggerModal({ onClose, onSave }: { onClose: () => void; onSave: (value: { mode: string; sourceAdapter: string; scope: string; }) => void; }) {
   const values = { mode: 'FULL', sourceAdapter: 'TJK_HTTP', scope: 'HORSES' };
@@ -303,33 +314,33 @@ export default function TjkPage() {
 
   const content = data?.content?.map((run) => (
     <tr key={run.id}>
-      <td>{getTjkModeText(run.mode)}</td>
+      <td className="fw-semibold">{getTjkModeText(run.mode)}</td>
       <td><StatusBadge status={run.status} /></td>
       <td>{getTjkScopeText(run.scope)}</td>
       <td>{getTjkTriggerKindText(run.triggerKind)}</td>
-      <td>{run.startedAt ? formatDateTimeForText(run.startedAt) : 'Henüz başlamadı'}</td>
+      <td className="small text-muted">{run.startedAt ? formatDateTimeForText(run.startedAt) : 'Henüz başlamadı'}</td>
       <td>{formatRunEnd(run)}</td>
       <td className="small">{formatRunResult(run)}</td>
-      <td className="text-nowrap">
-        <div className="d-flex flex-wrap gap-1">
-        {isCancellable(run.status) && (
-          <Button size="sm" variant="primary" onClick={() => handleCancel(run)}>İptal</Button>
-        )}
-        <Button size="sm" variant="outline-danger" onClick={() => setErrorsRunId(run.id)}>Hatalar</Button>
+      <td className="text-end" style={{ width: '120px', minWidth: '120px' }}>
+        <div className="d-flex justify-content-end gap-1">
+          {isCancellable(run.status) && (
+            <Button size="sm" variant="primary" className="py-1 px-2" onClick={() => handleCancel(run)}>İptal</Button>
+          )}
+          <Button size="sm" variant="outline-danger" className="py-1 px-2" onClick={() => setErrorsRunId(run.id)}>Hatalar</Button>
         </div>
       </td>
     </tr>
   ));
 
   return (
-    <Container fluid className="p-3 lg:p-6">
+    <Container fluid className="p-3 p-lg-4">
       <Row>
         <Col lg={12}>
           <PageHeading heading="TJK Senkronizasyonu" showCreateButton={false} />
         </Col>
       </Row>
       <Row className="g-3 mb-4">
-        <Col lg={7}>
+        <Col xl={7} lg={6} md={12}>
           <Card className="h-100">
             <Card.Body>
               <div className="d-flex justify-content-between align-items-start gap-3 mb-3">
@@ -352,23 +363,23 @@ export default function TjkPage() {
                 <Alert variant="warning">Otomatik TJK görev tanımı bulunamadı.</Alert>
               )}
               {!automaticLoading && automaticJob && (
-                <div className="mb-3">
+                <div className="mb-3 small">
                   <div><strong>Çalışma zamanı:</strong> {getCronHint(automaticJob.cronExpression)}</div>
                   <div><strong>Sonraki çalışma:</strong> {automaticJob.isActive && automaticJob.nextRunAt ? formatDateTimeForText(automaticJob.nextRunAt) : 'Planlanmadı'}</div>
                   <div><strong>Otomatik çalışma türü:</strong> Tam Senkronizasyon</div>
                 </div>
               )}
-              <Button variant="outline-primary" href="/jobs">Zamanlanmış Görevler</Button>
+              <Button variant="outline-primary" href="/jobs" size="sm">Zamanlanmış Görevler</Button>
             </Card.Body>
           </Card>
         </Col>
-        <Col lg={5}>
+        <Col xl={5} lg={6} md={12}>
           <Card className="h-100">
             <Card.Body className="d-flex flex-column">
               <Card.Title>Manuel Senkronizasyon</Card.Title>
               <Card.Text className="text-muted">Beklemeden yeni bir TJK senkronizasyonu başlatın.</Card.Text>
               <div className="mt-auto">
-                <Button onClick={openTriggerModal} disabled={Boolean(hasActiveRun)}>Şimdi Senkronize Et</Button>
+                <Button onClick={openTriggerModal} disabled={Boolean(hasActiveRun)} size="sm">Şimdi Senkronize Et</Button>
               </div>
             </Card.Body>
           </Card>

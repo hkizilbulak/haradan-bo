@@ -24,7 +24,7 @@ const PrepareTable = ({
 }: IProps) => {
     return (
         <>
-            <Table responsive hover className="text-nowrap">
+            <Table responsive hover className="text-nowrap align-middle">
                 <PrepareTableHead headItems={headItems} />
                 <tbody>
                     {isLoading ? (

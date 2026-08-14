@@ -78,9 +78,33 @@
   }
 }
 
+.table-responsive {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+
+  /* Styled smooth horizontal scrollbar for tables */
+  &::-webkit-scrollbar {
+    height: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+}
+
 .table-wrapper {
   padding-left: 0;
   padding-right: 0;
+  width: 100%;
 }
 
 .table-box {
@@ -88,11 +112,13 @@
   overflow: hidden;
   border: none;
   margin: 0;
+  width: 100%;
 }
 
 .table {
   margin-bottom: 0;
   width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
 
   thead tr {
@@ -120,6 +146,10 @@
     border-bottom: 1px solid #f1f5f9;
     font-size: 0.875rem;
     white-space: nowrap;
+
+    &.wrap-text {
+      white-space: normal !important;
+    }
   }
 
   tbody tr {
@@ -140,6 +170,7 @@
     text-align: right;
   }
 }
+
 
 // 4. Badges & Soft Pill Styling
 .badge {
