@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, Col, Container, Form, Offcanvas, Row } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -33,6 +33,14 @@ const initialValues: CampaignRequest = {
   startsAt: '',
   isActive: true,
   emailProviderTemplateId: '',
+};
+
+const initialFilterState = {
+  search: '',
+  eventType: '',
+  isActive: '',
+  sourcePackageCode: '',
+  targetPackageCode: '',
 };
 
 function PackageCodeSelect({
@@ -266,6 +274,8 @@ export default function CampaignsPage() {
   const [providerTemplates, setProviderTemplates] = useState<ProviderEmailTemplateSummary[]>([]);
   const [providerLoading, setProviderLoading] = useState(true);
   const [providerUnavailable, setProviderUnavailable] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [filters, setFilters] = useState(initialFilterState);
 
   useEffect(() => {
     packageService
@@ -294,6 +304,50 @@ export default function CampaignsPage() {
         toast.error(getErrorMessage(error));
       });
   }, []);
+
+  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFilters((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleResetFilters = () => {
+    setFilters(initialFilterState);
+  };
+
+  const hasActiveFilters = useMemo(() => {
+    return (
+      Boolean(filters.search) ||
+      Boolean(filters.eventType) ||
+      Boolean(filters.isActive) ||
+      Boolean(filters.sourcePackageCode) ||
+      Boolean(filters.targetPackageCode)
+    );
+  }, [filters]);
+
+  const filteredRows = useMemo(() => {
+    const raw = data?.content ?? [];
+    return raw.filter((campaign) => {
+      if (filters.search) {
+        const q = filters.search.toLowerCase().trim();
+        const nameMatch = campaign.name.toLowerCase().includes(q);
+        const titleMatch = campaign.title.toLowerCase().includes(q);
+        const descMatch = (campaign.description ?? '').toLowerCase().includes(q);
+        if (!nameMatch && !titleMatch && !descMatch) return false;
+      }
+      if (filters.eventType && campaign.eventType !== filters.eventType) {
+        return false;
+      }
+      if (filters.isActive === 'true' && !campaign.isActive) return false;
+      if (filters.isActive === 'false' && campaign.isActive) return false;
+      if (filters.sourcePackageCode && (campaign.sourcePackageCode ?? '') !== filters.sourcePackageCode) {
+        return false;
+      }
+      if (filters.targetPackageCode && (campaign.targetPackageCode ?? '') !== filters.targetPackageCode) {
+        return false;
+      }
+      return true;
+    });
+  }, [data, filters]);
 
   const openCampaignModal = (campaign?: CampaignResponse) => {
     openModal(
@@ -327,8 +381,7 @@ export default function CampaignsPage() {
     }
   };
 
-  const rows = data?.content ?? [];
-  const content = rows.map((campaign) => (
+  const content = filteredRows.map((campaign) => (
     <tr key={campaign.id}>
       <td>{campaign.name}</td>
       <td>{getCampaignEventTypeText(campaign.eventType)}</td>
@@ -348,9 +401,120 @@ export default function CampaignsPage() {
     <Container fluid className="p-3 lg:p-6">
       <Row>
         <Col lg={12}>
-          <PageHeading heading="Kampanyalar" createButtonText="Kampanya Ekle" onCreate={() => openCampaignModal(undefined)} />
+          <PageHeading
+            heading="Kampanyalar"
+            createButtonText="Kampanya Ekle"
+            onCreate={() => openCampaignModal(undefined)}
+            onToggleFilter={() => setShowFilterPanel(!showFilterPanel)}
+          />
         </Col>
       </Row>
+
+      {showFilterPanel && (
+        <Card className="mb-4 border-0 shadow-sm bg-light">
+          <Card.Body className="p-3">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h6 className="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                <i className="fe fe-sliders text-primary"></i> Filtre Seçenekleri
+              </h6>
+              {hasActiveFilters && (
+                <Button
+                  size="sm"
+                  variant="outline-danger"
+                  onClick={handleResetFilters}
+                  className="d-inline-flex align-items-center gap-1 fw-semibold"
+                >
+                  <i className="fe fe-x-circle"></i> Tüm Filtreleri Temizle
+                </Button>
+              )}
+            </div>
+
+            <Row className="g-3">
+              <Col md={3} sm={6}>
+                <Form.Group>
+                  <Form.Label className="small fw-semibold text-muted">Arama (Ad / Başlık)</Form.Label>
+                  <Form.Control
+                    size="sm"
+                    name="search"
+                    value={filters.search}
+                    onChange={handleFilterChange}
+                    placeholder="Kampanya adı veya başlığı..."
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={3} sm={6}>
+                <Form.Group>
+                  <Form.Label className="small fw-semibold text-muted">Etkinlik Türü</Form.Label>
+                  <Form.Select
+                    size="sm"
+                    name="eventType"
+                    value={filters.eventType}
+                    onChange={handleFilterChange}
+                  >
+                    <option value="">Tüm Etkinlikler</option>
+                    <option value="PACKAGE_EXPIRY_1_DAY">Paket Bitiş 1 Gün</option>
+                    <option value="PACKAGE_EXPIRY_5_DAYS">Paket Bitiş 5 Gün</option>
+                    <option value="PACKAGE_RENEWAL">Paket Yenileme</option>
+                    <option value="PACKAGE_UPGRADE">Paket Yükseltme</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={2} sm={6}>
+                <Form.Group>
+                  <Form.Label className="small fw-semibold text-muted">Durum</Form.Label>
+                  <Form.Select
+                    size="sm"
+                    name="isActive"
+                    value={filters.isActive}
+                    onChange={handleFilterChange}
+                  >
+                    <option value="">Tüm Durumlar</option>
+                    <option value="true">Aktif</option>
+                    <option value="false">Pasif</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={2} sm={6}>
+                <Form.Group>
+                  <Form.Label className="small fw-semibold text-muted">Kaynak Paket</Form.Label>
+                  <Form.Select
+                    size="sm"
+                    name="sourcePackageCode"
+                    value={filters.sourcePackageCode}
+                    onChange={handleFilterChange}
+                  >
+                    <option value="">Tüm Paketler</option>
+                    {packages.map((pkg) => (
+                      <option key={pkg.code} value={pkg.code}>
+                        {pkg.displayName}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={2} sm={6}>
+                <Form.Group>
+                  <Form.Label className="small fw-semibold text-muted">Hedef Paket</Form.Label>
+                  <Form.Select
+                    size="sm"
+                    name="targetPackageCode"
+                    value={filters.targetPackageCode}
+                    onChange={handleFilterChange}
+                  >
+                    <option value="">Tüm Paketler</option>
+                    {packages.map((pkg) => (
+                      <option key={pkg.code} value={pkg.code}>
+                        {pkg.displayName}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            </Row>
+          </Card.Body>
+        </Card>
+      )}
+
       {isModalOpen && modalContent}
       {isLoading && <Loading />}
       {!isLoading && isError && (
@@ -359,10 +523,14 @@ export default function CampaignsPage() {
           <Button size="sm" variant="outline-danger" onClick={() => refetch()}>Tekrar Dene</Button>
         </Alert>
       )}
-      {!isLoading && !isError && rows.length === 0 && (
-        <Alert variant="light" className="border text-muted">Henüz kampanya oluşturulmamış. İlk kampanyayı ekleyebilirsiniz.</Alert>
+      {!isLoading && !isError && filteredRows.length === 0 && (
+        <Alert variant="light" className="border text-muted">
+          {hasActiveFilters
+            ? 'Belirtilen filtre kriterlerine uygun kampanya bulunamadı.'
+            : 'Henüz kampanya oluşturulmamış. İlk kampanyayı ekleyebilirsiniz.'}
+        </Alert>
       )}
-      {!isLoading && !isError && rows.length > 0 && (
+      {!isLoading && !isError && filteredRows.length > 0 && (
         <>
           <PrepareTable headItems={headItems} content={content} page={undefined} onHandlePageChange={() => undefined} />
           <CursorPagination
