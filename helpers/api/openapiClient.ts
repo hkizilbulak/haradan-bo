@@ -15,10 +15,9 @@ apiClient.interceptors.request.use(
   (config) => {
     if (config.url) {
       config.url = config.url.replace(/^\/api\/api\//, '/api/');
-      if (typeof window !== 'undefined' && window.location.port === '3001') {
-        if (config.url.startsWith('/api/')) {
-          config.url = (process.env.NEXT_PUBLIC_DEV_PROXY_URL || 'http://localhost:3000') + config.url;
-        }
+      const proxyUrl = process.env.NEXT_PUBLIC_DEV_PROXY_URL;
+      if (typeof window !== 'undefined' && proxyUrl && config.url.startsWith('/api/')) {
+        config.url = proxyUrl + config.url;
       }
     }
     return config;

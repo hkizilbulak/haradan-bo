@@ -16,8 +16,11 @@ const authClient = axios.create({
 });
 
 function getDevUrl(path: string) {
-  if (typeof window !== 'undefined' && window.location.port === '3001') {
-    return (process.env.NEXT_PUBLIC_DEV_PROXY_URL || 'http://localhost:3000') + path;
+  // Only rewrite in Next.js hot-reload mode when an explicit proxy URL is configured.
+  // Static BO runtime on :3001 must keep same-origin `/api/*` so Go can proxy to BE.
+  const proxyUrl = process.env.NEXT_PUBLIC_DEV_PROXY_URL;
+  if (typeof window !== 'undefined' && proxyUrl) {
+    return proxyUrl + path;
   }
   return path;
 }
