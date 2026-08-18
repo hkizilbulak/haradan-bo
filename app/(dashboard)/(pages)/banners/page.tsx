@@ -27,13 +27,19 @@ const headItems = [
   ''
 ];
 
-function parsePlacement(filter?: string): 'HOMEPAGE' | 'LISTING_DETAIL' | 'SEARCH' | null {
+function parsePlacement(filter?: string): 'HOMEPAGE_HERO' | 'HOMEPAGE_PROMO' | 'HOMEPAGE' | 'LISTING_DETAIL' | 'SEARCH' | null {
   if (!filter) return null;
   const match = filter.split(';').find((part) => part.startsWith('placement=='));
   if (!match) return null;
   const value = match.slice('placement=='.length);
-  if (value === 'HOMEPAGE' || value === 'LISTING_DETAIL' || value === 'SEARCH') {
-    return value;
+  if (
+    value === 'HOMEPAGE_HERO' ||
+    value === 'HOMEPAGE_PROMO' ||
+    value === 'HOMEPAGE' ||
+    value === 'LISTING_DETAIL' ||
+    value === 'SEARCH'
+  ) {
+    return value as any;
   }
   return null;
 }
