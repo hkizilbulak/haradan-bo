@@ -22,18 +22,18 @@ const initialValues: BannerRequest = {
 const placementContext = {
   HOMEPAGE: {
     title: 'Ana Sayfa',
-    description: 'Ana sayfadaki öne çıkanlar altı yatay reklam kartında veya üstteki hero slayt alanında gösterilir.',
-    aspect: 'Yatay reklam kartında görsel sağda yer alır. Hero alanında ise geniş slayt formatında sunulur.',
+    description: 'Ana sayfadaki öne çıkanlar altındaki yatay reklam alanında veya üstteki hero slayt alanında gösterilir.',
+    aspect: 'Önerilen Boyutlar: Yatay Reklam için 1200×160 px (~6:1 oran) | Hero Slayt için 1200×420 px (~16:6 oran).',
   },
   LISTING_DETAIL: {
     title: 'İlan Detay',
-    description: 'İlan detay sayfasındaki 16:9 tanıtım alanında gösterilir.',
-    aspect: 'İlan detay sayfalarında 16:9 formatında görsel kart olarak sunulur.',
+    description: 'İlan detay sayfasındaki tanıtım alanında gösterilir.',
+    aspect: 'Önerilen Boyutlar: 1200×675 px (16:9 oran).',
   },
   SEARCH: {
     title: 'Arama Sonuçları',
-    description: 'Arama sonuçları arasındaki kompakt tanıtım şeridinde gösterilir.',
-    aspect: 'Arama listeleme ekranında 3:1 kompakt yatay şerit olarak sunulur.',
+    description: 'Arama sonuçları listelemesi arasındaki kompakt tanıtım şeridinde gösterilir.',
+    aspect: 'Önerilen Boyutlar: 1200×400 px (3:1 oran).',
   },
 } as const;
 
@@ -212,50 +212,29 @@ export default function BannerModal({ selectedBanner, onClose, onHandleSave }: I
 
                   {values.placement === 'LISTING_DETAIL' && (
                     <div
-                      className="border rounded text-white overflow-hidden shadow-sm"
-                      style={{ backgroundColor: '#1e2430' }}
+                      className="border rounded overflow-hidden shadow-sm bg-dark"
+                      style={{ width: '100%', aspectRatio: '16 / 9' }}
                     >
-                      <div
-                        className="d-flex align-items-center justify-content-center bg-dark"
-                        style={{ aspectRatio: '16 / 9', width: '100%', overflow: 'hidden' }}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={buildMediaUrl(values.assetId, 'BANNER')}
-                          alt={values.altText || values.title || 'İlan Detay Bannerı'}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                      </div>
-                      <div className="p-2 d-flex align-items-center justify-content-between">
-                        <span className="small fw-semibold text-truncate">{values.title || 'İlan Detay Tanıtımı'}</span>
-                        {values.altText && <span className="badge bg-secondary small">{values.altText}</span>}
-                      </div>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={buildMediaUrl(values.assetId, 'BANNER')}
+                        alt={values.altText || values.title || 'İlan Detay Bannerı'}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
                     </div>
                   )}
 
                   {values.placement === 'SEARCH' && (
                     <div
-                      className="border rounded text-white overflow-hidden p-2 d-flex align-items-center justify-content-between shadow-sm"
-                      style={{ backgroundColor: '#1a1f2c', minHeight: 70, gap: 12 }}
+                      className="border rounded overflow-hidden shadow-sm bg-dark"
+                      style={{ width: '100%', aspectRatio: '3 / 1' }}
                     >
-                      <div className="d-flex flex-column gap-1" style={{ flex: 1, minWidth: 0 }}>
-                        <div className="d-flex align-items-center gap-2">
-                          <span className="badge bg-info text-dark small">{values.altText || 'Sponsorlu'}</span>
-                          <strong className="text-truncate small">{values.title || 'Arama Sonuçları Bannerı'}</strong>
-                        </div>
-                        <div className="text-muted small text-truncate">{values.targetUrl || 'Detaylar için tıklayın'}</div>
-                      </div>
-                      <div
-                        className="rounded overflow-hidden bg-dark flex-shrink-0 d-flex align-items-center justify-content-center border border-secondary"
-                        style={{ width: 100, height: 50 }}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={buildMediaUrl(values.assetId, 'BANNER')}
-                          alt={values.altText || values.title || 'Arama Bannerı'}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                      </div>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={buildMediaUrl(values.assetId, 'BANNER')}
+                        alt={values.altText || values.title || 'Arama Bannerı'}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
                     </div>
                   )}
                 </div>
