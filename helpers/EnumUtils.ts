@@ -38,6 +38,8 @@ export function getUserStatusText(searchType?: string) {
 }
 
 export function getBannerPlacementText(searchType?: string) {
+    if (searchType === 'HOMEPAGE_HERO') return 'Ana Sayfa — Hero Slayt';
+    if (searchType === 'HOMEPAGE_PROMO') return 'Ana Sayfa — Yatay Reklam';
     if (searchType === 'HOMEPAGE') return 'Ana Sayfa';
     if (searchType === 'LISTING_DETAIL') return 'İlan Detay';
     if (searchType === 'SEARCH') return 'Arama';

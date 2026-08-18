@@ -3,7 +3,7 @@ import { useFormik } from 'formik';
 import { appendOperator } from '@/helpers/HelperUtils';
 
 export type IBannerFilterForm = {
-  placement?: 'HOMEPAGE' | 'LISTING_DETAIL' | 'SEARCH';
+  placement?: 'HOMEPAGE_HERO' | 'HOMEPAGE_PROMO' | 'HOMEPAGE' | 'LISTING_DETAIL' | 'SEARCH';
   status?: 'ACTIVE' | 'INACTIVE';
 }
 
@@ -43,10 +43,11 @@ export default function BannerFilter({ onFilter }: IProps) {
             }}
             value={formik.values.placement ?? ''}
           >
-            <option value="">Yerleşim</option>
-            <option value="HOMEPAGE">Ana Sayfa</option>
+            <option value="">Tüm Yerleşimler</option>
+            <option value="HOMEPAGE_HERO">Ana Sayfa — Hero Slayt</option>
+            <option value="HOMEPAGE_PROMO">Ana Sayfa — Yatay Reklam</option>
             <option value="LISTING_DETAIL">İlan Detay</option>
-            <option value="SEARCH">Arama</option>
+            <option value="SEARCH">Arama Sonuçları</option>
           </Form.Select>
         </Form.Group>
         <Form.Group as={Col} md={6} className={'mb-3'}>

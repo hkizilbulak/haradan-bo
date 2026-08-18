@@ -170,7 +170,7 @@ export class BannerService {
   };
 
   reorder = async (
-    placement: 'HOMEPAGE' | 'LISTING_DETAIL' | 'SEARCH',
+    placement: 'HOMEPAGE_HERO' | 'HOMEPAGE_PROMO' | 'HOMEPAGE' | 'LISTING_DETAIL' | 'SEARCH',
     items: BannerReorderItem[],
   ) => {
     await axiosInstance.put(`${baseUrl}/reorder`, {
