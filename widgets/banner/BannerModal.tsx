@@ -43,7 +43,7 @@ const placementContext: Record<string, { title: string; description: string; asp
   SEARCH: {
     title: 'Arama Sonuçları',
     description: 'Arama sonuçları listelemesi arasındaki kompakt tanıtım şeridinde gösterilir.',
-    aspect: 'Önerilen Görsel Boyutu: 1200×400 px (3:1 oran).',
+    aspect: 'Önerilen Görsel Boyutu: 1200×160 px (~7.4:1 yatay arama şeridi).',
   },
 };
 
@@ -235,7 +235,7 @@ export default function BannerModal({ selectedBanner, onClose, onHandleSave }: I
                 {values.placement === 'SEARCH' && (
                   <div
                     className="border rounded overflow-hidden shadow-sm bg-dark d-flex align-items-center justify-content-center"
-                    style={{ width: '100%', aspectRatio: '3 / 1' }}
+                    style={{ width: '100%', aspectRatio: '890 / 120' }}
                   >
                     {values.assetId ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -246,8 +246,8 @@ export default function BannerModal({ selectedBanner, onClose, onHandleSave }: I
                       />
                     ) : (
                       <div className="text-center text-muted p-2">
-                        <i className="fe fe-image d-block fs-4 mb-1"></i>
-                        <span>Arama Sonuçları Bannerı (3:1)</span>
+                        <i className="fe fe-image d-block fs-5 mb-1"></i>
+                        <span>Arama Sonuçları Şerit Bannerı (7.4:1)</span>
                       </div>
                     )}
                   </div>
