@@ -18,6 +18,7 @@ import useCursorApi from '@/hooks/useCursorApi';
 import { ModerationAdvertResponse } from '@/models';
 import {
   advertService,
+  categoryService,
   ModerationReasonRequest,
   AdvertPackageAssignment,
   AssignPackageRequest,
@@ -237,7 +238,7 @@ function PackageModal({ advert, onClose, onDone }: { advert: ModerationAdvertRes
   );
 }
 
-function AdvertDetailModal({ advertId, onClose }: { advertId: string; onClose: () => void }) {
+function AdvertDetailModal({ advertId, categoryMap, onClose }: { advertId: string; categoryMap?: Map<string, string>; onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<Awaited<ReturnType<typeof advertService.getDetail>> | null>(null);
 
@@ -248,6 +249,8 @@ function AdvertDetailModal({ advertId, onClose }: { advertId: string; onClose: (
       .catch((err) => toast.error(getErrorMessage(err)))
       .finally(() => setLoading(false));
   }, [advertId]);
+
+  const categoryName = detail?.categoryId ? (categoryMap?.get(detail.categoryId) || detail.categoryId) : '-';
 
   return (
     <Modal show onHide={onClose} size="lg">
@@ -260,7 +263,7 @@ function AdvertDetailModal({ advertId, onClose }: { advertId: string; onClose: (
           <>
             <p className="mb-1"><strong>Başlık:</strong> {detail.title || '-'}</p>
             <p className="mb-1"><strong>Durum:</strong> {getAdvertStatusText(detail.status)}</p>
-            <p className="mb-3"><strong>Kategori:</strong> {detail.categoryId || '-'}</p>
+            <p className="mb-3"><strong>Kategori:</strong> {categoryName}</p>
             {detail.media && detail.media.length > 0 && (
               <div className="d-flex flex-wrap gap-2 mb-3">
                 {detail.media.map((item) => (
@@ -325,6 +328,30 @@ export default function Adverts() {
   const [detailAdvertId, setDetailAdvertId] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
+  const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    categoryService.search({ pageRequest: { page: 0, size: 500 } })
+      .then((res) => {
+        const map = new Map<string, string>();
+        const extract = (items: Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>) => {
+          for (const item of items) {
+            const id = item.identifier ?? item.id;
+            if (id && item.name) {
+              map.set(id, item.name);
+            }
+            if (item.children && Array.isArray(item.children)) {
+              extract(item.children as Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>);
+            }
+          }
+        };
+        if (res?.content) {
+          extract(res.content as Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>);
+        }
+        setCategoryMap(map);
+      })
+      .catch(() => {});
+  }, []);
 
   const [{ data, isLoading, isError, handleFilter, refetch, goNext, goPrev, canGoPrev, canGoNext, pageIndex }] = useCursorApi<ModerationAdvertResponse>({
     service: advertService,
@@ -401,11 +428,12 @@ export default function Adverts() {
     const canRequestChanges = canModerationAction(advert.status, 'requestChanges');
     const canReject = canModerationAction(advert.status, 'reject');
     const canSuspend = canModerationAction(advert.status, 'suspend');
+    const categoryName = advert.categoryId ? (categoryMap.get(advert.categoryId) || advert.categoryId) : '-';
     return (
       <tr key={advertId}>
         <td>{advert.title}</td>
         <td>{advert.publishedAt ? formatDateTimeForText(advert.publishedAt) : '-'}</td>
-        <td>{advert.categoryId || '-'}</td>
+        <td title={advert.categoryId || undefined}>{categoryName}</td>
         <td><StatusBadge status={advert.status} /></td>
         <td className="d-flex flex-wrap gap-1">
           <Button size="sm" variant="outline-primary" onClick={() => setDetailAdvertId(advertId!)}>
@@ -468,7 +496,7 @@ export default function Adverts() {
       </Modal>
 
       {packageAdvert && <PackageModal advert={packageAdvert} onClose={() => setPackageAdvert(null)} onDone={() => { setPackageAdvert(null); refetch(); }} />}
-      {detailAdvertId && <AdvertDetailModal advertId={detailAdvertId} onClose={() => setDetailAdvertId(null)} />}
+      {detailAdvertId && <AdvertDetailModal advertId={detailAdvertId} categoryMap={categoryMap} onClose={() => setDetailAdvertId(null)} />}
 
       {isLoading && <Loading />}
 
