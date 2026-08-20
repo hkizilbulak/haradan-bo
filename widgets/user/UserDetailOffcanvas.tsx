@@ -15,7 +15,7 @@ type IProps = {
   onUpdated: () => void;
 };
 
-const eventTypeText = (type: string) => {
+const eventTypeText = (type: string, metadata?: Record<string, unknown>) => {
   const map: Record<string, string> = {
     LOGIN_SUCCESS: 'Giriş Başarılı',
     LOGIN_FAILURE: 'Giriş Başarısız',
@@ -31,6 +31,25 @@ const eventTypeText = (type: string) => {
     ACCOUNT_STATUS_CHANGE: 'Hesap Durumu Değişikliği',
     BO_CONTEXT_REJECTED: 'BO Bağlamı Reddedildi',
   };
+
+  if (type === 'EMAIL_CHANGE') {
+    if (metadata?.pendingEmail) {
+      return `E-posta Değişikliği Talebi (${String(metadata.pendingEmail)})`;
+    }
+    if (metadata?.newEmail) {
+      return `E-posta Güncellendi (${String(metadata.newEmail)})`;
+    }
+  }
+
+  if (type === 'ROLE_CHANGE' && metadata?.newRole) {
+    const roleLabel = String(metadata.newRole) === 'admin' ? 'Yönetici' : 'Kullanıcı';
+    return `Rol Değişikliği (${roleLabel})`;
+  }
+
+  if (type === 'ACCOUNT_STATUS_CHANGE' && metadata?.newStatus) {
+    return `Hesap Durumu (${String(metadata.newStatus)})`;
+  }
+
   return map[type] ?? 'Diğer Güvenlik Olayı';
 };
 
@@ -61,16 +80,22 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
     }
   };
 
-  useEffect(() => {
-    fetchDetail();
-
+  const fetchEvents = async () => {
     setEventsLoading(true);
     setEventsError(false);
-    userService
-      .getSecurityEvents(userId)
-      .then(setEvents)
-      .catch(() => setEventsError(true))
-      .finally(() => setEventsLoading(false));
+    try {
+      const data = await userService.getSecurityEvents(userId);
+      setEvents(data);
+    } catch {
+      setEventsError(true);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDetail();
+    fetchEvents();
   }, [userId]);
 
   const validationSchema = Yup.object().shape({
@@ -177,7 +202,7 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                   }
 
                   toast.success('Kullanıcı bilgileri başarıyla güncellendi.');
-                  await fetchDetail();
+                  await Promise.all([fetchDetail(), fetchEvents()]);
                   onUpdated();
                 } catch (error) {
                   toast.error(getErrorMessage(error));
@@ -313,7 +338,7 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                     {events.map((event) => (
                       <tr key={event.id}>
                         <td>
-                          <Badge bg={eventTypeVariant(event.eventType)}>{eventTypeText(event.eventType)}</Badge>
+                          <Badge bg={eventTypeVariant(event.eventType)}>{eventTypeText(event.eventType, event.metadata)}</Badge>
                         </td>
                         <td>{formatDateTimeForText(event.createdAt)}</td>
                       </tr>
