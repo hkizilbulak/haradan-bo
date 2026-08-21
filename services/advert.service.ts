@@ -159,13 +159,11 @@ class AdvertService {
                 rawItems = response?.items ?? [];
                 hasMore = Boolean(response?.hasMore);
                 nextCursor = response?.nextCursor ?? null;
-            } catch {
-                // If API request fails on local, use fallback mock items
+            } catch (err) {
+                console.error('Moderation API fetch error:', err);
+                throw err;
             }
 
-            if (rawItems.length === 0 && !params.cursor && isLocalEnvironment()) {
-                rawItems = fallbackMockAdverts.filter((item) => !status || item.status === status);
-            }
 
             const content = rawItems.map(toModerationAdvert);
             const pageNumber = params.pageRequest.page ?? 0;

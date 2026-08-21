@@ -210,8 +210,8 @@ async function main() {
   };
   const boEnvironment = environmentFromFile(path.join(boDir, '.env.local'), {
     PORT: '3000',
-    BACKEND_API_URL: 'http://localhost:8080',
   });
+
   if (developmentMode) {
     boEnvironment.CORS_ALLOWED_ORIGINS = addAllowedOrigin(
       boEnvironment.CORS_ALLOWED_ORIGINS,
