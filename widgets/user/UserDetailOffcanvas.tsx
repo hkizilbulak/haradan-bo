@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Offcanvas, Form, Button, Table, Badge, Alert, Spinner } from 'react-bootstrap';
+import { Offcanvas, Form, Button, Table, Badge, Alert, Spinner, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { Info } from 'react-feather';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { toast } from 'react-toastify';
@@ -34,6 +35,31 @@ const eventTypeText = (type: string) => {
   return map[type] ?? 'Diğer Güvenlik Olayı';
 };
 
+const getEventDetails = (event: SecurityEvent): string | null => {
+  if (!event.metadata) return null;
+  const m = event.metadata;
+  if (event.eventType === 'EMAIL_CHANGE') {
+    const parts: string[] = [];
+    if (m.previousEmail) parts.push(`Eski: ${m.previousEmail}`);
+    if (m.newEmail) parts.push(`Yeni: ${m.newEmail}`);
+    else if (m.pendingEmail) parts.push(`Talep: ${m.pendingEmail}`);
+    return parts.length > 0 ? parts.join('\n') : null;
+  }
+  if (event.eventType === 'ROLE_CHANGE' && m.newRole) {
+    const parts: string[] = [];
+    if (m.previousRole) parts.push(`Önceki: ${m.previousRole === 'admin' ? 'Yönetici' : 'Kullanıcı'}`);
+    parts.push(`Yeni: ${m.newRole === 'admin' ? 'Yönetici' : 'Kullanıcı'}`);
+    return parts.join('\n');
+  }
+  if (event.eventType === 'ACCOUNT_STATUS_CHANGE' && m.newStatus) {
+    const parts: string[] = [];
+    if (m.previousStatus) parts.push(`Önceki: ${m.previousStatus}`);
+    parts.push(`Yeni: ${m.newStatus}`);
+    return parts.join('\n');
+  }
+  return null;
+};
+
 const eventTypeVariant = (type: string) => {
   if (type.includes('FAILURE') || type.includes('REJECTED') || type.includes('REPLAY')) return 'danger';
   if (type.includes('REVOKED')) return 'warning';
@@ -61,16 +87,22 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
     }
   };
 
-  useEffect(() => {
-    fetchDetail();
-
+  const fetchEvents = async () => {
     setEventsLoading(true);
     setEventsError(false);
-    userService
-      .getSecurityEvents(userId)
-      .then(setEvents)
-      .catch(() => setEventsError(true))
-      .finally(() => setEventsLoading(false));
+    try {
+      const data = await userService.getSecurityEvents(userId);
+      setEvents(data);
+    } catch {
+      setEventsError(true);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDetail();
+    fetchEvents();
   }, [userId]);
 
   const validationSchema = Yup.object().shape({
@@ -177,7 +209,7 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                   }
 
                   toast.success('Kullanıcı bilgileri başarıyla güncellendi.');
-                  await fetchDetail();
+                  await Promise.all([fetchDetail(), fetchEvents()]);
                   onUpdated();
                 } catch (error) {
                   toast.error(getErrorMessage(error));
@@ -310,14 +342,41 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                     </tr>
                   </thead>
                   <tbody>
-                    {events.map((event) => (
-                      <tr key={event.id}>
-                        <td>
-                          <Badge bg={eventTypeVariant(event.eventType)}>{eventTypeText(event.eventType)}</Badge>
-                        </td>
-                        <td>{formatDateTimeForText(event.createdAt)}</td>
-                      </tr>
-                    ))}
+                    {events.map((event) => {
+                      const details = getEventDetails(event);
+                      return (
+                        <tr key={event.id}>
+                          <td>
+                            <div className="d-flex align-items-center justify-content-between gap-2">
+                              <Badge bg={eventTypeVariant(event.eventType)}>
+                                {eventTypeText(event.eventType)}
+                              </Badge>
+                              {details && (
+                                <OverlayTrigger
+                                  placement="left"
+                                  overlay={
+                                    <Tooltip id={`tooltip-${event.id}`} style={{ whiteSpace: 'pre-line', textAlign: 'left' }}>
+                                      {details}
+                                    </Tooltip>
+                                  }
+                                >
+                                  <Button
+                                    variant="light"
+                                    size="sm"
+                                    className="p-0 text-muted border-0 d-inline-flex align-items-center"
+                                    style={{ cursor: 'pointer', background: 'transparent' }}
+                                    title="Detayları Görüntüle"
+                                  >
+                                    <Info size={14} className="text-primary" />
+                                  </Button>
+                                </OverlayTrigger>
+                              )}
+                            </div>
+                          </td>
+                          <td className="text-nowrap">{formatDateTimeForText(event.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </Table>
               )}

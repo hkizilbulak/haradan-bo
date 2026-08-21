@@ -56,8 +56,14 @@ function sleep(ms: number) {
 }
 
 function bannerVariantReady(status: MediaProcessingStatusResponse) {
-  return status.lifecycleStatus === SUCCESS_TERMINAL
-    && status.variants?.some((variant) => variant.transformProfile === 'BANNER' && variant.lifecycleStatus === 'READY');
+  if (status.lifecycleStatus !== SUCCESS_TERMINAL) {
+    return false;
+  }
+  const bannerVariant = status.variants?.find((variant) => variant.transformProfile === 'BANNER');
+  if (bannerVariant) {
+    return bannerVariant.lifecycleStatus === 'READY';
+  }
+  return true;
 }
 
 function processingFailureMessage(status: MediaProcessingStatusResponse) {
