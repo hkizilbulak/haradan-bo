@@ -347,6 +347,25 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
     }));
   };
 
+  const groupedItems = useCallback(() => {
+    const groups: { [key: string]: { label: string; badgeBg: string; textClass: string; items: { item: CategoryProperty; originalIndex: number }[] } } = {};
+
+    items.forEach((item, originalIndex) => {
+      const g = getPropertyGroup(item);
+      if (!groups[g.label]) {
+        groups[g.label] = {
+          label: g.label,
+          badgeBg: g.badgeBg,
+          textClass: g.textClass,
+          items: [],
+        };
+      }
+      groups[g.label].items.push({ item, originalIndex });
+    });
+
+    return Object.values(groups);
+  }, [items]);
+
   return (
     <>
       <Modal show onHide={onClose} size="lg" centered scrollable>
@@ -355,9 +374,9 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
         </Modal.Header>
         <Modal.Body>
           <div className="d-flex justify-content-between align-items-center mb-3">
-            <span className="text-muted small">İlan formunda kullanılacak alanlar</span>
+            <span className="text-muted small">İlan formunda ve filtrelerde kullanılacak alanlar</span>
             <Button size="sm" variant="primary" onClick={openCreate} disabled={submitting}>
-              Özellik Ekle
+              + Yeni Özellik Ekle
             </Button>
           </div>
 
@@ -374,75 +393,90 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
           )}
 
           {!loading && items.length > 0 && (
-            <Table responsive hover size="sm" className="align-middle">
-              <thead>
-                <tr>
-                  <th>Alan Adı</th>
-                  <th>Alan Türü</th>
-                  <th>Bölüm / Form Grubu</th>
-                  <th>Durum</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item, index) => {
-                  const group = getPropertyGroup(item);
-                  return (
-                    <tr key={item.id}>
-                      <td className="fw-semibold">{item.title}</td>
-                      <td>{getPropertyDataTypeText(item.dataType)}</td>
-                      <td>
-                        <Badge bg={group.badgeBg} className={group.textClass}>
-                          {group.label}
-                        </Badge>
-                      </td>
-                      <td>
-                        <Badge bg={item.isActive ? 'success' : 'secondary'}>
-                          {item.isActive ? 'Aktif' : 'Pasif'}
-                        </Badge>
-                      </td>
-                      <td className="text-end text-nowrap">
-                        <Button
-                          size="sm"
-                          variant="outline-secondary"
-                          className="me-1"
-                          disabled={submitting || index === 0}
-                          onClick={() => void moveProperty(index, -1)}
-                        >
-                          ↑
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline-secondary"
-                          className="me-1"
-                          disabled={submitting || index === items.length - 1}
-                          onClick={() => void moveProperty(index, 1)}
-                        >
-                          ↓
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline-primary"
-                          className="me-1"
-                          disabled={submitting}
-                          onClick={() => openEdit(item)}
-                        >
-                          Düzenle
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={item.isActive ? 'outline-warning' : 'outline-success'}
-                          disabled={submitting}
-                          onClick={() => void handleToggleActive(item)}
-                        >
-                          {item.isActive ? 'Pasif' : 'Aktif'}
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </Table>
+            <div>
+              {groupedItems().map((group) => (
+                <div key={group.label} className="mb-4 border rounded p-3 bg-white shadow-sm">
+                  <div className="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
+                    <div className="d-flex align-items-center gap-2">
+                      <Badge bg={group.badgeBg} className={group.textClass}>
+                        {group.label}
+                      </Badge>
+                      <span className="text-muted small">({group.items.length} özellik)</span>
+                    </div>
+                    <span className="text-muted small">İlan Formu & Filtre Bölümü</span>
+                  </div>
+
+                  <Table responsive hover size="sm" className="align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Alan Adı</th>
+                        <th>Alan Türü</th>
+                        <th>Zorunlu</th>
+                        <th>Durum</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.items.map(({ item, originalIndex }) => (
+                        <tr key={item.id}>
+                          <td className="fw-semibold">{item.title}</td>
+                          <td>{getPropertyDataTypeText(item.dataType)}</td>
+                          <td>
+                            {item.isRequired ? (
+                              <Badge bg="danger" className="text-white">Zorunlu</Badge>
+                            ) : (
+                              <span className="text-muted small">İsteğe Bağlı</span>
+                            )}
+                          </td>
+                          <td>
+                            <Badge bg={item.isActive ? 'success' : 'secondary'}>
+                              {item.isActive ? 'Aktif' : 'Pasif'}
+                            </Badge>
+                          </td>
+                          <td className="text-end text-nowrap">
+                            <Button
+                              size="sm"
+                              variant="outline-secondary"
+                              className="me-1"
+                              disabled={submitting || originalIndex === 0}
+                              onClick={() => void moveProperty(originalIndex, -1)}
+                            >
+                              ↑
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline-secondary"
+                              className="me-1"
+                              disabled={submitting || originalIndex === items.length - 1}
+                              onClick={() => void moveProperty(originalIndex, 1)}
+                            >
+                              ↓
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline-primary"
+                              className="me-1"
+                              disabled={submitting}
+                              onClick={() => openEdit(item)}
+                            >
+                              Düzenle
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={item.isActive ? 'outline-warning' : 'outline-success'}
+                              disabled={submitting}
+                              onClick={() => void handleToggleActive(item)}
+                            >
+                              {item.isActive ? 'Pasif' : 'Aktif'}
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              ))}
+            </div>
           )}
         </Modal.Body>
         <Modal.Footer>
