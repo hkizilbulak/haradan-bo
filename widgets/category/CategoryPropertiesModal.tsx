@@ -293,6 +293,25 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
     }
   };
 
+  const handleDelete = async (property: CategoryProperty) => {
+    if (submitting) {
+      return;
+    }
+    if (!window.confirm(`"${property.title}" özelliğini silmek / kaldırmak istediğinize emin misiniz?`)) {
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await categoryService.deleteProperty(categoryId, property.id);
+      toast.success('Özellik başarıyla silindi');
+      await load();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const moveProperty = async (index: number, direction: -1 | 1) => {
     const target = index + direction;
     if (target < 0 || target >= items.length || submitting) {
@@ -464,10 +483,19 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
                             <Button
                               size="sm"
                               variant={item.isActive ? 'outline-warning' : 'outline-success'}
+                              className="me-1"
                               disabled={submitting}
                               onClick={() => void handleToggleActive(item)}
                             >
                               {item.isActive ? 'Pasif' : 'Aktif'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline-danger"
+                              disabled={submitting}
+                              onClick={() => void handleDelete(item)}
+                            >
+                              Sil
                             </Button>
                           </td>
                         </tr>

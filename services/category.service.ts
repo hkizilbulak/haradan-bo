@@ -504,6 +504,13 @@ class CategoryService {
                 ? categoryId.replace(/^cat-/, '')
                 : `cat-${categoryId}`;
             localStorage.setItem(`haradan_category_properties_${altKey}`, JSON.stringify(properties));
+
+            const cat = this.localCategories.find((c) => c.id === categoryId || c.slug === categoryId);
+            if (cat && cat.slug) {
+                localStorage.setItem(`haradan_category_properties_${cat.slug}`, JSON.stringify(properties));
+                localStorage.setItem(`haradan_category_properties_cat-${cat.slug}`, JSON.stringify(properties));
+            }
+
             window.dispatchEvent(new CustomEvent('haradan_category_properties_changed', { detail: { categoryId } }));
         } catch {}
     }
@@ -692,11 +699,12 @@ class CategoryService {
 
 
     async createProperty(categoryId: string, request: CreateCategoryPropertyRequest) {
+        let createdProp: CategoryProperty | null = null;
         try {
             const response = await axiosInstance.post(`${baseUrl}/${categoryId}/properties`, request);
-            return response.data as CategoryProperty;
+            createdProp = response.data as CategoryProperty;
         } catch {
-            const newProp: CategoryProperty = {
+            createdProp = {
                 id: `prop-${Date.now()}`,
                 categoryId,
                 code: request.code || request.title.toUpperCase().replace(/\s+/g, '_'),
@@ -715,27 +723,33 @@ class CategoryService {
                 defaultValue: request.defaultValue,
                 uiMetadata: request.uiMetadata ?? {},
             };
-            if (!this.localProperties[categoryId]) {
-                this.localProperties[categoryId] = [];
-            }
-            this.localProperties[categoryId].push(newProp);
-            this.saveStoredProperties(categoryId, this.localProperties[categoryId]);
-            return newProp;
         }
+
+        const list = this.localProperties[categoryId] || [];
+        const existingIdx = list.findIndex((p) => p.id === createdProp!.id || p.code === createdProp!.code);
+        if (existingIdx >= 0) {
+            list[existingIdx] = createdProp!;
+        } else {
+            list.push(createdProp!);
+        }
+        this.localProperties[categoryId] = list;
+        this.saveStoredProperties(categoryId, list);
+        return createdProp!;
     }
 
     async updateProperty(categoryId: string, propertyId: string, request: UpdateCategoryPropertyRequest) {
+        let updatedProp: CategoryProperty | null = null;
         try {
             const response = await axiosInstance.patch(
                 `${baseUrl}/${categoryId}/properties/${propertyId}`,
                 request,
             );
-            return response.data as CategoryProperty;
+            updatedProp = response.data as CategoryProperty;
         } catch {
             const list = this.localProperties[categoryId] || [];
-            const idx = list.findIndex((p) => p.id === propertyId);
+            const idx = list.findIndex((p) => p.id === propertyId || p.code === propertyId);
             if (idx >= 0) {
-                list[idx] = {
+                updatedProp = {
                     ...list[idx],
                     title: request.title ?? list[idx].title,
                     helpText: request.helpText ?? list[idx].helpText,
@@ -750,11 +764,20 @@ class CategoryService {
                     uiMetadata: request.uiMetadata ?? list[idx].uiMetadata,
                     version: (list[idx].version || 1) + 1,
                 };
-                this.saveStoredProperties(categoryId, list);
-                return list[idx];
             }
-            throw new Error('Özellik bulunamadı.');
         }
+
+        const list = this.localProperties[categoryId] || [];
+        const idx = list.findIndex((p) => p.id === propertyId || p.code === propertyId);
+        if (idx >= 0 && updatedProp) {
+            list[idx] = updatedProp;
+        } else if (updatedProp) {
+            list.push(updatedProp);
+        }
+        this.localProperties[categoryId] = list;
+        this.saveStoredProperties(categoryId, list);
+        if (updatedProp) return updatedProp;
+        throw new Error('Özellik bulunamadı.');
     }
 
     async setPropertyActive(
@@ -763,6 +786,7 @@ class CategoryService {
         expectedVersion: number,
         isActive: boolean,
     ) {
+        let resultProp: CategoryProperty | null = null;
         try {
             const response = await axiosInstance.post(
                 `${baseUrl}/${categoryId}/properties/${propertyId}/active`,
@@ -771,34 +795,59 @@ class CategoryService {
                     isActive,
                 },
             );
-            return response.data as CategoryProperty;
+            resultProp = response.data as CategoryProperty;
         } catch {
-            const list = this.localProperties[categoryId] || [];
-            const prop = list.find((p) => p.id === propertyId);
-            if (prop) {
-                prop.isActive = isActive;
-                prop.version = Math.max(1, expectedVersion) + 1;
-                this.saveStoredProperties(categoryId, list);
-                return prop;
-            }
-            throw new Error('Özellik bulunamadı.');
+            // fallback handled below
         }
+
+        const list = this.localProperties[categoryId] || [];
+        const prop = list.find((p) => p.id === propertyId || p.code === propertyId);
+        if (prop) {
+            prop.isActive = isActive;
+            prop.version = Math.max(1, expectedVersion) + 1;
+            resultProp = prop;
+        } else if (resultProp) {
+            list.push(resultProp);
+        }
+
+        this.localProperties[categoryId] = list;
+        this.saveStoredProperties(categoryId, list);
+
+        if (resultProp) {
+            return resultProp;
+        }
+        throw new Error('Özellik bulunamadı.');
+    }
+
+    async deleteProperty(categoryId: string, propertyId: string) {
+        try {
+            await axiosInstance.delete(`${baseUrl}/${categoryId}/properties/${propertyId}`);
+        } catch {
+            // fallback
+        }
+        const list = (this.localProperties[categoryId] || []).filter(
+            (p) => p.id !== propertyId && p.code !== propertyId
+        );
+        this.localProperties[categoryId] = list;
+        this.saveStoredProperties(categoryId, list);
     }
 
     async reorderProperties(categoryId: string, items: ReorderItem[]) {
         try {
             await axiosInstance.put(`${baseUrl}/${categoryId}/properties/reorder`, { items });
         } catch {
-            const list = this.localProperties[categoryId] || [];
-            items.forEach((it) => {
-                const prop = list.find((p) => p.id === it.id);
-                if (prop) {
-                    prop.sortOrder = it.sortOrder;
-                    prop.version = (prop.version || 1) + 1;
-                }
-            });
-            this.saveStoredProperties(categoryId, list);
+            // fallback
         }
+        const list = this.localProperties[categoryId] || [];
+        items.forEach((it) => {
+            const prop = list.find((p) => p.id === it.id || p.code === it.id);
+            if (prop) {
+                prop.sortOrder = it.sortOrder;
+                prop.version = (prop.version || 1) + 1;
+            }
+        });
+        this.localProperties[categoryId] = list;
+        this.saveStoredProperties(categoryId, list);
     }
 
 
