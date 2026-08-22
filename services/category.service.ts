@@ -499,17 +499,22 @@ class CategoryService {
     private saveStoredProperties(categoryId: string, properties: CategoryProperty[]) {
         if (typeof window === 'undefined') return;
         try {
-            localStorage.setItem(`haradan_category_properties_${categoryId}`, JSON.stringify(properties));
-            const altKey = categoryId.startsWith('cat-')
-                ? categoryId.replace(/^cat-/, '')
-                : `cat-${categoryId}`;
-            localStorage.setItem(`haradan_category_properties_${altKey}`, JSON.stringify(properties));
+            const keysToUpdate = new Set<string>();
+            keysToUpdate.add(categoryId);
+            keysToUpdate.add(`cat-${categoryId}`);
+            keysToUpdate.add(categoryId.replace(/^cat-/, ''));
 
             const cat = this.localCategories.find((c) => c.id === categoryId || c.slug === categoryId);
             if (cat && cat.slug) {
-                localStorage.setItem(`haradan_category_properties_${cat.slug}`, JSON.stringify(properties));
-                localStorage.setItem(`haradan_category_properties_cat-${cat.slug}`, JSON.stringify(properties));
+                keysToUpdate.add(cat.slug);
+                keysToUpdate.add(`cat-${cat.slug}`);
+                keysToUpdate.add(cat.slug.replace(/^cat-/, ''));
             }
+
+            const jsonVal = JSON.stringify(properties);
+            keysToUpdate.forEach((k) => {
+                localStorage.setItem(`haradan_category_properties_${k}`, jsonVal);
+            });
 
             window.dispatchEvent(new CustomEvent('haradan_category_properties_changed', { detail: { categoryId } }));
         } catch {}
@@ -634,6 +639,12 @@ class CategoryService {
     }
 
     async listProperties(categoryId: string, categoryName?: string, categorySlug?: string): Promise<CategoryProperty[]> {
+        const stored = this.getStoredProperties(categoryId);
+        if (stored && Array.isArray(stored)) {
+            this.localProperties[categoryId] = stored;
+            return stored;
+        }
+
         let backendItems: CategoryProperty[] = [];
         try {
             const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
@@ -644,6 +655,12 @@ class CategoryService {
             }
         } catch {
             // fallback
+        }
+
+        if (backendItems.length > 0) {
+            this.localProperties[categoryId] = backendItems;
+            this.saveStoredProperties(categoryId, backendItems);
+            return backendItems;
         }
 
         const cat = this.localCategories.find((c) => c.id === categoryId || c.slug === categoryId);
@@ -671,25 +688,7 @@ class CategoryService {
             baseDefaults = DEFAULT_PROPERTIES_MAP['cat-satilik-yaris-ati'] || [];
         }
 
-        const local = this.localProperties[categoryId] || [];
-        const map = new Map<string, CategoryProperty>();
-        baseDefaults.forEach((p) => map.set(p.code || p.id, { ...p, categoryId }));
-        local.forEach((p) => map.set(p.code || p.id, p));
-        backendItems.forEach((p) => map.set(p.code || p.id, p));
-
-        const stored = this.getStoredProperties(categoryId);
-        if (stored && Array.isArray(stored) && stored.length > 0) {
-            stored.forEach((p) => {
-                const key = p.code || p.id;
-                if (map.has(key)) {
-                    map.set(key, { ...map.get(key)!, ...p });
-                } else {
-                    map.set(key, p);
-                }
-            });
-        }
-
-        const result = Array.from(map.values()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        const result = baseDefaults.map((p) => ({ ...p, categoryId }));
         this.localProperties[categoryId] = result;
         this.saveStoredProperties(categoryId, result);
         return result;
@@ -819,14 +818,25 @@ class CategoryService {
         throw new Error('Özellik bulunamadı.');
     }
 
-    async deleteProperty(categoryId: string, propertyId: string) {
+    async deleteProperty(categoryId: string, propertyId: string, version?: number) {
+        // 1. Tell backend to set isActive = false so DB marks it inactive
+        try {
+            await this.setPropertyActive(categoryId, propertyId, version ?? 1, false);
+        } catch {
+            // ignore
+        }
+
+        // 2. Also attempt DELETE endpoint
         try {
             await axiosInstance.delete(`${baseUrl}/${categoryId}/properties/${propertyId}`);
         } catch {
             // fallback
         }
-        const list = (this.localProperties[categoryId] || []).filter(
-            (p) => p.id !== propertyId && p.code !== propertyId
+
+        // 3. Purge from local state and save across all category storage keys
+        const current = this.getStoredProperties(categoryId) || this.localProperties[categoryId] || [];
+        const list = current.filter(
+            (p) => p.id !== propertyId && p.code !== propertyId && p.title !== propertyId
         );
         this.localProperties[categoryId] = list;
         this.saveStoredProperties(categoryId, list);
