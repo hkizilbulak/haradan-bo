@@ -78,7 +78,7 @@ export const DashboardMenu: IMenuProps[] = [
 		id: uuid(),
 		title: 'Haradan.com',
 		icon: 'arrow-left',
-		link: 'https://haradan.com'
+		link: 'https://haradan-fe-production.up.railway.app'
 	}
 ];
 
