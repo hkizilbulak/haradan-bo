@@ -126,7 +126,7 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await categoryService.listProperties(categoryId);
+      const list = await categoryService.listProperties(categoryId, categoryName);
       setItems([...list].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title)));
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -134,11 +134,12 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
     } finally {
       setLoading(false);
     }
-  }, [categoryId]);
+  }, [categoryId, categoryName]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
 
   const openCreate = () => {
     setEditing(null);

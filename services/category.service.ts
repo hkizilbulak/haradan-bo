@@ -117,261 +117,396 @@ const DEFAULT_ADMIN_CATEGORIES: AdminCategoryItem[] = [
     { id: 'cat-ingiliz-aygir', name: 'İngiliz Aygır', slug: 'ingiliz-aygir', sortOrder: 2, parentId: 'cat-asim-hizmetleri', isActive: true, version: 1 },
 ];
 
+const HORSE_PROPERTIES_TEMPLATE = (catId: string): CategoryProperty[] => [
+    {
+        id: `prop-breed-${catId}`,
+        categoryId: catId,
+        code: 'HORSE_BREED',
+        title: 'At Irkı',
+        dataType: 'SINGLE_SELECT',
+        isRequired: true,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 1,
+        isActive: true,
+        version: 1,
+        options: [
+            { value: 'İngiliz (Thoroughbred)', label: 'İngiliz (Thoroughbred)' },
+            { value: 'Safkan Arap', label: 'Safkan Arap' },
+            { value: 'Warmblood / Spor Atı', label: 'Warmblood / Spor Atı' },
+            { value: 'Konkur / Engel Atlama', label: 'Konkur / Engel Atlama' },
+            { value: 'Rahvan', label: 'Rahvan' },
+            { value: 'Pony / Midilli', label: 'Pony / Midilli' },
+            { value: 'Haflinger', label: 'Haflinger' },
+        ],
+        validation: {},
+        uiMetadata: {},
+    },
+    {
+        id: `prop-color-${catId}`,
+        categoryId: catId,
+        code: 'COAT_COLOR',
+        title: 'Donu (Renk)',
+        dataType: 'SINGLE_SELECT',
+        isRequired: true,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 2,
+        isActive: true,
+        version: 1,
+        options: [
+            { value: 'Doru', label: 'Doru' },
+            { value: 'Al', label: 'Al' },
+            { value: 'Kır', label: 'Kır' },
+            { value: 'Beyaz', label: 'Beyaz' },
+            { value: 'Yağız', label: 'Yağız' },
+            { value: 'Kula', label: 'Kula' },
+            { value: 'Boz', label: 'Boz' },
+        ],
+        validation: {},
+        uiMetadata: {},
+    },
+    {
+        id: `prop-age-${catId}`,
+        categoryId: catId,
+        code: 'HORSE_AGE',
+        title: 'Yaş',
+        dataType: 'SINGLE_SELECT',
+        isRequired: true,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 3,
+        isActive: true,
+        version: 1,
+        options: [
+            { value: 'Tay (0-1 Yaş)', label: 'Tay (0-1 Yaş)' },
+            { value: '2 Yaş', label: '2 Yaş' },
+            { value: '3 Yaş', label: '3 Yaş' },
+            { value: '4 Yaş', label: '4 Yaş' },
+            { value: '5+ Yaş', label: '5+ Yaş' },
+        ],
+        validation: {},
+        uiMetadata: {},
+    },
+    {
+        id: `prop-gender-${catId}`,
+        categoryId: catId,
+        code: 'HORSE_GENDER',
+        title: 'Cinsiyet',
+        dataType: 'SINGLE_SELECT',
+        isRequired: true,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 4,
+        isActive: true,
+        version: 1,
+        options: [
+            { value: 'Erkek', label: 'Erkek' },
+            { value: 'Dişi', label: 'Dişi' },
+            { value: 'İğdiş', label: 'İğdiş' },
+        ],
+        validation: {},
+        uiMetadata: {},
+    },
+];
+
+const PANSIYON_PROPERTIES_TEMPLATE = (catId: string): CategoryProperty[] => [
+    {
+        id: `prop-grass-${catId}`,
+        categoryId: catId,
+        code: 'grassPaddock',
+        title: 'Çim Padok',
+        dataType: 'BOOLEAN',
+        isRequired: false,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 1,
+        isActive: true,
+        version: 1,
+        options: [],
+        validation: {},
+        uiMetadata: {},
+    },
+    {
+        id: `prop-sand-${catId}`,
+        categoryId: catId,
+        code: 'sandPaddock',
+        title: 'Kum Padok',
+        dataType: 'BOOLEAN',
+        isRequired: false,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 2,
+        isActive: true,
+        version: 1,
+        options: [],
+        validation: {},
+        uiMetadata: {},
+    },
+    {
+        id: `prop-stallion-${catId}`,
+        categoryId: catId,
+        code: 'stallionPaddock',
+        title: 'Aygır Padoğu',
+        dataType: 'BOOLEAN',
+        isRequired: false,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 3,
+        isActive: true,
+        version: 1,
+        options: [],
+        validation: {},
+        uiMetadata: {},
+    },
+    {
+        id: `prop-vet-${catId}`,
+        categoryId: catId,
+        code: 'vet',
+        title: 'Veteriner',
+        dataType: 'BOOLEAN',
+        isRequired: false,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 4,
+        isActive: true,
+        version: 1,
+        options: [],
+        validation: {},
+        uiMetadata: {},
+    },
+    {
+        id: `prop-farrier-${catId}`,
+        categoryId: catId,
+        code: 'farrier',
+        title: 'Nalbant',
+        dataType: 'BOOLEAN',
+        isRequired: false,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 5,
+        isActive: true,
+        version: 1,
+        options: [],
+        validation: {},
+        uiMetadata: {},
+    },
+    {
+        id: `prop-foaling-${catId}`,
+        categoryId: catId,
+        code: 'foalingBarn',
+        title: 'Doğumhane',
+        dataType: 'BOOLEAN',
+        isRequired: false,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 6,
+        isActive: true,
+        version: 1,
+        options: [],
+        validation: {},
+        uiMetadata: {},
+    },
+    {
+        id: `prop-training-track-${catId}`,
+        categoryId: catId,
+        code: 'trainingTrack',
+        title: 'İdman Pisti',
+        dataType: 'STRING',
+        isRequired: false,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: false,
+        sortOrder: 7,
+        isActive: true,
+        version: 1,
+        options: [],
+        validation: {},
+        uiMetadata: {},
+    },
+];
+
+const NAKLIYE_PROPERTIES_TEMPLATE = (catId: string): CategoryProperty[] => [
+    {
+        id: `prop-company-${catId}`,
+        categoryId: catId,
+        code: 'companyName',
+        title: 'Firma Adı',
+        dataType: 'STRING',
+        isRequired: true,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: false,
+        sortOrder: 1,
+        isActive: true,
+        version: 1,
+        options: [],
+        validation: {},
+        uiMetadata: {},
+    },
+    {
+        id: `prop-website-${catId}`,
+        categoryId: catId,
+        code: 'websiteUrl',
+        title: 'Web Sitesi',
+        dataType: 'STRING',
+        isRequired: false,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: false,
+        sortOrder: 2,
+        isActive: true,
+        version: 1,
+        options: [],
+        validation: {},
+        uiMetadata: {},
+    },
+];
+
+const STUD_PROPERTIES_TEMPLATE = (catId: string): CategoryProperty[] => [
+    {
+        id: `prop-stud-breed-${catId}`,
+        categoryId: catId,
+        code: 'STALLION_BREED',
+        title: 'Aygır Irkı',
+        dataType: 'SINGLE_SELECT',
+        isRequired: true,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 1,
+        isActive: true,
+        version: 1,
+        options: [
+            { value: 'Arap', label: 'Arap' },
+            { value: 'İngiliz', label: 'İngiliz' },
+        ],
+        validation: {},
+        uiMetadata: {},
+    },
+    {
+        id: `prop-stud-age-${catId}`,
+        categoryId: catId,
+        code: 'STALLION_AGE',
+        title: 'Aşım Yaşı',
+        dataType: 'SINGLE_SELECT',
+        isRequired: true,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 2,
+        isActive: true,
+        version: 1,
+        options: [
+            { value: '0', label: '0' },
+            { value: '1', label: '1' },
+            { value: '1.5', label: '1.5' },
+            { value: '2', label: '2' },
+            { value: '3', label: '3' },
+            { value: '4', label: '4' },
+            { value: '5+', label: '5+' },
+        ],
+        validation: {},
+        uiMetadata: {},
+    },
+    {
+        id: `prop-stud-color-${catId}`,
+        categoryId: catId,
+        code: 'COAT_COLOR',
+        title: 'Donu (Renk)',
+        dataType: 'SINGLE_SELECT',
+        isRequired: true,
+        isPublicVisible: true,
+        isFormVisible: true,
+        isFilterable: true,
+        sortOrder: 3,
+        isActive: true,
+        version: 1,
+        options: [
+            { value: 'Doru', label: 'Doru' },
+            { value: 'Al', label: 'Al' },
+            { value: 'Kır', label: 'Kır' },
+            { value: 'Beyaz', label: 'Beyaz' },
+            { value: 'Yağız', label: 'Yağız' },
+            { value: 'Kula', label: 'Kula' },
+            { value: 'Boz', label: 'Boz' },
+        ],
+        validation: {},
+        uiMetadata: {},
+    },
+];
+
 const DEFAULT_PROPERTIES_MAP: Record<string, CategoryProperty[]> = {
-    'cat-satilik-yaris-ati': [
-        {
-            id: 'prop-breed',
-            categoryId: 'cat-satilik-yaris-ati',
-            code: 'HORSE_BREED',
-            title: 'At Irkı',
-            dataType: 'SINGLE_SELECT',
-            isRequired: true,
-            isPublicVisible: true,
-            isFormVisible: true,
-            isFilterable: true,
-            sortOrder: 1,
-            isActive: true,
-            version: 1,
-            options: [
-                { value: 'İngiliz (Thoroughbred)', label: 'İngiliz (Thoroughbred)' },
-                { value: 'Safkan Arap', label: 'Safkan Arap' },
-                { value: 'Warmblood / Spor Atı', label: 'Warmblood / Spor Atı' },
-                { value: 'Konkur / Engel Atlama', label: 'Konkur / Engel Atlama' },
-                { value: 'Rahvan', label: 'Rahvan' },
-                { value: 'Pony / Midilli', label: 'Pony / Midilli' },
-                { value: 'Haflinger', label: 'Haflinger' },
-            ],
-            validation: {},
-            uiMetadata: {},
-        },
-        {
-            id: 'prop-color',
-            categoryId: 'cat-satilik-yaris-ati',
-            code: 'COAT_COLOR',
-            title: 'Donu (Renk)',
-            dataType: 'SINGLE_SELECT',
-            isRequired: true,
-            isPublicVisible: true,
-            isFormVisible: true,
-            isFilterable: true,
-            sortOrder: 2,
-            isActive: true,
-            version: 1,
-            options: [
-                { value: 'Doru', label: 'Doru' },
-                { value: 'Al', label: 'Al' },
-                { value: 'Kır', label: 'Kır' },
-                { value: 'Beyaz', label: 'Beyaz' },
-                { value: 'Yağız', label: 'Yağız' },
-                { value: 'Kula', label: 'Kula' },
-                { value: 'Boz', label: 'Boz' },
-            ],
-            validation: {},
-            uiMetadata: {},
-        },
-        {
-            id: 'prop-age',
-            categoryId: 'cat-satilik-yaris-ati',
-            code: 'HORSE_AGE',
-            title: 'Yaş',
-            dataType: 'SINGLE_SELECT',
-            isRequired: true,
-            isPublicVisible: true,
-            isFormVisible: true,
-            isFilterable: true,
-            sortOrder: 3,
-            isActive: true,
-            version: 1,
-            options: [
-                { value: 'Tay (0-1 Yaş)', label: 'Tay (0-1 Yaş)' },
-                { value: '2 Yaş', label: '2 Yaş' },
-                { value: '3 Yaş', label: '3 Yaş' },
-                { value: '4 Yaş', label: '4 Yaş' },
-                { value: '5+ Yaş', label: '5+ Yaş' },
-            ],
-            validation: {},
-            uiMetadata: {},
-        },
-        {
-            id: 'prop-gender',
-            categoryId: 'cat-satilik-yaris-ati',
-            code: 'HORSE_GENDER',
-            title: 'Cinsiyet',
-            dataType: 'SINGLE_SELECT',
-            isRequired: true,
-            isPublicVisible: true,
-            isFormVisible: true,
-            isFilterable: true,
-            sortOrder: 4,
-            isActive: true,
-            version: 1,
-            options: [
-                { value: 'Erkek', label: 'Erkek' },
-                { value: 'Dişi', label: 'Dişi' },
-                { value: 'İğdiş', label: 'İğdiş' },
-            ],
-            validation: {},
-            uiMetadata: {},
-        },
-    ],
-    'cat-pansiyon': [
-        {
-            id: 'prop-grass',
-            categoryId: 'cat-pansiyon',
-            code: 'grassPaddock',
-            title: 'Çim Padok',
-            dataType: 'BOOLEAN',
-            isRequired: false,
-            isPublicVisible: true,
-            isFormVisible: true,
-            isFilterable: true,
-            sortOrder: 1,
-            isActive: true,
-            version: 1,
-            options: [],
-            validation: {},
-            uiMetadata: {},
-        },
-        {
-            id: 'prop-sand',
-            categoryId: 'cat-pansiyon',
-            code: 'sandPaddock',
-            title: 'Kum Padok',
-            dataType: 'BOOLEAN',
-            isRequired: false,
-            isPublicVisible: true,
-            isFormVisible: true,
-            isFilterable: true,
-            sortOrder: 2,
-            isActive: true,
-            version: 1,
-            options: [],
-            validation: {},
-            uiMetadata: {},
-        },
-        {
-            id: 'prop-stallion',
-            categoryId: 'cat-pansiyon',
-            code: 'stallionPaddock',
-            title: 'Aygır Padoğu',
-            dataType: 'BOOLEAN',
-            isRequired: false,
-            isPublicVisible: true,
-            isFormVisible: true,
-            isFilterable: true,
-            sortOrder: 3,
-            isActive: true,
-            version: 1,
-            options: [],
-            validation: {},
-            uiMetadata: {},
-        },
-        {
-            id: 'prop-vet',
-            categoryId: 'cat-pansiyon',
-            code: 'vet',
-            title: 'Veteriner',
-            dataType: 'BOOLEAN',
-            isRequired: false,
-            isPublicVisible: true,
-            isFormVisible: true,
-            isFilterable: true,
-            sortOrder: 4,
-            isActive: true,
-            version: 1,
-            options: [],
-            validation: {},
-            uiMetadata: {},
-        },
-        {
-            id: 'prop-farrier',
-            categoryId: 'cat-pansiyon',
-            code: 'farrier',
-            title: 'Nalbant',
-            dataType: 'BOOLEAN',
-            isRequired: false,
-            isPublicVisible: true,
-            isFormVisible: true,
-            isFilterable: true,
-            sortOrder: 5,
-            isActive: true,
-            version: 1,
-            options: [],
-            validation: {},
-            uiMetadata: {},
-        },
-        {
-            id: 'prop-foaling',
-            categoryId: 'cat-pansiyon',
-            code: 'foalingBarn',
-            title: 'Doğumhane',
-            dataType: 'BOOLEAN',
-            isRequired: false,
-            isPublicVisible: true,
-            isFormVisible: true,
-            isFilterable: true,
-            sortOrder: 6,
-            isActive: true,
-            version: 1,
-            options: [],
-            validation: {},
-            uiMetadata: {},
-        },
-    ],
-    'cat-arap-aygir': [
-        {
-            id: 'prop-stud-breed',
-            categoryId: 'cat-arap-aygir',
-            code: 'STALLION_BREED',
-            title: 'Aygır Irkı',
-            dataType: 'SINGLE_SELECT',
-            isRequired: true,
-            isPublicVisible: true,
-            isFormVisible: true,
-            isFilterable: true,
-            sortOrder: 1,
-            isActive: true,
-            version: 1,
-            options: [
-                { value: 'Arap', label: 'Arap' },
-                { value: 'İngiliz', label: 'İngiliz' },
-            ],
-            validation: {},
-            uiMetadata: {},
-        },
-        {
-            id: 'prop-stud-age',
-            categoryId: 'cat-arap-aygir',
-            code: 'STALLION_AGE',
-            title: 'Aşım Yaşı',
-            dataType: 'SINGLE_SELECT',
-            isRequired: true,
-            isPublicVisible: true,
-            isFormVisible: true,
-            isFilterable: true,
-            sortOrder: 2,
-            isActive: true,
-            version: 1,
-            options: [
-                { value: '0', label: '0' },
-                { value: '1', label: '1' },
-                { value: '1.5', label: '1.5' },
-                { value: '2', label: '2' },
-                { value: '3', label: '3' },
-                { value: '4', label: '4' },
-                { value: '5+', label: '5+' },
-            ],
-            validation: {},
-            uiMetadata: {},
-        },
-    ],
+    'cat-satilik-yaris-ati': HORSE_PROPERTIES_TEMPLATE('cat-satilik-yaris-ati'),
+    'satilik-yaris-ati': HORSE_PROPERTIES_TEMPLATE('satilik-yaris-ati'),
+    'cat-satilik-kisrak': HORSE_PROPERTIES_TEMPLATE('cat-satilik-kisrak'),
+    'satilik-kisrak': HORSE_PROPERTIES_TEMPLATE('satilik-kisrak'),
+    'cat-satilik-aygir': HORSE_PROPERTIES_TEMPLATE('cat-satilik-aygir'),
+    'satilik-aygir': HORSE_PROPERTIES_TEMPLATE('satilik-aygir'),
+    'cat-satilik-binek-ati': HORSE_PROPERTIES_TEMPLATE('cat-satilik-binek-ati'),
+    'satilik-binek-ati': HORSE_PROPERTIES_TEMPLATE('satilik-binek-ati'),
+    'cat-satilik-pony': HORSE_PROPERTIES_TEMPLATE('cat-satilik-pony'),
+    'satilik-pony': HORSE_PROPERTIES_TEMPLATE('satilik-pony'),
+    'cat-satilik-atlar': HORSE_PROPERTIES_TEMPLATE('cat-satilik-atlar'),
+    'satilik-atlar': HORSE_PROPERTIES_TEMPLATE('satilik-atlar'),
+
+    'cat-pansiyon': PANSIYON_PROPERTIES_TEMPLATE('cat-pansiyon'),
+    'pansiyon-haralar': PANSIYON_PROPERTIES_TEMPLATE('pansiyon-haralar'),
+
+    'cat-nakliye': NAKLIYE_PROPERTIES_TEMPLATE('cat-nakliye'),
+    'at-nakliyesi': NAKLIYE_PROPERTIES_TEMPLATE('at-nakliyesi'),
+
+    'cat-nalbant': [],
+    'nalbantlar': [],
+
+    'cat-arap-aygir': STUD_PROPERTIES_TEMPLATE('cat-arap-aygir'),
+    'arap-aygir': STUD_PROPERTIES_TEMPLATE('arap-aygir'),
+    'cat-ingiliz-aygir': STUD_PROPERTIES_TEMPLATE('cat-ingiliz-aygir'),
+    'ingiliz-aygir': STUD_PROPERTIES_TEMPLATE('ingiliz-aygir'),
+    'cat-asim-hizmetleri': STUD_PROPERTIES_TEMPLATE('cat-asim-hizmetleri'),
+    'asim-hizmetleri': STUD_PROPERTIES_TEMPLATE('asim-hizmetleri'),
 };
+
 
 const baseUrl = `${API_URL}v1/admin/categories`;
 
 class CategoryService {
     private localCategories: AdminCategoryItem[] = [...DEFAULT_ADMIN_CATEGORIES];
     private localProperties: Record<string, CategoryProperty[]> = { ...DEFAULT_PROPERTIES_MAP };
+
+    private getStoredProperties(categoryId: string): CategoryProperty[] | null {
+        if (typeof window === 'undefined') return null;
+        try {
+            const raw =
+                localStorage.getItem(`haradan_category_properties_${categoryId}`) ||
+                localStorage.getItem(`haradan_category_properties_cat-${categoryId}`) ||
+                localStorage.getItem(`haradan_category_properties_${categoryId.replace(/^cat-/, '')}`);
+            if (raw) return JSON.parse(raw);
+        } catch {}
+        return null;
+    }
+
+    private saveStoredProperties(categoryId: string, properties: CategoryProperty[]) {
+        if (typeof window === 'undefined') return;
+        try {
+            localStorage.setItem(`haradan_category_properties_${categoryId}`, JSON.stringify(properties));
+            const altKey = categoryId.startsWith('cat-')
+                ? categoryId.replace(/^cat-/, '')
+                : `cat-${categoryId}`;
+            localStorage.setItem(`haradan_category_properties_${altKey}`, JSON.stringify(properties));
+            window.dispatchEvent(new CustomEvent('haradan_category_properties_changed', { detail: { categoryId } }));
+        } catch {}
+    }
 
     async search(params: SearchParams<CategoryResponse>) {
         const items = await this.fetchAll();
@@ -491,7 +626,7 @@ class CategoryService {
         }
     }
 
-    async listProperties(categoryId: string): Promise<CategoryProperty[]> {
+    async listProperties(categoryId: string, categoryName?: string, categorySlug?: string): Promise<CategoryProperty[]> {
         let backendItems: CategoryProperty[] = [];
         try {
             const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
@@ -504,12 +639,27 @@ class CategoryService {
             // fallback
         }
 
-        let baseDefaults: CategoryProperty[] = [];
+        const cat = this.localCategories.find((c) => c.id === categoryId || c.slug === categoryId);
         const cid = (categoryId || '').toLowerCase();
-        if (cid.includes('pansiyon')) {
+        const cslug = (categorySlug || cat?.slug || '').toLowerCase();
+        const cname = (categoryName || cat?.name || '').toLowerCase();
+        const checkStr = `${cid} ${cslug} ${cname}`;
+
+        let baseDefaults: CategoryProperty[] = [];
+        if (checkStr.includes('pansiyon') || checkStr.includes('hara')) {
             baseDefaults = DEFAULT_PROPERTIES_MAP['cat-pansiyon'] || [];
-        } else if (cid.includes('asim') || cid.includes('aygir') || cid.includes('stud')) {
+        } else if (
+            checkStr.includes('asim') ||
+            checkStr.includes('aşım') ||
+            checkStr.includes('aygir') ||
+            checkStr.includes('aygır') ||
+            checkStr.includes('stud')
+        ) {
             baseDefaults = DEFAULT_PROPERTIES_MAP['cat-arap-aygir'] || [];
+        } else if (checkStr.includes('nakliye') || checkStr.includes('transport')) {
+            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-nakliye'] || [];
+        } else if (checkStr.includes('nalbant') || checkStr.includes('farrier')) {
+            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-nalbant'] || [];
         } else {
             baseDefaults = DEFAULT_PROPERTIES_MAP['cat-satilik-yaris-ati'] || [];
         }
@@ -520,9 +670,25 @@ class CategoryService {
         local.forEach((p) => map.set(p.code || p.id, p));
         backendItems.forEach((p) => map.set(p.code || p.id, p));
 
+        const stored = this.getStoredProperties(categoryId);
+        if (stored && Array.isArray(stored) && stored.length > 0) {
+            stored.forEach((p) => {
+                const key = p.code || p.id;
+                if (map.has(key)) {
+                    map.set(key, { ...map.get(key)!, ...p });
+                } else {
+                    map.set(key, p);
+                }
+            });
+        }
+
         const result = Array.from(map.values()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        this.localProperties[categoryId] = result;
+        this.saveStoredProperties(categoryId, result);
         return result;
     }
+
+
 
 
     async createProperty(categoryId: string, request: CreateCategoryPropertyRequest) {
@@ -553,6 +719,7 @@ class CategoryService {
                 this.localProperties[categoryId] = [];
             }
             this.localProperties[categoryId].push(newProp);
+            this.saveStoredProperties(categoryId, this.localProperties[categoryId]);
             return newProp;
         }
     }
@@ -583,6 +750,7 @@ class CategoryService {
                     uiMetadata: request.uiMetadata ?? list[idx].uiMetadata,
                     version: (list[idx].version || 1) + 1,
                 };
+                this.saveStoredProperties(categoryId, list);
                 return list[idx];
             }
             throw new Error('Özellik bulunamadı.');
@@ -610,6 +778,7 @@ class CategoryService {
             if (prop) {
                 prop.isActive = isActive;
                 prop.version = Math.max(1, expectedVersion) + 1;
+                this.saveStoredProperties(categoryId, list);
                 return prop;
             }
             throw new Error('Özellik bulunamadı.');
@@ -628,8 +797,10 @@ class CategoryService {
                     prop.version = (prop.version || 1) + 1;
                 }
             });
+            this.saveStoredProperties(categoryId, list);
         }
     }
+
 
     private async fetchAll() {
         const items: AdminCategoryItem[] = [];
@@ -649,6 +820,14 @@ class CategoryService {
                 cursor = response.data?.nextCursor;
             }
             if (items.length > 0) {
+                items.forEach((item) => {
+                    const idx = this.localCategories.findIndex((c) => c.id === item.id || c.slug === item.slug);
+                    if (idx >= 0) {
+                        this.localCategories[idx] = { ...this.localCategories[idx], ...item };
+                    } else {
+                        this.localCategories.push(item);
+                    }
+                });
                 return items;
             }
         } catch {
@@ -657,6 +836,7 @@ class CategoryService {
 
         return [...this.localCategories];
     }
+
 
 
     private applyFilter(items: AdminCategoryItem[], filter?: string) {
