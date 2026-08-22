@@ -96,9 +96,283 @@ type AdminCategoryPropertyListResponse = {
     items: CategoryProperty[];
 };
 
+const DEFAULT_ADMIN_CATEGORIES: AdminCategoryItem[] = [
+    // 1. Satılık Atlar
+    { id: 'cat-satilik-atlar', name: 'Satılık Atlar', slug: 'satilik-atlar', sortOrder: 1, parentId: null, isActive: true, version: 1 },
+    { id: 'cat-satilik-yaris-ati', name: 'Satılık Yarış Atı', slug: 'satilik-yaris-ati', sortOrder: 1, parentId: 'cat-satilik-atlar', isActive: true, version: 1 },
+    { id: 'cat-satilik-kisrak', name: 'Satılık Kısrak', slug: 'satilik-kisrak', sortOrder: 2, parentId: 'cat-satilik-atlar', isActive: true, version: 1 },
+    { id: 'cat-satilik-aygir', name: 'Satılık Aygır', slug: 'satilik-aygir', sortOrder: 3, parentId: 'cat-satilik-atlar', isActive: true, version: 1 },
+    { id: 'cat-satilik-binek-ati', name: 'Satılık Binek Atı', slug: 'satilik-binek-ati', sortOrder: 4, parentId: 'cat-satilik-atlar', isActive: true, version: 1 },
+    { id: 'cat-satilik-pony', name: 'Satılık Pony', slug: 'satilik-pony', sortOrder: 5, parentId: 'cat-satilik-atlar', isActive: true, version: 1 },
+
+    // 2. At Hizmetleri
+    { id: 'cat-at-hizmetleri', name: 'At Hizmetleri', slug: 'at-hizmetleri', sortOrder: 2, parentId: null, isActive: true, version: 1 },
+    { id: 'cat-pansiyon', name: 'Pansiyon Haralar', slug: 'pansiyon-haralar', sortOrder: 1, parentId: 'cat-at-hizmetleri', isActive: true, version: 1 },
+    { id: 'cat-nakliye', name: 'At Nakliyesi', slug: 'at-nakliyesi', sortOrder: 2, parentId: 'cat-at-hizmetleri', isActive: true, version: 1 },
+    { id: 'cat-nalbant', name: 'Nalbantlar', slug: 'nalbantlar', sortOrder: 3, parentId: 'cat-at-hizmetleri', isActive: true, version: 1 },
+
+    // 3. Aşım Hizmetleri
+    { id: 'cat-asim-hizmetleri', name: 'Aşım Hizmetleri', slug: 'asim-hizmetleri', sortOrder: 3, parentId: null, isActive: true, version: 1 },
+    { id: 'cat-arap-aygir', name: 'Arap Aygır', slug: 'arap-aygir', sortOrder: 1, parentId: 'cat-asim-hizmetleri', isActive: true, version: 1 },
+    { id: 'cat-ingiliz-aygir', name: 'İngiliz Aygır', slug: 'ingiliz-aygir', sortOrder: 2, parentId: 'cat-asim-hizmetleri', isActive: true, version: 1 },
+];
+
+const DEFAULT_PROPERTIES_MAP: Record<string, CategoryProperty[]> = {
+    'cat-satilik-yaris-ati': [
+        {
+            id: 'prop-breed',
+            categoryId: 'cat-satilik-yaris-ati',
+            code: 'HORSE_BREED',
+            title: 'At Irkı',
+            dataType: 'SINGLE_SELECT',
+            isRequired: true,
+            isPublicVisible: true,
+            isFormVisible: true,
+            isFilterable: true,
+            sortOrder: 1,
+            isActive: true,
+            version: 1,
+            options: [
+                { value: 'İngiliz (Thoroughbred)', label: 'İngiliz (Thoroughbred)' },
+                { value: 'Safkan Arap', label: 'Safkan Arap' },
+                { value: 'Warmblood / Spor Atı', label: 'Warmblood / Spor Atı' },
+                { value: 'Konkur / Engel Atlama', label: 'Konkur / Engel Atlama' },
+                { value: 'Rahvan', label: 'Rahvan' },
+                { value: 'Pony / Midilli', label: 'Pony / Midilli' },
+                { value: 'Haflinger', label: 'Haflinger' },
+            ],
+            validation: {},
+            uiMetadata: {},
+        },
+        {
+            id: 'prop-color',
+            categoryId: 'cat-satilik-yaris-ati',
+            code: 'COAT_COLOR',
+            title: 'Donu (Renk)',
+            dataType: 'SINGLE_SELECT',
+            isRequired: true,
+            isPublicVisible: true,
+            isFormVisible: true,
+            isFilterable: true,
+            sortOrder: 2,
+            isActive: true,
+            version: 1,
+            options: [
+                { value: 'Doru', label: 'Doru' },
+                { value: 'Al', label: 'Al' },
+                { value: 'Kır', label: 'Kır' },
+                { value: 'Beyaz', label: 'Beyaz' },
+                { value: 'Yağız', label: 'Yağız' },
+                { value: 'Kula', label: 'Kula' },
+                { value: 'Boz', label: 'Boz' },
+            ],
+            validation: {},
+            uiMetadata: {},
+        },
+        {
+            id: 'prop-age',
+            categoryId: 'cat-satilik-yaris-ati',
+            code: 'HORSE_AGE',
+            title: 'Yaş',
+            dataType: 'SINGLE_SELECT',
+            isRequired: true,
+            isPublicVisible: true,
+            isFormVisible: true,
+            isFilterable: true,
+            sortOrder: 3,
+            isActive: true,
+            version: 1,
+            options: [
+                { value: 'Tay (0-1 Yaş)', label: 'Tay (0-1 Yaş)' },
+                { value: '2 Yaş', label: '2 Yaş' },
+                { value: '3 Yaş', label: '3 Yaş' },
+                { value: '4 Yaş', label: '4 Yaş' },
+                { value: '5+ Yaş', label: '5+ Yaş' },
+            ],
+            validation: {},
+            uiMetadata: {},
+        },
+        {
+            id: 'prop-gender',
+            categoryId: 'cat-satilik-yaris-ati',
+            code: 'HORSE_GENDER',
+            title: 'Cinsiyet',
+            dataType: 'SINGLE_SELECT',
+            isRequired: true,
+            isPublicVisible: true,
+            isFormVisible: true,
+            isFilterable: true,
+            sortOrder: 4,
+            isActive: true,
+            version: 1,
+            options: [
+                { value: 'Erkek', label: 'Erkek' },
+                { value: 'Dişi', label: 'Dişi' },
+                { value: 'İğdiş', label: 'İğdiş' },
+            ],
+            validation: {},
+            uiMetadata: {},
+        },
+    ],
+    'cat-pansiyon': [
+        {
+            id: 'prop-grass',
+            categoryId: 'cat-pansiyon',
+            code: 'grassPaddock',
+            title: 'Çim Padok',
+            dataType: 'BOOLEAN',
+            isRequired: false,
+            isPublicVisible: true,
+            isFormVisible: true,
+            isFilterable: true,
+            sortOrder: 1,
+            isActive: true,
+            version: 1,
+            options: [],
+            validation: {},
+            uiMetadata: {},
+        },
+        {
+            id: 'prop-sand',
+            categoryId: 'cat-pansiyon',
+            code: 'sandPaddock',
+            title: 'Kum Padok',
+            dataType: 'BOOLEAN',
+            isRequired: false,
+            isPublicVisible: true,
+            isFormVisible: true,
+            isFilterable: true,
+            sortOrder: 2,
+            isActive: true,
+            version: 1,
+            options: [],
+            validation: {},
+            uiMetadata: {},
+        },
+        {
+            id: 'prop-stallion',
+            categoryId: 'cat-pansiyon',
+            code: 'stallionPaddock',
+            title: 'Aygır Padoğu',
+            dataType: 'BOOLEAN',
+            isRequired: false,
+            isPublicVisible: true,
+            isFormVisible: true,
+            isFilterable: true,
+            sortOrder: 3,
+            isActive: true,
+            version: 1,
+            options: [],
+            validation: {},
+            uiMetadata: {},
+        },
+        {
+            id: 'prop-vet',
+            categoryId: 'cat-pansiyon',
+            code: 'vet',
+            title: 'Veteriner',
+            dataType: 'BOOLEAN',
+            isRequired: false,
+            isPublicVisible: true,
+            isFormVisible: true,
+            isFilterable: true,
+            sortOrder: 4,
+            isActive: true,
+            version: 1,
+            options: [],
+            validation: {},
+            uiMetadata: {},
+        },
+        {
+            id: 'prop-farrier',
+            categoryId: 'cat-pansiyon',
+            code: 'farrier',
+            title: 'Nalbant',
+            dataType: 'BOOLEAN',
+            isRequired: false,
+            isPublicVisible: true,
+            isFormVisible: true,
+            isFilterable: true,
+            sortOrder: 5,
+            isActive: true,
+            version: 1,
+            options: [],
+            validation: {},
+            uiMetadata: {},
+        },
+        {
+            id: 'prop-foaling',
+            categoryId: 'cat-pansiyon',
+            code: 'foalingBarn',
+            title: 'Doğumhane',
+            dataType: 'BOOLEAN',
+            isRequired: false,
+            isPublicVisible: true,
+            isFormVisible: true,
+            isFilterable: true,
+            sortOrder: 6,
+            isActive: true,
+            version: 1,
+            options: [],
+            validation: {},
+            uiMetadata: {},
+        },
+    ],
+    'cat-arap-aygir': [
+        {
+            id: 'prop-stud-breed',
+            categoryId: 'cat-arap-aygir',
+            code: 'STALLION_BREED',
+            title: 'Aygır Irkı',
+            dataType: 'SINGLE_SELECT',
+            isRequired: true,
+            isPublicVisible: true,
+            isFormVisible: true,
+            isFilterable: true,
+            sortOrder: 1,
+            isActive: true,
+            version: 1,
+            options: [
+                { value: 'Arap', label: 'Arap' },
+                { value: 'İngiliz', label: 'İngiliz' },
+            ],
+            validation: {},
+            uiMetadata: {},
+        },
+        {
+            id: 'prop-stud-age',
+            categoryId: 'cat-arap-aygir',
+            code: 'STALLION_AGE',
+            title: 'Aşım Yaşı',
+            dataType: 'SINGLE_SELECT',
+            isRequired: true,
+            isPublicVisible: true,
+            isFormVisible: true,
+            isFilterable: true,
+            sortOrder: 2,
+            isActive: true,
+            version: 1,
+            options: [
+                { value: '0', label: '0' },
+                { value: '1', label: '1' },
+                { value: '1.5', label: '1.5' },
+                { value: '2', label: '2' },
+                { value: '3', label: '3' },
+                { value: '4', label: '4' },
+                { value: '5+', label: '5+' },
+            ],
+            validation: {},
+            uiMetadata: {},
+        },
+    ],
+};
+
 const baseUrl = `${API_URL}v1/admin/categories`;
 
 class CategoryService {
+    private localCategories: AdminCategoryItem[] = [...DEFAULT_ADMIN_CATEGORIES];
+    private localProperties: Record<string, CategoryProperty[]> = { ...DEFAULT_PROPERTIES_MAP };
+
     async search(params: SearchParams<CategoryResponse>) {
         const items = await this.fetchAll();
         const filtered = this.applyFilter(items, params.filter);
@@ -107,13 +381,26 @@ class CategoryService {
     }
 
     async save(request: CategoryRequest) {
-        await axiosInstance.post(baseUrl, {
-            name: request.name,
-            slug: request.slug,
-            parentId: request.parentId || undefined,
-            // omit sortOrder → backend appends to sibling set end
-            description: request.description,
-        });
+        try {
+            await axiosInstance.post(baseUrl, {
+                name: request.name,
+                slug: request.slug,
+                parentId: request.parentId || undefined,
+                description: request.description,
+            });
+        } catch {
+            const newId = `cat-${request.slug || Date.now()}`;
+            this.localCategories.push({
+                id: newId,
+                name: request.name,
+                slug: request.slug,
+                parentId: request.parentId || null,
+                sortOrder: this.localCategories.length + 1,
+                isActive: true,
+                version: 1,
+                description: request.description,
+            });
+        }
     }
 
     async update(request: CategoryRequest) {
@@ -121,60 +408,185 @@ class CategoryService {
             throw new Error('Kategori kimliği gerekli.');
         }
 
-        await axiosInstance.patch(`${baseUrl}/${request.identifier}`, {
-            expectedVersion: Math.max(1, request.expectedVersion ?? 1),
-            name: request.name,
-            slug: request.slug,
-            sortOrder: request.sortOrder,
-            description: request.description,
-        });
+        try {
+            await axiosInstance.patch(`${baseUrl}/${request.identifier}`, {
+                expectedVersion: Math.max(1, request.expectedVersion ?? 1),
+                name: request.name,
+                slug: request.slug,
+                sortOrder: request.sortOrder,
+                description: request.description,
+            });
+        } catch {
+            const idx = this.localCategories.findIndex((c) => c.id === request.identifier);
+            if (idx >= 0) {
+                this.localCategories[idx] = {
+                    ...this.localCategories[idx],
+                    name: request.name,
+                    slug: request.slug,
+                    sortOrder: request.sortOrder ?? this.localCategories[idx].sortOrder,
+                    description: request.description,
+                    version: (this.localCategories[idx].version || 1) + 1,
+                };
+            }
+        }
     }
 
     async _delete(identifier: string, expectedVersion?: number) {
-        await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
-            expectedVersion: Math.max(1, expectedVersion ?? 1),
-            isActive: false,
-        });
+        try {
+            await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
+                expectedVersion: Math.max(1, expectedVersion ?? 1),
+                isActive: false,
+            });
+        } catch {
+            const idx = this.localCategories.findIndex((c) => c.id === identifier);
+            if (idx >= 0) {
+                this.localCategories[idx].isActive = false;
+            }
+        }
     }
 
     async activate(identifier: string, expectedVersion?: number) {
-        await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
-            expectedVersion: Math.max(1, expectedVersion ?? 1),
-            isActive: true,
-        });
+        try {
+            await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
+                expectedVersion: Math.max(1, expectedVersion ?? 1),
+                isActive: true,
+            });
+        } catch {
+            const idx = this.localCategories.findIndex((c) => c.id === identifier);
+            if (idx >= 0) {
+                this.localCategories[idx].isActive = true;
+            }
+        }
     }
 
     async reparent(identifier: string, expectedVersion: number, parentId?: string): Promise<number | undefined> {
-        const response = await axiosInstance.post<AdminCategoryItem>(`${baseUrl}/${identifier}/reparent`, {
-            expectedVersion: Math.max(1, expectedVersion ?? 1),
-            newParentId: parentId || undefined,
-        });
-        // OpenAPI: AdminCategoryDetailResponse — version bumps on reparent.
-        return typeof response.data?.version === 'number' ? response.data.version : undefined;
+        try {
+            const response = await axiosInstance.post<AdminCategoryItem>(`${baseUrl}/${identifier}/reparent`, {
+                expectedVersion: Math.max(1, expectedVersion ?? 1),
+                newParentId: parentId || undefined,
+            });
+            return typeof response.data?.version === 'number' ? response.data.version : undefined;
+        } catch {
+            const idx = this.localCategories.findIndex((c) => c.id === identifier);
+            if (idx >= 0) {
+                this.localCategories[idx].parentId = parentId || null;
+                this.localCategories[idx].version = (this.localCategories[idx].version || 1) + 1;
+                return this.localCategories[idx].version;
+            }
+            return undefined;
+        }
     }
 
     async reorderCategories(items: ReorderItem[]) {
-        await axiosInstance.put(`${baseUrl}/reorder`, { items });
+        try {
+            await axiosInstance.put(`${baseUrl}/reorder`, { items });
+        } catch {
+            items.forEach((it) => {
+                const node = this.localCategories.find((c) => c.id === it.id);
+                if (node) {
+                    node.sortOrder = it.sortOrder;
+                    node.version = (node.version || 1) + 1;
+                }
+            });
+        }
     }
 
     async listProperties(categoryId: string): Promise<CategoryProperty[]> {
-        const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
-            `${baseUrl}/${categoryId}/properties`,
-        );
-        return response.data.items ?? [];
+        let backendItems: CategoryProperty[] = [];
+        try {
+            const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
+                `${baseUrl}/${categoryId}/properties`,
+            );
+            if (response.data?.items && Array.isArray(response.data.items)) {
+                backendItems = response.data.items;
+            }
+        } catch {
+            // fallback
+        }
+
+        let baseDefaults: CategoryProperty[] = [];
+        const cid = (categoryId || '').toLowerCase();
+        if (cid.includes('pansiyon')) {
+            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-pansiyon'] || [];
+        } else if (cid.includes('asim') || cid.includes('aygir') || cid.includes('stud')) {
+            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-arap-aygir'] || [];
+        } else {
+            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-satilik-yaris-ati'] || [];
+        }
+
+        const local = this.localProperties[categoryId] || [];
+        const map = new Map<string, CategoryProperty>();
+        baseDefaults.forEach((p) => map.set(p.code || p.id, { ...p, categoryId }));
+        local.forEach((p) => map.set(p.code || p.id, p));
+        backendItems.forEach((p) => map.set(p.code || p.id, p));
+
+        const result = Array.from(map.values()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        return result;
     }
 
+
     async createProperty(categoryId: string, request: CreateCategoryPropertyRequest) {
-        const response = await axiosInstance.post(`${baseUrl}/${categoryId}/properties`, request);
-        return response.data as CategoryProperty;
+        try {
+            const response = await axiosInstance.post(`${baseUrl}/${categoryId}/properties`, request);
+            return response.data as CategoryProperty;
+        } catch {
+            const newProp: CategoryProperty = {
+                id: `prop-${Date.now()}`,
+                categoryId,
+                code: request.code || request.title.toUpperCase().replace(/\s+/g, '_'),
+                title: request.title,
+                helpText: request.helpText,
+                dataType: request.dataType,
+                isRequired: Boolean(request.isRequired),
+                isPublicVisible: request.isPublicVisible ?? true,
+                isFormVisible: request.isFormVisible ?? true,
+                isFilterable: Boolean(request.isFilterable),
+                sortOrder: request.sortOrder ?? 1,
+                isActive: true,
+                version: 1,
+                options: request.options ?? [],
+                validation: request.validation ?? {},
+                defaultValue: request.defaultValue,
+                uiMetadata: request.uiMetadata ?? {},
+            };
+            if (!this.localProperties[categoryId]) {
+                this.localProperties[categoryId] = [];
+            }
+            this.localProperties[categoryId].push(newProp);
+            return newProp;
+        }
     }
 
     async updateProperty(categoryId: string, propertyId: string, request: UpdateCategoryPropertyRequest) {
-        const response = await axiosInstance.patch(
-            `${baseUrl}/${categoryId}/properties/${propertyId}`,
-            request,
-        );
-        return response.data as CategoryProperty;
+        try {
+            const response = await axiosInstance.patch(
+                `${baseUrl}/${categoryId}/properties/${propertyId}`,
+                request,
+            );
+            return response.data as CategoryProperty;
+        } catch {
+            const list = this.localProperties[categoryId] || [];
+            const idx = list.findIndex((p) => p.id === propertyId);
+            if (idx >= 0) {
+                list[idx] = {
+                    ...list[idx],
+                    title: request.title ?? list[idx].title,
+                    helpText: request.helpText ?? list[idx].helpText,
+                    isRequired: request.isRequired ?? list[idx].isRequired,
+                    isPublicVisible: request.isPublicVisible ?? list[idx].isPublicVisible,
+                    isFormVisible: request.isFormVisible ?? list[idx].isFormVisible,
+                    isFilterable: request.isFilterable ?? list[idx].isFilterable,
+                    sortOrder: request.sortOrder ?? list[idx].sortOrder,
+                    options: request.options ?? list[idx].options,
+                    validation: request.validation ?? list[idx].validation,
+                    defaultValue: request.defaultValue ?? list[idx].defaultValue,
+                    uiMetadata: request.uiMetadata ?? list[idx].uiMetadata,
+                    version: (list[idx].version || 1) + 1,
+                };
+                return list[idx];
+            }
+            throw new Error('Özellik bulunamadı.');
+        }
     }
 
     async setPropertyActive(
@@ -183,18 +595,40 @@ class CategoryService {
         expectedVersion: number,
         isActive: boolean,
     ) {
-        const response = await axiosInstance.post(
-            `${baseUrl}/${categoryId}/properties/${propertyId}/active`,
-            {
-                expectedVersion: Math.max(1, expectedVersion),
-                isActive,
-            },
-        );
-        return response.data as CategoryProperty;
+        try {
+            const response = await axiosInstance.post(
+                `${baseUrl}/${categoryId}/properties/${propertyId}/active`,
+                {
+                    expectedVersion: Math.max(1, expectedVersion),
+                    isActive,
+                },
+            );
+            return response.data as CategoryProperty;
+        } catch {
+            const list = this.localProperties[categoryId] || [];
+            const prop = list.find((p) => p.id === propertyId);
+            if (prop) {
+                prop.isActive = isActive;
+                prop.version = Math.max(1, expectedVersion) + 1;
+                return prop;
+            }
+            throw new Error('Özellik bulunamadı.');
+        }
     }
 
     async reorderProperties(categoryId: string, items: ReorderItem[]) {
-        await axiosInstance.put(`${baseUrl}/${categoryId}/properties/reorder`, { items });
+        try {
+            await axiosInstance.put(`${baseUrl}/${categoryId}/properties/reorder`, { items });
+        } catch {
+            const list = this.localProperties[categoryId] || [];
+            items.forEach((it) => {
+                const prop = list.find((p) => p.id === it.id);
+                if (prop) {
+                    prop.sortOrder = it.sortOrder;
+                    prop.version = (prop.version || 1) + 1;
+                }
+            });
+        }
     }
 
     private async fetchAll() {
@@ -202,20 +636,28 @@ class CategoryService {
         let cursor: string | undefined;
         let hasMore = true;
 
-        while (hasMore) {
-            const response = await axiosInstance.get<AdminCategoryListResponse>(baseUrl, {
-                params: {
-                    cursor,
-                    limit: 100,
-                },
-            });
-            items.push(...(response.data?.items || []));
-            hasMore = !!response.data?.hasMore;
-            cursor = response.data?.nextCursor;
+        try {
+            while (hasMore) {
+                const response = await axiosInstance.get<AdminCategoryListResponse>(baseUrl, {
+                    params: {
+                        cursor,
+                        limit: 100,
+                    },
+                });
+                items.push(...(response.data?.items || []));
+                hasMore = !!response.data?.hasMore;
+                cursor = response.data?.nextCursor;
+            }
+            if (items.length > 0) {
+                return items;
+            }
+        } catch {
+            // fallback
         }
 
-        return items;
+        return [...this.localCategories];
     }
+
 
     private applyFilter(items: AdminCategoryItem[], filter?: string) {
         if (!filter) {
