@@ -115,6 +115,59 @@ function optionsFromProperty(property: CategoryProperty): OptionRow[] {
   });
 }
 
+function getPropertyGroup(property: CategoryProperty): { label: string; badgeBg: string; textClass: string } {
+  const code = (property.code || '').toUpperCase();
+  const title = property.title.toLowerCase();
+
+  if (
+    code === 'HORSE_BREED' ||
+    code === 'STALLION_BREED' ||
+    code === 'COAT_COLOR' ||
+    code === 'HORSE_AGE' ||
+    code === 'STALLION_AGE' ||
+    code === 'HORSE_GENDER' ||
+    title === 'at ırkı' ||
+    title === 'at irki' ||
+    title === 'yaş' ||
+    title === 'yas' ||
+    title === 'donu (renk)' ||
+    title === 'don' ||
+    title === 'cinsiyet' ||
+    title === 'aygır adı' ||
+    title === 'baba' ||
+    title === 'anne' ||
+    title === 'annesinin babası'
+  ) {
+    return { label: 'At Bilgileri (Temel)', badgeBg: 'info', textClass: 'text-dark' };
+  }
+
+  if (
+    code.includes('PADDOCK') ||
+    code.includes('VET') ||
+    code.includes('FARRIER') ||
+    code.includes('FOALING') ||
+    code.includes('TRAINING') ||
+    title.includes('padok') ||
+    title.includes('veteriner') ||
+    title.includes('nalbant') ||
+    title.includes('doğumhane') ||
+    title.includes('idman pisti')
+  ) {
+    return { label: 'Tesis & Hizmet', badgeBg: 'warning', textClass: 'text-dark' };
+  }
+
+  if (
+    code.includes('COMPANY') ||
+    code.includes('WEBSITE') ||
+    title.includes('firma adı') ||
+    title.includes('web sitesi')
+  ) {
+    return { label: 'Firma / İletişim', badgeBg: 'secondary', textClass: 'text-white' };
+  }
+
+  return { label: 'Kategoriye Özel', badgeBg: 'primary', textClass: 'text-white' };
+}
+
 export default function CategoryPropertiesModal({ categoryId, categoryName, onClose }: Props) {
   const [items, setItems] = useState<CategoryProperty[]>([]);
   const [loading, setLoading] = useState(true);
@@ -326,59 +379,68 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
                 <tr>
                   <th>Alan Adı</th>
                   <th>Alan Türü</th>
+                  <th>Bölüm / Form Grubu</th>
                   <th>Durum</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((item, index) => (
-                  <tr key={item.id}>
-                    <td>{item.title}</td>
-                    <td>{getPropertyDataTypeText(item.dataType)}</td>
-                    <td>
-                      <Badge bg={item.isActive ? 'success' : 'secondary'}>
-                        {item.isActive ? 'Aktif' : 'Pasif'}
-                      </Badge>
-                    </td>
-                    <td className="text-end text-nowrap">
-                      <Button
-                        size="sm"
-                        variant="outline-secondary"
-                        className="me-1"
-                        disabled={submitting || index === 0}
-                        onClick={() => void moveProperty(index, -1)}
-                      >
-                        ↑
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline-secondary"
-                        className="me-1"
-                        disabled={submitting || index === items.length - 1}
-                        onClick={() => void moveProperty(index, 1)}
-                      >
-                        ↓
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline-primary"
-                        className="me-1"
-                        disabled={submitting}
-                        onClick={() => openEdit(item)}
-                      >
-                        Düzenle
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={item.isActive ? 'outline-warning' : 'outline-success'}
-                        disabled={submitting}
-                        onClick={() => void handleToggleActive(item)}
-                      >
-                        {item.isActive ? 'Pasif' : 'Aktif'}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {items.map((item, index) => {
+                  const group = getPropertyGroup(item);
+                  return (
+                    <tr key={item.id}>
+                      <td className="fw-semibold">{item.title}</td>
+                      <td>{getPropertyDataTypeText(item.dataType)}</td>
+                      <td>
+                        <Badge bg={group.badgeBg} className={group.textClass}>
+                          {group.label}
+                        </Badge>
+                      </td>
+                      <td>
+                        <Badge bg={item.isActive ? 'success' : 'secondary'}>
+                          {item.isActive ? 'Aktif' : 'Pasif'}
+                        </Badge>
+                      </td>
+                      <td className="text-end text-nowrap">
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          className="me-1"
+                          disabled={submitting || index === 0}
+                          onClick={() => void moveProperty(index, -1)}
+                        >
+                          ↑
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          className="me-1"
+                          disabled={submitting || index === items.length - 1}
+                          onClick={() => void moveProperty(index, 1)}
+                        >
+                          ↓
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline-primary"
+                          className="me-1"
+                          disabled={submitting}
+                          onClick={() => openEdit(item)}
+                        >
+                          Düzenle
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={item.isActive ? 'outline-warning' : 'outline-success'}
+                          disabled={submitting}
+                          onClick={() => void handleToggleActive(item)}
+                        >
+                          {item.isActive ? 'Pasif' : 'Aktif'}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </Table>
           )}
