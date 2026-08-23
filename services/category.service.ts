@@ -694,8 +694,71 @@ class CategoryService {
         return result;
     }
 
+    async syncDefaultTemplateProperties(
+        categoryId: string,
+        categoryName?: string,
+        categorySlug?: string
+    ): Promise<CategoryProperty[]> {
+        const cat = this.localCategories.find((c) => c.id === categoryId || c.slug === categoryId);
+        const cid = (categoryId || '').toLowerCase();
+        const cslug = (categorySlug || cat?.slug || '').toLowerCase();
+        const cname = (categoryName || cat?.name || '').toLowerCase();
+        const checkStr = `${cid} ${cslug} ${cname}`;
 
+        let baseDefaults: CategoryProperty[] = [];
+        if (checkStr.includes('pansiyon') || checkStr.includes('hara')) {
+            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-pansiyon'] || [];
+        } else if (
+            checkStr.includes('asim') ||
+            checkStr.includes('aşım') ||
+            checkStr.includes('aygir') ||
+            checkStr.includes('aygır') ||
+            checkStr.includes('stud')
+        ) {
+            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-arap-aygir'] || [];
+        } else if (checkStr.includes('nakliye') || checkStr.includes('transport')) {
+            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-nakliye'] || [];
+        } else if (checkStr.includes('nalbant') || checkStr.includes('farrier')) {
+            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-nalbant'] || [];
+        } else {
+            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-satilik-yaris-ati'] || [];
+        }
 
+        // Fetch existing from backend
+        let existingCodes = new Set<string>();
+        try {
+            const res = await axiosInstance.get<AdminCategoryPropertyListResponse>(
+                `${baseUrl}/${categoryId}/properties`
+            );
+            if (res.data?.items && Array.isArray(res.data.items)) {
+                res.data.items.forEach((p) => existingCodes.add(p.code));
+            }
+        } catch {}
+
+        for (const tpl of baseDefaults) {
+            if (existingCodes.has(tpl.code)) {
+                continue;
+            }
+            const payload: CreateCategoryPropertyRequest = {
+                code: tpl.code,
+                title: tpl.title,
+                helpText: tpl.helpText,
+                dataType: tpl.dataType,
+                isRequired: tpl.isRequired,
+                isPublicVisible: tpl.isPublicVisible,
+                isFormVisible: tpl.isFormVisible,
+                isFilterable: tpl.isFilterable,
+                sortOrder: tpl.sortOrder,
+                options: tpl.options,
+                validation: tpl.validation,
+                defaultValue: tpl.defaultValue,
+                uiMetadata: tpl.uiMetadata,
+            };
+            await this.createProperty(categoryId, payload);
+        }
+
+        return this.listProperties(categoryId, categoryName, categorySlug);
+    }
 
     async createProperty(categoryId: string, request: CreateCategoryPropertyRequest) {
         let createdProp: CategoryProperty | null = null;
