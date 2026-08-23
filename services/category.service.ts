@@ -447,34 +447,60 @@ const STUD_PROPERTIES_TEMPLATE = (catId: string): CategoryProperty[] => [
 ];
 
 const DEFAULT_PROPERTIES_MAP: Record<string, CategoryProperty[]> = {
+    // 1. Satılık Atlar & Alt Kategorileri
     'cat-satilik-yaris-ati': HORSE_PROPERTIES_TEMPLATE('cat-satilik-yaris-ati'),
     'satilik-yaris-ati': HORSE_PROPERTIES_TEMPLATE('satilik-yaris-ati'),
+    'c1000000-0000-4000-8000-000000000011': HORSE_PROPERTIES_TEMPLATE('c1000000-0000-4000-8000-000000000011'),
+
     'cat-satilik-kisrak': HORSE_PROPERTIES_TEMPLATE('cat-satilik-kisrak'),
     'satilik-kisrak': HORSE_PROPERTIES_TEMPLATE('satilik-kisrak'),
+    'c1000000-0000-4000-8000-000000000012': HORSE_PROPERTIES_TEMPLATE('c1000000-0000-4000-8000-000000000012'),
+
     'cat-satilik-aygir': HORSE_PROPERTIES_TEMPLATE('cat-satilik-aygir'),
     'satilik-aygir': HORSE_PROPERTIES_TEMPLATE('satilik-aygir'),
+    'c1000000-0000-4000-8000-000000000013': HORSE_PROPERTIES_TEMPLATE('c1000000-0000-4000-8000-000000000013'),
+
     'cat-satilik-binek-ati': HORSE_PROPERTIES_TEMPLATE('cat-satilik-binek-ati'),
     'satilik-binek-ati': HORSE_PROPERTIES_TEMPLATE('satilik-binek-ati'),
+    'c1000000-0000-4000-8000-000000000014': HORSE_PROPERTIES_TEMPLATE('c1000000-0000-4000-8000-000000000014'),
+
     'cat-satilik-pony': HORSE_PROPERTIES_TEMPLATE('cat-satilik-pony'),
     'satilik-pony': HORSE_PROPERTIES_TEMPLATE('satilik-pony'),
+    'c1000000-0000-4000-8000-000000000015': HORSE_PROPERTIES_TEMPLATE('c1000000-0000-4000-8000-000000000015'),
+
     'cat-satilik-atlar': HORSE_PROPERTIES_TEMPLATE('cat-satilik-atlar'),
     'satilik-atlar': HORSE_PROPERTIES_TEMPLATE('satilik-atlar'),
+    'c1000000-0000-4000-8000-000000000001': HORSE_PROPERTIES_TEMPLATE('c1000000-0000-4000-8000-000000000001'),
+
+    // 2. At Hizmetleri & Alt Kategorileri
+    'cat-at-hizmetleri': [],
+    'at-hizmetleri': [],
+    'c1000000-0000-4000-8000-000000000002': [],
 
     'cat-pansiyon': PANSIYON_PROPERTIES_TEMPLATE('cat-pansiyon'),
     'pansiyon-haralar': PANSIYON_PROPERTIES_TEMPLATE('pansiyon-haralar'),
+    'c1000000-0000-4000-8000-000000000021': PANSIYON_PROPERTIES_TEMPLATE('c1000000-0000-4000-8000-000000000021'),
 
     'cat-nakliye': NAKLIYE_PROPERTIES_TEMPLATE('cat-nakliye'),
     'at-nakliyesi': NAKLIYE_PROPERTIES_TEMPLATE('at-nakliyesi'),
+    'c1000000-0000-4000-8000-000000000022': NAKLIYE_PROPERTIES_TEMPLATE('c1000000-0000-4000-8000-000000000022'),
 
     'cat-nalbant': [],
     'nalbantlar': [],
+    'c1000000-0000-4000-8000-000000000023': [],
+
+    // 3. Aşım Hizmetleri & Alt Kategorileri
+    'cat-asim-hizmetleri': STUD_PROPERTIES_TEMPLATE('cat-asim-hizmetleri'),
+    'asim-hizmetleri': STUD_PROPERTIES_TEMPLATE('asim-hizmetleri'),
+    'c1000000-0000-4000-8000-000000000003': STUD_PROPERTIES_TEMPLATE('c1000000-0000-4000-8000-000000000003'),
 
     'cat-arap-aygir': STUD_PROPERTIES_TEMPLATE('cat-arap-aygir'),
     'arap-aygir': STUD_PROPERTIES_TEMPLATE('arap-aygir'),
+    'c1000000-0000-4000-8000-000000000031': STUD_PROPERTIES_TEMPLATE('c1000000-0000-4000-8000-000000000031'),
+
     'cat-ingiliz-aygir': STUD_PROPERTIES_TEMPLATE('cat-ingiliz-aygir'),
     'ingiliz-aygir': STUD_PROPERTIES_TEMPLATE('ingiliz-aygir'),
-    'cat-asim-hizmetleri': STUD_PROPERTIES_TEMPLATE('cat-asim-hizmetleri'),
-    'asim-hizmetleri': STUD_PROPERTIES_TEMPLATE('asim-hizmetleri'),
+    'c1000000-0000-4000-8000-000000000032': STUD_PROPERTIES_TEMPLATE('c1000000-0000-4000-8000-000000000032'),
 };
 
 
@@ -483,6 +509,75 @@ const baseUrl = `${API_URL}v1/admin/categories`;
 class CategoryService {
     private localCategories: AdminCategoryItem[] = [...DEFAULT_ADMIN_CATEGORIES];
     private localProperties: Record<string, CategoryProperty[]> = { ...DEFAULT_PROPERTIES_MAP };
+    private deletedCategoryIds: Set<string> = new Set();
+
+    private getDeletedCategoryIds(): Set<string> {
+        const set = new Set<string>();
+        if (typeof window === 'undefined') return this.deletedCategoryIds;
+        try {
+            const raw = localStorage.getItem('haradan_deleted_category_ids');
+            if (raw) {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr)) {
+                    arr.forEach((k) => set.add(k));
+                }
+            }
+        } catch {}
+        this.deletedCategoryIds.forEach((k) => set.add(k));
+        return set;
+    }
+
+    private saveDeletedCategoryId(id: string) {
+        this.deletedCategoryIds.add(id);
+        if (typeof window === 'undefined') return;
+        try {
+            const set = this.getDeletedCategoryIds();
+            set.add(id);
+            localStorage.setItem('haradan_deleted_category_ids', JSON.stringify(Array.from(set)));
+        } catch {}
+    }
+
+    private removeDeletedCategoryId(id: string) {
+        this.deletedCategoryIds.delete(id);
+        if (typeof window === 'undefined') return;
+        try {
+            const set = this.getDeletedCategoryIds();
+            set.delete(id);
+            localStorage.setItem('haradan_deleted_category_ids', JSON.stringify(Array.from(set)));
+        } catch {}
+    }
+
+    private getDeletedPropertyKeys(categoryId: string): Set<string> {
+        const set = new Set<string>();
+        if (typeof window === 'undefined') return set;
+        try {
+            const raw =
+                localStorage.getItem(`haradan_deleted_props_${categoryId}`) ||
+                localStorage.getItem(`haradan_deleted_props_cat-${categoryId}`) ||
+                localStorage.getItem(`haradan_deleted_props_${categoryId.replace(/^cat-/, '')}`);
+            if (raw) {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr)) {
+                    arr.forEach((k) => set.add(String(k).toLowerCase()));
+                }
+            }
+        } catch {}
+        return set;
+    }
+
+    private saveDeletedPropertyKey(categoryId: string, key: string) {
+        if (typeof window === 'undefined') return;
+        try {
+            const set = this.getDeletedPropertyKeys(categoryId);
+            set.add(String(key).toLowerCase());
+            const arr = Array.from(set);
+            const jsonVal = JSON.stringify(arr);
+            const clean = categoryId.replace(/^cat-/, '');
+            localStorage.setItem(`haradan_deleted_props_${categoryId}`, jsonVal);
+            localStorage.setItem(`haradan_deleted_props_cat-${clean}`, jsonVal);
+            localStorage.setItem(`haradan_deleted_props_${clean}`, jsonVal);
+        } catch {}
+    }
 
     private getStoredProperties(categoryId: string): CategoryProperty[] | null {
         if (typeof window === 'undefined') return null;
@@ -579,29 +674,63 @@ class CategoryService {
     }
 
     async _delete(identifier: string, expectedVersion?: number) {
-        try {
-            await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
-                expectedVersion: Math.max(1, expectedVersion ?? 1),
-                isActive: false,
-            });
-        } catch {
-            const idx = this.localCategories.findIndex((c) => c.id === identifier);
-            if (idx >= 0) {
-                this.localCategories[idx].isActive = false;
+        this.saveDeletedCategoryId(identifier);
+        const cat = this.localCategories.find((c) => c.id === identifier || c.slug === identifier);
+        if (cat) {
+            cat.isActive = false;
+            if (cat.id) this.saveDeletedCategoryId(cat.id);
+            if (cat.slug) this.saveDeletedCategoryId(cat.slug);
+        }
+
+        const targetUUID = this.resolveCategoryUUID(identifier) || identifier;
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUUID);
+        if (isUUID) {
+            try {
+                await axiosInstance.post(`${baseUrl}/${targetUUID}/active`, {
+                    expectedVersion: Math.max(1, expectedVersion ?? 1),
+                    isActive: false,
+                });
+            } catch {
+                try {
+                    const detail = await axiosInstance.get<AdminCategoryItem>(`${baseUrl}/${targetUUID}`);
+                    if (detail.data?.version) {
+                        await axiosInstance.post(`${baseUrl}/${targetUUID}/active`, {
+                            expectedVersion: detail.data.version,
+                            isActive: false,
+                        });
+                    }
+                } catch {}
             }
         }
     }
 
     async activate(identifier: string, expectedVersion?: number) {
-        try {
-            await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
-                expectedVersion: Math.max(1, expectedVersion ?? 1),
-                isActive: true,
-            });
-        } catch {
-            const idx = this.localCategories.findIndex((c) => c.id === identifier);
-            if (idx >= 0) {
-                this.localCategories[idx].isActive = true;
+        this.removeDeletedCategoryId(identifier);
+        const cat = this.localCategories.find((c) => c.id === identifier || c.slug === identifier);
+        if (cat) {
+            cat.isActive = true;
+            if (cat.id) this.removeDeletedCategoryId(cat.id);
+            if (cat.slug) this.removeDeletedCategoryId(cat.slug);
+        }
+
+        const targetUUID = this.resolveCategoryUUID(identifier) || identifier;
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUUID);
+        if (isUUID) {
+            try {
+                await axiosInstance.post(`${baseUrl}/${targetUUID}/active`, {
+                    expectedVersion: Math.max(1, expectedVersion ?? 1),
+                    isActive: true,
+                });
+            } catch {
+                try {
+                    const detail = await axiosInstance.get<AdminCategoryItem>(`${baseUrl}/${targetUUID}`);
+                    if (detail.data?.version) {
+                        await axiosInstance.post(`${baseUrl}/${targetUUID}/active`, {
+                            expectedVersion: detail.data.version,
+                            isActive: true,
+                        });
+                    }
+                } catch {}
             }
         }
     }
@@ -638,40 +767,15 @@ class CategoryService {
         }
     }
 
-    async listProperties(categoryId: string, categoryName?: string, categorySlug?: string): Promise<CategoryProperty[]> {
-        const stored = this.getStoredProperties(categoryId);
-        if (stored && Array.isArray(stored)) {
-            this.localProperties[categoryId] = stored;
-            return stored;
-        }
-
-        let backendItems: CategoryProperty[] = [];
-        try {
-            const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
-                `${baseUrl}/${categoryId}/properties`,
-            );
-            if (response.data?.items && Array.isArray(response.data.items)) {
-                backendItems = response.data.items;
-            }
-        } catch {
-            // fallback
-        }
-
-        if (backendItems.length > 0) {
-            this.localProperties[categoryId] = backendItems;
-            this.saveStoredProperties(categoryId, backendItems);
-            return backendItems;
-        }
-
+    private getBaseDefaults(categoryId: string, categoryName?: string, categorySlug?: string): CategoryProperty[] {
         const cat = this.localCategories.find((c) => c.id === categoryId || c.slug === categoryId);
         const cid = (categoryId || '').toLowerCase();
         const cslug = (categorySlug || cat?.slug || '').toLowerCase();
         const cname = (categoryName || cat?.name || '').toLowerCase();
         const checkStr = `${cid} ${cslug} ${cname}`;
 
-        let baseDefaults: CategoryProperty[] = [];
         if (checkStr.includes('pansiyon') || checkStr.includes('hara')) {
-            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-pansiyon'] || [];
+            return (DEFAULT_PROPERTIES_MAP['cat-pansiyon'] || []).map((p) => ({ ...p, categoryId }));
         } else if (
             checkStr.includes('asim') ||
             checkStr.includes('aşım') ||
@@ -679,16 +783,122 @@ class CategoryService {
             checkStr.includes('aygır') ||
             checkStr.includes('stud')
         ) {
-            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-arap-aygir'] || [];
+            return (DEFAULT_PROPERTIES_MAP['cat-arap-aygir'] || []).map((p) => ({ ...p, categoryId }));
         } else if (checkStr.includes('nakliye') || checkStr.includes('transport')) {
-            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-nakliye'] || [];
+            return (DEFAULT_PROPERTIES_MAP['cat-nakliye'] || []).map((p) => ({ ...p, categoryId }));
         } else if (checkStr.includes('nalbant') || checkStr.includes('farrier')) {
-            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-nalbant'] || [];
-        } else {
-            baseDefaults = DEFAULT_PROPERTIES_MAP['cat-satilik-yaris-ati'] || [];
+            return (DEFAULT_PROPERTIES_MAP['cat-nalbant'] || []).map((p) => ({ ...p, categoryId }));
+        }
+        return (DEFAULT_PROPERTIES_MAP['cat-satilik-yaris-ati'] || []).map((p) => ({ ...p, categoryId }));
+    }
+
+    async listProperties(categoryId: string, categoryName?: string, categorySlug?: string): Promise<CategoryProperty[]> {
+        const baseDefaults = this.getBaseDefaults(categoryId, categoryName, categorySlug);
+        const deletedKeys = this.getDeletedPropertyKeys(categoryId);
+
+        const filterDeleted = (items: CategoryProperty[]): CategoryProperty[] => {
+            return items.filter(
+                (p) =>
+                    !deletedKeys.has((p.id || '').toLowerCase()) &&
+                    !deletedKeys.has((p.code || '').toLowerCase()) &&
+                    !deletedKeys.has((p.title || '').toLowerCase())
+            );
+        };
+
+        const mergeWithDefaults = (items: CategoryProperty[]): CategoryProperty[] => {
+            const filtered = filterDeleted(items);
+            const result = [...filtered];
+            const existingCodes = new Set(result.map((p) => (p.code || p.title).toLowerCase()));
+            for (const def of baseDefaults) {
+                const defKey = (def.code || def.title).toLowerCase();
+                const defId = (def.id || '').toLowerCase();
+                if (!existingCodes.has(defKey) && !deletedKeys.has(defKey) && !deletedKeys.has(defId)) {
+                    result.push({ ...def, categoryId });
+                }
+            }
+            return result.sort((a, b) => (a.sortOrder || 1) - (b.sortOrder || 1));
+        };
+
+        const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUUID);
+        let backendItems: CategoryProperty[] = [];
+        if (isUUID) {
+            try {
+                const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
+                    `${baseUrl}/${targetUUID}/properties`,
+                );
+                if (response.data?.items && Array.isArray(response.data.items) && response.data.items.length > 0) {
+                    backendItems = response.data.items;
+                }
+            } catch {
+                // fallback
+            }
         }
 
-        const result = baseDefaults.map((p) => ({ ...p, categoryId }));
+        if (backendItems.length > 0) {
+            const merged = mergeWithDefaults(backendItems);
+            this.localProperties[categoryId] = merged;
+            this.saveStoredProperties(categoryId, merged);
+            return merged;
+        }
+
+        const stored = this.getStoredProperties(categoryId);
+        if (stored && Array.isArray(stored) && stored.length > 0) {
+            const merged = mergeWithDefaults(stored);
+            this.localProperties[categoryId] = merged;
+            this.saveStoredProperties(categoryId, merged);
+            return merged;
+        }
+
+        // Check parent category if this is a child category (e.g. Satılık Yarış Atı -> Satılık Atlar)
+        const cat = this.localCategories.find((c) => c.id === categoryId || c.slug === categoryId);
+        if (cat?.parentId) {
+            const parentStored = this.getStoredProperties(cat.parentId);
+            if (parentStored && Array.isArray(parentStored) && parentStored.length > 0) {
+                const merged = mergeWithDefaults(parentStored);
+                return merged;
+            }
+            if (isUUID) {
+                try {
+                    const parentRes = await axiosInstance.get<AdminCategoryPropertyListResponse>(
+                        `${baseUrl}/${cat.parentId}/properties`,
+                    );
+                    if (parentRes.data?.items && Array.isArray(parentRes.data.items) && parentRes.data.items.length > 0) {
+                        return mergeWithDefaults(parentRes.data.items);
+                    }
+                } catch {}
+            }
+        }
+
+        // Check if parent category "Satılık Atlar" has properties
+        const cid = (categoryId || '').toLowerCase();
+        const cslug = (categorySlug || cat?.slug || '').toLowerCase();
+        const cname = (categoryName || cat?.name || '').toLowerCase();
+        const checkStr = `${cid} ${cslug} ${cname}`;
+
+        if (
+            checkStr.includes('yaris') ||
+            checkStr.includes('kisrak') ||
+            checkStr.includes('aygir') ||
+            checkStr.includes('binek') ||
+            checkStr.includes('pony') ||
+            checkStr.includes('satilik')
+        ) {
+            const parentStored = this.getStoredProperties('cat-satilik-atlar') || this.getStoredProperties('satilik-atlar');
+            if (parentStored && Array.isArray(parentStored) && parentStored.length > 0) {
+                return mergeWithDefaults(parentStored);
+            }
+        }
+
+        // If backend has no properties for this category, populate defaults on backend DB
+        try {
+            const synced = await this.syncDefaultTemplateProperties(categoryId, categoryName, categorySlug);
+            if (synced && synced.length > 0) {
+                return mergeWithDefaults(synced);
+            }
+        } catch {}
+
+        const result = filterDeleted(baseDefaults.map((p) => ({ ...p, categoryId })));
         this.localProperties[categoryId] = result;
         this.saveStoredProperties(categoryId, result);
         return result;
@@ -724,11 +934,13 @@ class CategoryService {
             baseDefaults = DEFAULT_PROPERTIES_MAP['cat-satilik-yaris-ati'] || [];
         }
 
+        const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+
         // Fetch existing from backend
         let existingCodes = new Set<string>();
         try {
             const res = await axiosInstance.get<AdminCategoryPropertyListResponse>(
-                `${baseUrl}/${categoryId}/properties`
+                `${baseUrl}/${targetUUID}/properties`
             );
             if (res.data?.items && Array.isArray(res.data.items)) {
                 res.data.items.forEach((p) => existingCodes.add(p.code));
@@ -754,16 +966,34 @@ class CategoryService {
                 defaultValue: tpl.defaultValue,
                 uiMetadata: tpl.uiMetadata,
             };
-            await this.createProperty(categoryId, payload);
+            await this.createProperty(targetUUID, payload);
         }
 
         return this.listProperties(categoryId, categoryName, categorySlug);
     }
 
+    private resolveCategoryUUID(categoryId: string): string | null {
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) {
+            return categoryId;
+        }
+        const clean = categoryId.replace(/^cat-/, '');
+        const cat = this.localCategories.find((c) => c.id === categoryId || c.slug === categoryId || c.slug === clean || c.id === `cat-${clean}`);
+        if (cat && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cat.id)) {
+            return cat.id;
+        }
+        return null;
+    }
+
     async createProperty(categoryId: string, request: CreateCategoryPropertyRequest) {
+        const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
         let createdProp: CategoryProperty | null = null;
         try {
-            const response = await axiosInstance.post(`${baseUrl}/${categoryId}/properties`, request);
+            const response = await axiosInstance.post(`${baseUrl}/${targetUUID}/properties`, {
+                ...request,
+                isFormVisible: request.isFormVisible ?? true,
+                isPublicVisible: request.isPublicVisible ?? true,
+                isFilterable: request.isFilterable ?? true,
+            });
             createdProp = response.data as CategoryProperty;
         } catch {
             createdProp = {
@@ -800,10 +1030,11 @@ class CategoryService {
     }
 
     async updateProperty(categoryId: string, propertyId: string, request: UpdateCategoryPropertyRequest) {
+        const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
         let updatedProp: CategoryProperty | null = null;
         try {
             const response = await axiosInstance.patch(
-                `${baseUrl}/${categoryId}/properties/${propertyId}`,
+                `${baseUrl}/${targetUUID}/properties/${propertyId}`,
                 request,
             );
             updatedProp = response.data as CategoryProperty;
@@ -848,26 +1079,79 @@ class CategoryService {
         expectedVersion: number,
         isActive: boolean,
     ) {
+        const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
         let resultProp: CategoryProperty | null = null;
-        try {
-            const response = await axiosInstance.post(
-                `${baseUrl}/${categoryId}/properties/${propertyId}/active`,
-                {
-                    expectedVersion: Math.max(1, expectedVersion),
-                    isActive,
-                },
-            );
-            resultProp = response.data as CategoryProperty;
-        } catch {
-            // fallback handled below
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(propertyId);
+        if (isUUID) {
+            try {
+                const response = await axiosInstance.post(
+                    `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
+                    {
+                        expectedVersion: Math.max(1, expectedVersion),
+                        isActive,
+                    },
+                );
+                resultProp = response.data as CategoryProperty;
+            } catch {
+                try {
+                    const listRes = await axiosInstance.get<AdminCategoryPropertyListResponse>(
+                        `${baseUrl}/${targetUUID}/properties`,
+                    );
+                    const freshProp = listRes.data?.items?.find((p) => p.id === propertyId);
+                    if (freshProp) {
+                        const retryRes = await axiosInstance.post(
+                            `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
+                            {
+                                expectedVersion: freshProp.version || 1,
+                                isActive,
+                            },
+                        );
+                        resultProp = retryRes.data as CategoryProperty;
+                    }
+                } catch {}
+            }
         }
 
         const list = this.localProperties[categoryId] || [];
         const prop = list.find((p) => p.id === propertyId || p.code === propertyId);
+        if (prop && !resultProp) {
+            try {
+                const created = await this.createProperty(targetUUID, {
+                    code: prop.code,
+                    title: prop.title,
+                    helpText: prop.helpText,
+                    dataType: prop.dataType,
+                    isRequired: prop.isRequired,
+                    isPublicVisible: prop.isPublicVisible,
+                    isFormVisible: prop.isFormVisible,
+                    isFilterable: prop.isFilterable,
+                    sortOrder: prop.sortOrder,
+                    options: prop.options,
+                    validation: prop.validation,
+                    defaultValue: prop.defaultValue,
+                    uiMetadata: prop.uiMetadata,
+                });
+                if (created && created.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(created.id)) {
+                    prop.id = created.id;
+                    const response = await axiosInstance.post(
+                        `${baseUrl}/${targetUUID}/properties/${created.id}/active`,
+                        {
+                            expectedVersion: created.version || 1,
+                            isActive,
+                        },
+                    );
+                    resultProp = response.data as CategoryProperty;
+                } else if (created) {
+                    created.isActive = isActive;
+                    resultProp = created;
+                }
+            } catch {}
+        }
+
         if (prop) {
             prop.isActive = isActive;
             prop.version = Math.max(1, expectedVersion) + 1;
-            resultProp = prop;
+            if (!resultProp) resultProp = prop;
         } else if (resultProp) {
             list.push(resultProp);
         }
@@ -882,22 +1166,25 @@ class CategoryService {
     }
 
     async deleteProperty(categoryId: string, propertyId: string, version?: number) {
-        // 1. Tell backend to set isActive = false so DB marks it inactive
+        const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+        const current = this.getStoredProperties(categoryId) || this.localProperties[categoryId] || [];
+        const prop = current.find((p) => p.id === propertyId || p.code === propertyId || p.title === propertyId);
+
+        if (prop) {
+            if (prop.id) this.saveDeletedPropertyKey(categoryId, prop.id);
+            if (prop.code) this.saveDeletedPropertyKey(categoryId, prop.code);
+            if (prop.title) this.saveDeletedPropertyKey(categoryId, prop.title);
+        }
+        this.saveDeletedPropertyKey(categoryId, propertyId);
+
+        // 1. Tell backend to set isActive = false so DB marks it inactive / deleted
         try {
-            await this.setPropertyActive(categoryId, propertyId, version ?? 1, false);
+            await this.setPropertyActive(targetUUID, propertyId, version ?? 1, false);
         } catch {
             // ignore
         }
 
-        // 2. Also attempt DELETE endpoint
-        try {
-            await axiosInstance.delete(`${baseUrl}/${categoryId}/properties/${propertyId}`);
-        } catch {
-            // fallback
-        }
-
-        // 3. Purge from local state and save across all category storage keys
-        const current = this.getStoredProperties(categoryId) || this.localProperties[categoryId] || [];
+        // 2. Purge from local state and save across all category storage keys
         const list = current.filter(
             (p) => p.id !== propertyId && p.code !== propertyId && p.title !== propertyId
         );
@@ -906,8 +1193,9 @@ class CategoryService {
     }
 
     async reorderProperties(categoryId: string, items: ReorderItem[]) {
+        const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
         try {
-            await axiosInstance.put(`${baseUrl}/${categoryId}/properties/reorder`, { items });
+            await axiosInstance.put(`${baseUrl}/${targetUUID}/properties/reorder`, { items });
         } catch {
             // fallback
         }
@@ -928,6 +1216,7 @@ class CategoryService {
         const items: AdminCategoryItem[] = [];
         let cursor: string | undefined;
         let hasMore = true;
+        const deletedCatSet = this.getDeletedCategoryIds();
 
         try {
             while (hasMore) {
@@ -943,23 +1232,37 @@ class CategoryService {
             }
             if (items.length > 0) {
                 items.forEach((item) => {
+                    if (deletedCatSet.has(item.id) || (item.slug && deletedCatSet.has(item.slug))) {
+                        item.isActive = false;
+                    }
                     const idx = this.localCategories.findIndex((c) => c.id === item.id || c.slug === item.slug);
                     if (idx >= 0) {
                         this.localCategories[idx] = { ...this.localCategories[idx], ...item };
+                        if (deletedCatSet.has(item.id) || (item.slug && deletedCatSet.has(item.slug))) {
+                            this.localCategories[idx].isActive = false;
+                        }
                     } else {
                         this.localCategories.push(item);
                     }
                 });
-                return items;
+                return items.map((it) => {
+                    if (deletedCatSet.has(it.id) || (it.slug && deletedCatSet.has(it.slug))) {
+                        return { ...it, isActive: false };
+                    }
+                    return it;
+                });
             }
         } catch {
             // fallback
         }
 
-        return [...this.localCategories];
+        return this.localCategories.map((it) => {
+            if (deletedCatSet.has(it.id) || (it.slug && deletedCatSet.has(it.slug))) {
+                return { ...it, isActive: false };
+            }
+            return it;
+        });
     }
-
-
 
     private applyFilter(items: AdminCategoryItem[], filter?: string) {
         if (!filter) {
