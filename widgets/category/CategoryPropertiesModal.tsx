@@ -314,20 +314,6 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
     }));
   };
 
-  const handleSyncDefaultTemplate = async () => {
-    if (submitting) return;
-    setSubmitting(true);
-    try {
-      await categoryService.syncDefaultTemplateProperties(categoryId, categoryName);
-      toast.success('PDF standart kategori özellikleri backend veritabanına aktarıldı');
-      await load();
-    } catch (error) {
-      toast.error(getErrorMessage(error));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <>
       <Modal show onHide={onClose} size="lg" centered scrollable>
@@ -335,21 +321,11 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
           <Modal.Title>Kategori Özellikleri — {categoryName}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <div className="d-flex justify-content-between align-items-center mb-3">
             <span className="text-muted small">İlan formunda ve filtrelerde kullanılacak alanlar</span>
-            <div className="d-flex gap-2">
-              <Button
-                size="sm"
-                variant="outline-primary"
-                onClick={() => void handleSyncDefaultTemplate()}
-                disabled={submitting}
-              >
-                {submitting ? 'Kaydediliyor...' : '📥 PDF Şablonunu Sunucuya Kaydet'}
-              </Button>
-              <Button size="sm" variant="primary" onClick={openCreate} disabled={submitting}>
-                + Yeni Özellik Ekle
-              </Button>
-            </div>
+            <Button size="sm" variant="primary" onClick={openCreate} disabled={submitting}>
+              + Yeni Özellik Ekle
+            </Button>
           </div>
 
           {loading && (
