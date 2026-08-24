@@ -249,8 +249,16 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
     }
     setSubmitting(true);
     try {
-      await categoryService.deleteProperty(categoryId, property.id, property.version);
-      setItems((prev) => prev.filter((p) => p.id !== property.id && p.code !== property.code));
+      await categoryService.deleteProperty(
+        categoryId,
+        property.id,
+        property.version,
+        property.code,
+        property.title,
+      );
+      setItems((prev) =>
+        prev.filter((p) => p.id !== property.id && p.code !== property.code && p.title !== property.title)
+      );
       toast.success('Özellik başarıyla silindi');
       await load();
     } catch (error) {

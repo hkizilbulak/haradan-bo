@@ -579,6 +579,20 @@ class CategoryService {
         } catch {}
     }
 
+    private removeDeletedPropertyKey(categoryId: string, key: string) {
+        if (typeof window === 'undefined') return;
+        try {
+            const set = this.getDeletedPropertyKeys(categoryId);
+            set.delete(String(key).toLowerCase());
+            const arr = Array.from(set);
+            const jsonVal = JSON.stringify(arr);
+            const clean = categoryId.replace(/^cat-/, '');
+            localStorage.setItem(`haradan_deleted_props_${categoryId}`, jsonVal);
+            localStorage.setItem(`haradan_deleted_props_cat-${clean}`, jsonVal);
+            localStorage.setItem(`haradan_deleted_props_${clean}`, jsonVal);
+        } catch {}
+    }
+
     private getStoredProperties(categoryId: string): CategoryProperty[] | null {
         if (typeof window === 'undefined') return null;
         try {
@@ -805,20 +819,6 @@ class CategoryService {
             );
         };
 
-        const mergeWithDefaults = (items: CategoryProperty[]): CategoryProperty[] => {
-            const filtered = filterDeleted(items);
-            const result = [...filtered];
-            const existingCodes = new Set(result.map((p) => (p.code || p.title).toLowerCase()));
-            for (const def of baseDefaults) {
-                const defKey = (def.code || def.title).toLowerCase();
-                const defId = (def.id || '').toLowerCase();
-                if (!existingCodes.has(defKey) && !deletedKeys.has(defKey) && !deletedKeys.has(defId)) {
-                    result.push({ ...def, categoryId });
-                }
-            }
-            return result.sort((a, b) => (a.sortOrder || 1) - (b.sortOrder || 1));
-        };
-
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUUID);
         let backendItems: CategoryProperty[] = [];
@@ -836,80 +836,19 @@ class CategoryService {
         }
 
         if (backendItems.length > 0) {
-            this.localProperties[categoryId] = backendItems;
-            this.saveStoredProperties(categoryId, backendItems);
-            return backendItems.sort((a, b) => (a.sortOrder || 1) - (b.sortOrder || 1));
+            const filtered = filterDeleted(backendItems);
+            this.localProperties[categoryId] = filtered;
+            this.saveStoredProperties(categoryId, filtered);
+            return filtered.sort((a, b) => (a.sortOrder || 1) - (b.sortOrder || 1));
         }
 
         const stored = this.getStoredProperties(categoryId);
         if (stored && Array.isArray(stored) && stored.length > 0) {
-            const merged = mergeWithDefaults(stored);
-            this.localProperties[categoryId] = merged;
-            this.saveStoredProperties(categoryId, merged);
-            return merged;
+            const filtered = filterDeleted(stored);
+            this.localProperties[categoryId] = filtered;
+            this.saveStoredProperties(categoryId, filtered);
+            return filtered.sort((a, b) => (a.sortOrder || 1) - (b.sortOrder || 1));
         }
-
-        // Check parent category ONLY if this is a horse subcategory (e.g. Satılık Yarış Atı -> Satılık Atlar)
-        const cat = this.localCategories.find((c) => c.id === categoryId || c.slug === categoryId);
-        const isHorseSubcat =
-            (categoryId || '').toLowerCase().includes('satilik') ||
-            (categoryId || '').toLowerCase().includes('yaris') ||
-            (categoryId || '').toLowerCase().includes('kisrak') ||
-            (categoryId || '').toLowerCase().includes('aygir') ||
-            (categoryId || '').toLowerCase().includes('binek') ||
-            (categoryId || '').toLowerCase().includes('pony') ||
-            (cat?.slug || '').toLowerCase().includes('satilik') ||
-            (cat?.slug || '').toLowerCase().includes('yaris') ||
-            (cat?.slug || '').toLowerCase().includes('kisrak') ||
-            (cat?.slug || '').toLowerCase().includes('aygir') ||
-            (cat?.slug || '').toLowerCase().includes('binek') ||
-            (cat?.slug || '').toLowerCase().includes('pony');
-
-        if (cat?.parentId && isHorseSubcat) {
-            const parentStored = this.getStoredProperties(cat.parentId);
-            if (parentStored && Array.isArray(parentStored) && parentStored.length > 0) {
-                const merged = mergeWithDefaults(parentStored);
-                return merged;
-            }
-            if (isUUID) {
-                try {
-                    const parentRes = await axiosInstance.get<AdminCategoryPropertyListResponse>(
-                        `${baseUrl}/${cat.parentId}/properties`,
-                    );
-                    if (parentRes.data?.items && Array.isArray(parentRes.data.items) && parentRes.data.items.length > 0) {
-                        return mergeWithDefaults(parentRes.data.items);
-                    }
-                } catch {}
-            }
-        }
-
-        // Check if parent category "Satılık Atlar" has properties
-        const cid = (categoryId || '').toLowerCase();
-        const cslug = (categorySlug || cat?.slug || '').toLowerCase();
-        const cname = (categoryName || cat?.name || '').toLowerCase();
-        const checkStr = `${cid} ${cslug} ${cname}`;
-
-        if (
-            checkStr.includes('yaris') ||
-            checkStr.includes('kisrak') ||
-            checkStr.includes('aygir') ||
-            checkStr.includes('binek') ||
-            checkStr.includes('pony') ||
-            checkStr.includes('satilik')
-        ) {
-            const parentStored = this.getStoredProperties('cat-satilik-atlar') || this.getStoredProperties('satilik-atlar');
-            if (parentStored && Array.isArray(parentStored) && parentStored.length > 0) {
-                return mergeWithDefaults(parentStored);
-            }
-        }
-
-        // If backend has no properties for this category, populate defaults on backend DB
-        try {
-            const synced = await this.syncDefaultTemplateProperties(categoryId, categoryName, categorySlug);
-            if (synced && synced.length > 0) {
-                return mergeWithDefaults(synced);
-            }
-        } catch {}
 
         const result = filterDeleted(baseDefaults.map((p) => ({ ...p, categoryId })));
         this.localProperties[categoryId] = result;
@@ -1169,6 +1108,13 @@ class CategoryService {
             list.push(resultProp);
         }
 
+        if (isActive) {
+            this.removeDeletedPropertyKey(categoryId, propertyId);
+            if (prop?.code) this.removeDeletedPropertyKey(categoryId, prop.code);
+            if (prop?.id) this.removeDeletedPropertyKey(categoryId, prop.id);
+            if (prop?.title) this.removeDeletedPropertyKey(categoryId, prop.title);
+        }
+
         this.localProperties[categoryId] = list;
         this.saveStoredProperties(categoryId, list);
 
@@ -1178,31 +1124,80 @@ class CategoryService {
         throw new Error('Özellik bulunamadı.');
     }
 
-    async deleteProperty(categoryId: string, propertyId: string, version?: number) {
+    async deleteProperty(
+        categoryId: string,
+        propertyId: string,
+        version?: number,
+        propertyCode?: string,
+        propertyTitle?: string,
+    ) {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
         const current = this.getStoredProperties(categoryId) || this.localProperties[categoryId] || [];
         const prop = current.find((p) => p.id === propertyId || p.code === propertyId || p.title === propertyId);
 
-        if (prop) {
-            if (prop.id) this.saveDeletedPropertyKey(categoryId, prop.id);
-            if (prop.code) this.saveDeletedPropertyKey(categoryId, prop.code);
-            if (prop.title) this.saveDeletedPropertyKey(categoryId, prop.title);
-        }
-        this.saveDeletedPropertyKey(categoryId, propertyId);
+        const keysToDelete = new Set<string>();
+        if (propertyId) keysToDelete.add(propertyId.toLowerCase());
+        if (propertyCode) keysToDelete.add(propertyCode.toLowerCase());
+        if (propertyTitle) keysToDelete.add(propertyTitle.toLowerCase());
+        if (prop?.id) keysToDelete.add(prop.id.toLowerCase());
+        if (prop?.code) keysToDelete.add(prop.code.toLowerCase());
+        if (prop?.title) keysToDelete.add(prop.title.toLowerCase());
 
-        // 1. Tell backend to set isActive = false so DB marks it inactive / deleted
+        // 1. Record in deleted keys for all related categories
+        const cat = this.localCategories.find((c) => c.id === categoryId || c.slug === categoryId);
+        const affectedCats = new Set<string>([categoryId]);
+        if (cat?.slug) affectedCats.add(cat.slug);
+        if (cat?.parentId) affectedCats.add(cat.parentId);
+
+        Array.from(affectedCats).forEach((catId) => {
+            Array.from(keysToDelete).forEach((key) => {
+                this.saveDeletedPropertyKey(catId, key);
+            });
+        });
+
+        // 2. Clean across ALL localStorage category properties keys
+        if (typeof window !== 'undefined') {
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const storageKey = localStorage.key(i);
+                    if (storageKey && storageKey.startsWith('haradan_category_properties_')) {
+                        const raw = localStorage.getItem(storageKey);
+                        if (raw) {
+                            const arr: CategoryProperty[] = JSON.parse(raw);
+                            if (Array.isArray(arr)) {
+                                const cleaned = arr.filter(
+                                    (p) =>
+                                        !keysToDelete.has((p.id || '').toLowerCase()) &&
+                                        !keysToDelete.has((p.code || '').toLowerCase()) &&
+                                        !keysToDelete.has((p.title || '').toLowerCase())
+                                );
+                                if (cleaned.length !== arr.length) {
+                                    localStorage.setItem(storageKey, JSON.stringify(cleaned));
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch {}
+        }
+
+        // 3. Clean across all in-memory localProperties
+        Object.keys(this.localProperties).forEach((catKey) => {
+            const list = this.localProperties[catKey] || [];
+            this.localProperties[catKey] = list.filter(
+                (p) =>
+                    !keysToDelete.has((p.id || '').toLowerCase()) &&
+                    !keysToDelete.has((p.code || '').toLowerCase()) &&
+                    !keysToDelete.has((p.title || '').toLowerCase())
+            );
+        });
+
+        // 4. Tell backend to set isActive = false so DB marks it inactive / deleted
         try {
             await this.setPropertyActive(targetUUID, propertyId, version ?? 1, false);
         } catch {
             // ignore
         }
-
-        // 2. Purge from local state and save across all category storage keys
-        const list = current.filter(
-            (p) => p.id !== propertyId && p.code !== propertyId && p.title !== propertyId
-        );
-        this.localProperties[categoryId] = list;
-        this.saveStoredProperties(categoryId, list);
     }
 
     async reorderProperties(categoryId: string, items: ReorderItem[]) {
