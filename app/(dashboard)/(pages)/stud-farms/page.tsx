@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { formatDateForText } from '@/helpers/DateUtils';
 import { capitalizeSentence } from '@/helpers/HelperUtils';
 import useCursorApi from '@/hooks/useCursorApi';
-import { StudFarmResponse } from '@/models/StudFarm';
+import { StudFarm, StudFarmResponse } from '@/models/StudFarm';
 import { studFarmService } from '@/services';
 import CursorPagination from '@/components/CursorPagination';
 import { Skeleton } from '@/components/Skeleton';
@@ -16,7 +16,7 @@ import StudFarmNotesTimeline from './components/StudFarmNotesTimeline';
 import { toast } from 'react-toastify';
 
 export default function StudFarms() {
-    const [{ data, isLoading, isError, handleFilter, goNext, goPrev, canGoPrev, canGoNext, pageIndex, refetch }] = useCursorApi<StudFarmResponse>({
+    const [{ data, isLoading, isError, handleFilter, goNext, goPrev, canGoPrev, canGoNext, pageIndex, refetch }] = useCursorApi<StudFarm>({
         service: studFarmService,
         pageSize: 10,
     });
