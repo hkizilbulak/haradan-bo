@@ -504,6 +504,31 @@ const DEFAULT_PROPERTIES_MAP: Record<string, CategoryProperty[]> = {
 };
 
 
+const SYSTEM_PROPERTY_CODES = new Set<string>([
+    'horse_breed',
+    'coat_color',
+    'horse_age',
+    'horse_gender',
+    'grasspaddock',
+    'sandpaddock',
+    'stallionpaddock',
+    'veterinarian',
+    'farrier',
+    'maternity',
+    'camerainside',
+    'insuranceincluded',
+    'vehiclecapacity',
+    'hotshoeing',
+    'orthopedicshoeing',
+    'studhorse',
+    'studbreed',
+    'studage',
+    'studcoatcolor',
+    'studsire',
+    'studdam',
+    'studdamsire',
+]);
+
 const baseUrl = `${API_URL}v1/admin/categories`;
 
 class CategoryService {
@@ -811,12 +836,17 @@ class CategoryService {
         const deletedKeys = this.getDeletedPropertyKeys(categoryId);
 
         const filterDeleted = (items: CategoryProperty[]): CategoryProperty[] => {
-            return items.filter(
-                (p) =>
+            return items.filter((p) => {
+                const codeKey = (p.code || '').toLowerCase();
+                if (SYSTEM_PROPERTY_CODES.has(codeKey)) {
+                    return true;
+                }
+                return (
                     !deletedKeys.has((p.id || '').toLowerCase()) &&
-                    !deletedKeys.has((p.code || '').toLowerCase()) &&
+                    !deletedKeys.has(codeKey) &&
                     !deletedKeys.has((p.title || '').toLowerCase())
-            );
+                );
+            });
         };
 
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
@@ -837,6 +867,13 @@ class CategoryService {
 
         if (backendItems.length > 0) {
             const filtered = filterDeleted(backendItems);
+            const existingCodes = new Set(filtered.map((p) => (p.code || '').toLowerCase()));
+            for (const def of baseDefaults) {
+                const defCode = (def.code || '').toLowerCase();
+                if (!existingCodes.has(defCode)) {
+                    filtered.push({ ...def, categoryId });
+                }
+            }
             this.localProperties[categoryId] = filtered;
             this.saveStoredProperties(categoryId, filtered);
             return filtered.sort((a, b) => (a.sortOrder || 1) - (b.sortOrder || 1));
@@ -845,15 +882,22 @@ class CategoryService {
         const stored = this.getStoredProperties(categoryId);
         if (stored && Array.isArray(stored) && stored.length > 0) {
             const filtered = filterDeleted(stored);
+            const existingCodes = new Set(filtered.map((p) => (p.code || '').toLowerCase()));
+            for (const def of baseDefaults) {
+                const defCode = (def.code || '').toLowerCase();
+                if (!existingCodes.has(defCode)) {
+                    filtered.push({ ...def, categoryId });
+                }
+            }
             this.localProperties[categoryId] = filtered;
             this.saveStoredProperties(categoryId, filtered);
             return filtered.sort((a, b) => (a.sortOrder || 1) - (b.sortOrder || 1));
         }
 
-        const result = filterDeleted(baseDefaults.map((p) => ({ ...p, categoryId })));
+        const result = baseDefaults.map((p) => ({ ...p, categoryId }));
         this.localProperties[categoryId] = result;
         this.saveStoredProperties(categoryId, result);
-        return result;
+        return result.sort((a, b) => (a.sortOrder || 1) - (b.sortOrder || 1));
     }
 
     async syncDefaultTemplateProperties(
