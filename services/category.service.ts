@@ -836,10 +836,9 @@ class CategoryService {
         }
 
         if (backendItems.length > 0) {
-            const merged = mergeWithDefaults(backendItems);
-            this.localProperties[categoryId] = merged;
-            this.saveStoredProperties(categoryId, merged);
-            return merged;
+            this.localProperties[categoryId] = backendItems;
+            this.saveStoredProperties(categoryId, backendItems);
+            return backendItems.sort((a, b) => (a.sortOrder || 1) - (b.sortOrder || 1));
         }
 
         const stored = this.getStoredProperties(categoryId);
