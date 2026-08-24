@@ -28,6 +28,12 @@ export const DashboardMenu: IMenuProps[] = [
 	},
 	{
 		id: uuid(),
+		title: 'Haralar',
+		icon: 'map-pin',
+		link: '/stud-farms'
+	},
+	{
+		id: uuid(),
 		title: 'Paketler',
 		icon: 'package',
 		link: '/packages'

@@ -11,4 +11,5 @@ export * from './provider-email-template.service';
 export * from './media.service';
 export * from './profile.service';
 export * from './tjk.service';
+export * from './StudFarmService';
 export * from './base.service';
