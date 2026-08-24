@@ -850,9 +850,23 @@ class CategoryService {
             return merged;
         }
 
-        // Check parent category if this is a child category (e.g. Satılık Yarış Atı -> Satılık Atlar)
+        // Check parent category ONLY if this is a horse subcategory (e.g. Satılık Yarış Atı -> Satılık Atlar)
         const cat = this.localCategories.find((c) => c.id === categoryId || c.slug === categoryId);
-        if (cat?.parentId) {
+        const isHorseSubcat =
+            (categoryId || '').toLowerCase().includes('satilik') ||
+            (categoryId || '').toLowerCase().includes('yaris') ||
+            (categoryId || '').toLowerCase().includes('kisrak') ||
+            (categoryId || '').toLowerCase().includes('aygir') ||
+            (categoryId || '').toLowerCase().includes('binek') ||
+            (categoryId || '').toLowerCase().includes('pony') ||
+            (cat?.slug || '').toLowerCase().includes('satilik') ||
+            (cat?.slug || '').toLowerCase().includes('yaris') ||
+            (cat?.slug || '').toLowerCase().includes('kisrak') ||
+            (cat?.slug || '').toLowerCase().includes('aygir') ||
+            (cat?.slug || '').toLowerCase().includes('binek') ||
+            (cat?.slug || '').toLowerCase().includes('pony');
+
+        if (cat?.parentId && isHorseSubcat) {
             const parentStored = this.getStoredProperties(cat.parentId);
             if (parentStored && Array.isArray(parentStored) && parentStored.length > 0) {
                 const merged = mergeWithDefaults(parentStored);
