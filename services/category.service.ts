@@ -3,6 +3,7 @@ import { API_URL } from '@/contants/urls';
 import { CategoryRequest, CategoryResponse } from '@/models';
 import { PagedResponse, PageParams, SearchParams } from '@/models/common';
 import { EntityStatusEnum } from '@/models/enums';
+import { catalogStorage } from './catalogStorage';
 
 type AdminCategoryItem = {
     id: string;
@@ -110,12 +111,22 @@ class CategoryService {
 
     async save(request: CategoryRequest) {
         const parentId = request.parentId ? request.parentId.trim() : undefined;
-        await axiosInstance.post(baseUrl, {
-            name: request.name.trim(),
-            slug: request.slug.trim(),
-            parentId: parentId || undefined,
-            description: request.description,
-        });
+        try {
+            await axiosInstance.post(baseUrl, {
+                name: request.name.trim(),
+                slug: request.slug.trim(),
+                parentId: parentId || undefined,
+                description: request.description,
+            });
+        } catch (error) {
+            // Local fallback
+            catalogStorage.createCategory({
+                name: request.name.trim(),
+                slug: request.slug.trim(),
+                parentId: parentId || null,
+                description: request.description,
+            });
+        }
     }
 
     async update(request: CategoryRequest) {
@@ -123,13 +134,24 @@ class CategoryService {
             throw new Error('Kategori kimliği gerekli.');
         }
 
-        await axiosInstance.patch(`${baseUrl}/${request.identifier}`, {
-            expectedVersion: Math.max(1, request.expectedVersion ?? 1),
-            name: request.name.trim(),
-            slug: request.slug.trim(),
-            sortOrder: request.sortOrder,
-            description: request.description,
-        });
+        try {
+            await axiosInstance.patch(`${baseUrl}/${request.identifier}`, {
+                expectedVersion: Math.max(1, request.expectedVersion ?? 1),
+                name: request.name.trim(),
+                slug: request.slug.trim(),
+                sortOrder: request.sortOrder,
+                description: request.description,
+            });
+        } catch (error) {
+            // Local fallback
+            catalogStorage.updateCategory(request.identifier, {
+                name: request.name.trim(),
+                slug: request.slug.trim(),
+                sortOrder: request.sortOrder,
+                description: request.description,
+                expectedVersion: request.expectedVersion,
+            });
+        }
     }
 
     async _delete(identifier: string, expectedVersion?: number) {
@@ -139,13 +161,18 @@ class CategoryService {
                 isActive: false,
             });
         } catch {
-            const detail = await axiosInstance.get<AdminCategoryItem>(`${baseUrl}/${identifier}`);
-            if (detail.data?.version) {
-                await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
-                    expectedVersion: detail.data.version,
-                    isActive: false,
-                });
-            }
+            try {
+                const detail = await axiosInstance.get<AdminCategoryItem>(`${baseUrl}/${identifier}`);
+                if (detail.data?.version) {
+                    await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
+                        expectedVersion: detail.data.version,
+                        isActive: false,
+                    });
+                    return;
+                }
+            } catch {}
+            // Local fallback
+            catalogStorage.setCategoryActive(identifier, false, expectedVersion);
         }
     }
 
@@ -156,57 +183,90 @@ class CategoryService {
                 isActive: true,
             });
         } catch {
-            const detail = await axiosInstance.get<AdminCategoryItem>(`${baseUrl}/${identifier}`);
-            if (detail.data?.version) {
-                await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
-                    expectedVersion: detail.data.version,
-                    isActive: true,
-                });
-            }
+            try {
+                const detail = await axiosInstance.get<AdminCategoryItem>(`${baseUrl}/${identifier}`);
+                if (detail.data?.version) {
+                    await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
+                        expectedVersion: detail.data.version,
+                        isActive: true,
+                    });
+                    return;
+                }
+            } catch {}
+            // Local fallback
+            catalogStorage.setCategoryActive(identifier, true, expectedVersion);
         }
     }
 
     async reparent(identifier: string, expectedVersion: number, parentId?: string): Promise<number | undefined> {
-        const response = await axiosInstance.post<AdminCategoryItem>(`${baseUrl}/${identifier}/reparent`, {
-            expectedVersion: Math.max(1, expectedVersion ?? 1),
-            newParentId: parentId || undefined,
-        });
-        return typeof response.data?.version === 'number' ? response.data.version : undefined;
+        try {
+            const response = await axiosInstance.post<AdminCategoryItem>(`${baseUrl}/${identifier}/reparent`, {
+                expectedVersion: Math.max(1, expectedVersion ?? 1),
+                newParentId: parentId || undefined,
+            });
+            return typeof response.data?.version === 'number' ? response.data.version : undefined;
+        } catch (error) {
+            const cat = catalogStorage.reparentCategory(identifier, parentId, expectedVersion);
+            return cat.version;
+        }
     }
 
     async reorderCategories(items: ReorderItem[]) {
-        await axiosInstance.put(`${baseUrl}/reorder`, { items });
+        try {
+            await axiosInstance.put(`${baseUrl}/reorder`, { items });
+        } catch (error) {
+            catalogStorage.reorderCategories(items);
+        }
     }
 
     async listProperties(categoryId: string, _categoryName?: string, _categorySlug?: string): Promise<CategoryProperty[]> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
-        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUUID);
-        if (!isUUID) {
-            return [];
-        }
         try {
             const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
                 `${baseUrl}/${targetUUID}/properties`,
             );
-            return response.data?.items || [];
+            if (response.data?.items && response.data.items.length > 0) {
+                return response.data.items;
+            }
         } catch (error) {
-            console.error('[CategoryService] listProperties error:', error);
-            return [];
+            console.warn('[CategoryService] listProperties API error, fallback to local storage:', error);
         }
+
+        const localProps = catalogStorage.listProperties(targetUUID);
+        return localProps as unknown as CategoryProperty[];
     }
 
     async createProperty(categoryId: string, request: CreateCategoryPropertyRequest): Promise<CategoryProperty> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
-        const response = await axiosInstance.post<CategoryProperty>(
-            `${baseUrl}/${targetUUID}/properties`,
-            {
-                ...request,
-                isFormVisible: request.isFormVisible ?? true,
-                isPublicVisible: request.isPublicVisible ?? true,
-                isFilterable: request.isFilterable ?? true,
-            },
-        );
-        return response.data;
+        try {
+            const response = await axiosInstance.post<CategoryProperty>(
+                `${baseUrl}/${targetUUID}/properties`,
+                {
+                    ...request,
+                    isFormVisible: request.isFormVisible ?? true,
+                    isPublicVisible: request.isPublicVisible ?? true,
+                    isFilterable: request.isFilterable ?? true,
+                },
+            );
+            return response.data;
+        } catch (error) {
+            const local = catalogStorage.createProperty(targetUUID, {
+                code: request.code,
+                title: request.title,
+                helpText: request.helpText,
+                dataType: request.dataType,
+                isRequired: request.isRequired,
+                isPublicVisible: request.isPublicVisible,
+                isFormVisible: request.isFormVisible,
+                isFilterable: request.isFilterable,
+                sortOrder: request.sortOrder,
+                options: request.options as any,
+                validation: request.validation,
+                defaultValue: request.defaultValue,
+                uiMetadata: request.uiMetadata,
+            });
+            return local as unknown as CategoryProperty;
+        }
     }
 
     async updateProperty(
@@ -215,11 +275,29 @@ class CategoryService {
         request: UpdateCategoryPropertyRequest,
     ): Promise<CategoryProperty> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
-        const response = await axiosInstance.patch<CategoryProperty>(
-            `${baseUrl}/${targetUUID}/properties/${propertyId}`,
-            request,
-        );
-        return response.data;
+        try {
+            const response = await axiosInstance.patch<CategoryProperty>(
+                `${baseUrl}/${targetUUID}/properties/${propertyId}`,
+                request,
+            );
+            return response.data;
+        } catch (error) {
+            const local = catalogStorage.updateProperty(targetUUID, propertyId, {
+                title: request.title,
+                helpText: request.helpText,
+                isRequired: request.isRequired,
+                isPublicVisible: request.isPublicVisible,
+                isFormVisible: request.isFormVisible,
+                isFilterable: request.isFilterable,
+                sortOrder: request.sortOrder,
+                options: request.options as any,
+                validation: request.validation,
+                defaultValue: request.defaultValue,
+                uiMetadata: request.uiMetadata,
+                expectedVersion: request.expectedVersion,
+            });
+            return local as unknown as CategoryProperty;
+        }
     }
 
     async setPropertyActive(
@@ -239,32 +317,27 @@ class CategoryService {
             );
             return response.data;
         } catch (error) {
-            const listRes = await axiosInstance.get<AdminCategoryPropertyListResponse>(
-                `${baseUrl}/${targetUUID}/properties`,
-            );
-            const freshProp = listRes.data?.items?.find((p) => p.id === propertyId);
-            if (freshProp && freshProp.version !== expectedVersion) {
-                const retryRes = await axiosInstance.post<CategoryProperty>(
-                    `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
-                    {
-                        expectedVersion: freshProp.version,
-                        isActive,
-                    },
-                );
-                return retryRes.data;
-            }
-            throw error;
+            const local = catalogStorage.setPropertyActive(targetUUID, propertyId, isActive, expectedVersion);
+            return local as unknown as CategoryProperty;
         }
     }
 
     async deleteProperty(categoryId: string, propertyId: string, version?: number): Promise<void> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
-        await this.setPropertyActive(targetUUID, propertyId, version ?? 1, false);
+        try {
+            await axiosInstance.delete(`${baseUrl}/${targetUUID}/properties/${propertyId}`);
+        } catch {
+            catalogStorage.deleteProperty(targetUUID, propertyId, version);
+        }
     }
 
     async reorderProperties(categoryId: string, items: ReorderItem[]): Promise<void> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
-        await axiosInstance.put(`${baseUrl}/${targetUUID}/properties/reorder`, { items });
+        try {
+            await axiosInstance.put(`${baseUrl}/${targetUUID}/properties/reorder`, { items });
+        } catch (error) {
+            catalogStorage.reorderProperties(targetUUID, items);
+        }
     }
 
     private resolveCategoryUUID(categoryId: string): string | null {
@@ -273,8 +346,12 @@ class CategoryService {
         }
         const clean = categoryId.replace(/^cat-/, '');
         const cat = this.categoriesCache.find((c) => c.id === categoryId || c.slug === categoryId || c.slug === clean || c.id === `cat-${clean}`);
-        if (cat && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cat.id)) {
+        if (cat) {
             return cat.id;
+        }
+        const storageCat = catalogStorage.resolveCategory(categoryId);
+        if (storageCat) {
+            return storageCat.id;
         }
         return null;
     }
@@ -287,12 +364,17 @@ class CategoryService {
                 },
             });
             const items = response.data?.items || [];
-            this.categoriesCache = items;
-            return items;
+            if (items.length > 0) {
+                this.categoriesCache = items;
+                return items;
+            }
         } catch (error) {
-            console.error('[CategoryService] fetchAll error:', error);
-            return this.categoriesCache;
+            console.warn('[CategoryService] fetchAll API error, falling back to local JSON storage:', error);
         }
+
+        const localCats = catalogStorage.listCategories(false);
+        this.categoriesCache = localCats;
+        return localCats;
     }
 
     private applyFilter(items: AdminCategoryItem[], filter?: string) {
