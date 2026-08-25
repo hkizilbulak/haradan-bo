@@ -623,25 +623,30 @@ class CategoryService {
     }
 
     async save(request: CategoryRequest) {
+        const targetParentId = request.parentId
+            ? (this.resolveCategoryUUID(request.parentId) || (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(request.parentId) ? request.parentId : undefined))
+            : undefined;
+
         try {
             await axiosInstance.post(baseUrl, {
                 name: request.name,
                 slug: request.slug,
-                parentId: request.parentId || undefined,
+                parentId: targetParentId,
                 description: request.description,
             });
-        } catch {
+        } catch (error) {
             const newId = `cat-${request.slug || Date.now()}`;
             this.localCategories.push({
                 id: newId,
                 name: request.name,
                 slug: request.slug,
-                parentId: request.parentId || null,
+                parentId: targetParentId || request.parentId || null,
                 sortOrder: this.localCategories.length + 1,
                 isActive: true,
                 version: 1,
                 description: request.description,
             });
+            throw error;
         }
     }
 
@@ -650,25 +655,31 @@ class CategoryService {
             throw new Error('Kategori kimliği gerekli.');
         }
 
-        try {
-            await axiosInstance.patch(`${baseUrl}/${request.identifier}`, {
-                expectedVersion: Math.max(1, request.expectedVersion ?? 1),
-                name: request.name,
-                slug: request.slug,
-                sortOrder: request.sortOrder,
-                description: request.description,
-            });
-        } catch {
-            const idx = this.localCategories.findIndex((c) => c.id === request.identifier);
-            if (idx >= 0) {
-                this.localCategories[idx] = {
-                    ...this.localCategories[idx],
+        const targetUUID = this.resolveCategoryUUID(request.identifier) || request.identifier;
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUUID);
+
+        if (isUUID) {
+            try {
+                await axiosInstance.patch(`${baseUrl}/${targetUUID}`, {
+                    expectedVersion: Math.max(1, request.expectedVersion ?? 1),
                     name: request.name,
                     slug: request.slug,
-                    sortOrder: request.sortOrder ?? this.localCategories[idx].sortOrder,
+                    sortOrder: request.sortOrder,
                     description: request.description,
-                    version: (this.localCategories[idx].version || 1) + 1,
-                };
+                });
+            } catch (error) {
+                const idx = this.localCategories.findIndex((c) => c.id === request.identifier || c.id === targetUUID);
+                if (idx >= 0) {
+                    this.localCategories[idx] = {
+                        ...this.localCategories[idx],
+                        name: request.name,
+                        slug: request.slug,
+                        sortOrder: request.sortOrder ?? this.localCategories[idx].sortOrder,
+                        description: request.description,
+                        version: (this.localCategories[idx].version || 1) + 1,
+                    };
+                }
+                throw error;
             }
         }
     }
@@ -736,21 +747,27 @@ class CategoryService {
     }
 
     async reparent(identifier: string, expectedVersion: number, parentId?: string): Promise<number | undefined> {
-        try {
-            const response = await axiosInstance.post<AdminCategoryItem>(`${baseUrl}/${identifier}/reparent`, {
-                expectedVersion: Math.max(1, expectedVersion ?? 1),
-                newParentId: parentId || undefined,
-            });
-            return typeof response.data?.version === 'number' ? response.data.version : undefined;
-        } catch {
-            const idx = this.localCategories.findIndex((c) => c.id === identifier);
-            if (idx >= 0) {
-                this.localCategories[idx].parentId = parentId || null;
-                this.localCategories[idx].version = (this.localCategories[idx].version || 1) + 1;
-                return this.localCategories[idx].version;
+        const targetUUID = this.resolveCategoryUUID(identifier) || identifier;
+        const targetParentUUID = parentId ? (this.resolveCategoryUUID(parentId) || parentId) : undefined;
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUUID);
+        if (isUUID) {
+            try {
+                const response = await axiosInstance.post<AdminCategoryItem>(`${baseUrl}/${targetUUID}/reparent`, {
+                    expectedVersion: Math.max(1, expectedVersion ?? 1),
+                    newParentId: targetParentUUID,
+                });
+                return typeof response.data?.version === 'number' ? response.data.version : undefined;
+            } catch (error) {
+                const idx = this.localCategories.findIndex((c) => c.id === identifier || c.id === targetUUID);
+                if (idx >= 0) {
+                    this.localCategories[idx].parentId = targetParentUUID || parentId || null;
+                    this.localCategories[idx].version = (this.localCategories[idx].version || 1) + 1;
+                    return this.localCategories[idx].version;
+                }
+                throw error;
             }
-            return undefined;
         }
+        return undefined;
     }
 
     async reorderCategories(items: ReorderItem[]) {
