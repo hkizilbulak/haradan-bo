@@ -113,15 +113,6 @@ class CatalogStorage {
           bc.postMessage({ type: 'CATALOG_UPDATED', data: this.data });
           bc.close();
         } catch {}
-
-        // Cross-origin / cross-port sync via backend
-        try {
-          fetch('http://localhost:8080/api/v1/catalog/dynamic', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(this.data),
-          }).catch(() => {});
-        } catch {}
       } catch (e) {
         console.warn('[CatalogStorage] Failed to write to localStorage:', e);
       }
