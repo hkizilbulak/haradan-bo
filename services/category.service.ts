@@ -221,6 +221,10 @@ class CategoryService {
 
     async listProperties(categoryId: string, _categoryName?: string, _categorySlug?: string): Promise<CategoryProperty[]> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+        if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
+            const localProps = catalogStorage.listProperties(targetUUID);
+            return localProps as unknown as CategoryProperty[];
+        }
         try {
             const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
                 `${baseUrl}/${targetUUID}/properties`,
@@ -238,6 +242,24 @@ class CategoryService {
 
     async createProperty(categoryId: string, request: CreateCategoryPropertyRequest): Promise<CategoryProperty> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+        if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
+            const local = catalogStorage.createProperty(targetUUID, {
+                code: request.code,
+                title: request.title,
+                helpText: request.helpText,
+                dataType: request.dataType,
+                isRequired: request.isRequired,
+                isPublicVisible: request.isPublicVisible,
+                isFormVisible: request.isFormVisible,
+                isFilterable: request.isFilterable,
+                sortOrder: request.sortOrder,
+                options: request.options as any,
+                validation: request.validation,
+                defaultValue: request.defaultValue,
+                uiMetadata: request.uiMetadata,
+            });
+            return local as unknown as CategoryProperty;
+        }
         try {
             const response = await axiosInstance.post<CategoryProperty>(
                 `${baseUrl}/${targetUUID}/properties`,
@@ -275,6 +297,23 @@ class CategoryService {
         request: UpdateCategoryPropertyRequest,
     ): Promise<CategoryProperty> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+        if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
+            const local = catalogStorage.updateProperty(targetUUID, propertyId, {
+                title: request.title,
+                helpText: request.helpText,
+                isRequired: request.isRequired,
+                isPublicVisible: request.isPublicVisible,
+                isFormVisible: request.isFormVisible,
+                isFilterable: request.isFilterable,
+                sortOrder: request.sortOrder,
+                options: request.options as any,
+                validation: request.validation,
+                defaultValue: request.defaultValue,
+                uiMetadata: request.uiMetadata,
+                expectedVersion: request.expectedVersion,
+            });
+            return local as unknown as CategoryProperty;
+        }
         try {
             const response = await axiosInstance.patch<CategoryProperty>(
                 `${baseUrl}/${targetUUID}/properties/${propertyId}`,
@@ -307,6 +346,10 @@ class CategoryService {
         isActive: boolean,
     ): Promise<CategoryProperty> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+        if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
+            const local = catalogStorage.setPropertyActive(targetUUID, propertyId, isActive, expectedVersion);
+            return local as unknown as CategoryProperty;
+        }
         try {
             const response = await axiosInstance.post<CategoryProperty>(
                 `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
@@ -324,6 +367,10 @@ class CategoryService {
 
     async deleteProperty(categoryId: string, propertyId: string, version?: number): Promise<void> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+        if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
+            catalogStorage.deleteProperty(targetUUID, propertyId, version);
+            return;
+        }
         try {
             await axiosInstance.delete(`${baseUrl}/${targetUUID}/properties/${propertyId}`);
         } catch {
@@ -333,6 +380,10 @@ class CategoryService {
 
     async reorderProperties(categoryId: string, items: ReorderItem[]): Promise<void> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+        if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
+            catalogStorage.reorderProperties(targetUUID, items);
+            return;
+        }
         try {
             await axiosInstance.put(`${baseUrl}/${targetUUID}/properties/reorder`, { items });
         } catch (error) {

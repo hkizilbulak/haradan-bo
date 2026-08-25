@@ -13,6 +13,17 @@ const axiosInstance = axios.create({
   withCredentials: true,
 });
 
+export function getBackendBaseUrl(): string {
+  const custom =
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_DEV_PROXY_URL ||
+    process.env.BACKEND_API_URL;
+  if (custom) {
+    return custom.replace(/\/+$/, '');
+  }
+  return 'http://localhost:8080';
+}
+
 axiosInstance.interceptors.request.use(
   async (config) => {
     if (config.url) {
@@ -22,6 +33,22 @@ axiosInstance.interceptors.request.use(
         config.url = proxyUrl + config.url;
       }
     }
+
+    if (typeof window !== 'undefined') {
+      try {
+        const token =
+          localStorage.getItem('token') ||
+          localStorage.getItem('accessToken') ||
+          localStorage.getItem('auth_token') ||
+          localStorage.getItem('haradan_admin_token') ||
+          sessionStorage.getItem('token') ||
+          sessionStorage.getItem('accessToken');
+        if (token && config.headers && !config.headers.Authorization) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      } catch {}
+    }
+
     return config;
   },
   (error) => Promise.reject(error),
@@ -38,3 +65,4 @@ axiosInstance.interceptors.response.use(
 );
 
 export default axiosInstance;
+

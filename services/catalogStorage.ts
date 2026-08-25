@@ -74,12 +74,25 @@ class CatalogStorage {
   }
 
   private loadData(): CatalogData {
+    const initial: CatalogData = JSON.parse(JSON.stringify(INITIAL_CATALOG));
     if (typeof window !== 'undefined') {
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed && Array.isArray(parsed.categories) && Array.isArray(parsed.categoryProperties)) {
+            // Ensure global category exists
+            const globalCat = initial.categories.find(c => c.id === 'c1000000-0000-4000-8000-000000000000');
+            if (globalCat && !parsed.categories.some((c: any) => c.id === globalCat.id)) {
+              parsed.categories.unshift(globalCat);
+            }
+            // Ensure global properties exist if missing
+            const globalProps = initial.categoryProperties.filter(p => p.categoryId === 'c1000000-0000-4000-8000-000000000000');
+            for (const gp of globalProps) {
+              if (!parsed.categoryProperties.some((p: any) => p.code === gp.code && (p.categoryId === gp.categoryId || p.id === gp.id))) {
+                parsed.categoryProperties.unshift(gp);
+              }
+            }
             return parsed;
           }
         }
@@ -87,7 +100,7 @@ class CatalogStorage {
         console.warn('[CatalogStorage] Failed to read from localStorage:', e);
       }
     }
-    return JSON.parse(JSON.stringify(INITIAL_CATALOG));
+    return initial;
   }
 
   private persist() {
@@ -95,6 +108,20 @@ class CatalogStorage {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
         window.dispatchEvent(new Event('haradan_catalog_data_changed'));
+        try {
+          const bc = new BroadcastChannel('haradan_catalog_channel');
+          bc.postMessage({ type: 'CATALOG_UPDATED', data: this.data });
+          bc.close();
+        } catch {}
+
+        // Cross-origin / cross-port sync via backend
+        try {
+          fetch('http://localhost:8080/api/v1/catalog/dynamic', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(this.data),
+          }).catch(() => {});
+        } catch {}
       } catch (e) {
         console.warn('[CatalogStorage] Failed to write to localStorage:', e);
       }
@@ -302,18 +329,25 @@ class CatalogStorage {
       return [];
     }
 
+    let parentProps: CategoryPropertyItem[] = [];
+    if (cat.parentId) {
+      parentProps = this.listProperties(cat.parentId);
+    }
+
     const direct = this.data.categoryProperties.filter(
       (p) => p.categoryId === cat.id || p.categoryId === cat.slug
     );
 
-    if (direct.length === 0 && cat.parentId) {
-      const parent = this.resolveCategory(cat.parentId);
-      if (parent) {
-        return this.listProperties(parent.id);
-      }
+    // Merge parent properties with direct properties (direct overrides parent with same code)
+    const merged = new Map<string, CategoryPropertyItem>();
+    for (const p of parentProps) {
+      merged.set(p.code, p);
+    }
+    for (const p of direct) {
+      merged.set(p.code, p);
     }
 
-    return [...direct].sort(
+    return Array.from(merged.values()).sort(
       (a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'tr')
     );
   }

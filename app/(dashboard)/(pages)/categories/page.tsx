@@ -428,6 +428,61 @@ export default function Categories() {
         </Card.Body>
       </Card>
 
+      {/* Global / Ortak İlan Alanları Card */}
+      <Card
+        className="border-0 shadow-sm mb-4"
+        style={{
+          borderRadius: '16px',
+          background: 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+          borderLeft: '5px solid #6366f1',
+        }}
+      >
+        <Card.Body className="p-3 p-md-4">
+          <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <div className="d-flex align-items-center gap-3">
+              <div
+                className="d-flex align-items-center justify-content-center rounded-3 shadow-sm flex-shrink-0"
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  backgroundColor: '#6366f1',
+                  color: '#ffffff',
+                }}
+              >
+                <i className="fe fe-globe fs-4"></i>
+              </div>
+              <div>
+                <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                  <h6 className="mb-0 fw-bold text-dark" style={{ fontSize: '15px' }}>
+                    Ortak İlan Alanları (Tüm İlanlarda Geçerli)
+                  </h6>
+                  <Badge bg="primary" style={{ fontSize: '11px', fontWeight: 600, padding: '4px 8px' }}>
+                    Genel Alanlar
+                  </Badge>
+                </div>
+                <small className="text-muted">
+                  Açık Adres ve tüm ilan kategorilerinde ortak kullanılan alanları buradan yönetebilir, zorunluluğunu değiştirebilir veya kaldırabilirsiniz.
+                </small>
+              </div>
+            </div>
+            <Button
+              variant="outline-primary"
+              className="fw-semibold d-flex align-items-center gap-2 flex-shrink-0"
+              style={{ borderRadius: '10px' }}
+              onClick={() => {
+                setPropertiesNode({
+                  identifier: 'c1000000-0000-4000-8000-000000000000',
+                  name: 'Ortak Alanlar (Tüm İlanlar)',
+                });
+              }}
+            >
+              <i className="fe fe-sliders"></i>
+              Ortak Alanları Yönet (Açık Adres vb.)
+            </Button>
+          </div>
+        </Card.Body>
+      </Card>
+
       {/* Main Tree Card */}
       <Card className="border-0 shadow-sm" style={{ borderRadius: '16px' }}>
         <Card.Body className="p-4">
@@ -567,8 +622,13 @@ export default function Categories() {
                       </div>,
                     ],
                     title: (
-                      <span>
+                      <span className="d-flex align-items-center gap-2">
                         <strong className="text-dark">{rowInfo.node.name}</strong>
+                        {rowInfo.node.slug === 'ortak-alanlar' || rowInfo.node.identifier === 'c1000000-0000-4000-8000-000000000000' ? (
+                          <Badge bg="primary" style={{ fontSize: '10px', padding: '3px 6px' }}>
+                            <i className="fe fe-globe me-1"></i> Tüm İlanlarda Ortak
+                          </Badge>
+                        ) : null}
                         {isDeleted && <Badge bg="danger" className="ms-2">Silinmiş / Pasif</Badge>}
                       </span>
                     ),
