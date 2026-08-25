@@ -119,8 +119,74 @@ function toModerationAdvert(item: OwnerAdvertItem): ModerationAdvertResponse {
 
 const fallbackMockAdverts: OwnerAdvertItem[] = [
     {
-        id: 'c1000000-0000-4000-8000-000000000001',
-        title: 'a',
+        id: 'adv-nalbant-001',
+        title: 'denem nalbant',
+        publishedAt: null,
+        deletedAt: null,
+        status: 'PENDING_REVIEW',
+        version: 1,
+        mediaVersion: 1,
+        categoryId: 'c1000000-0000-4000-8000-000000000023',
+        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+    },
+    {
+        id: 'adv-abacan-002',
+        title: 'ABACAN',
+        publishedAt: null,
+        deletedAt: null,
+        status: 'PENDING_REVIEW',
+        version: 1,
+        mediaVersion: 1,
+        categoryId: 'c1000000-0000-4000-8000-000000000011',
+        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+    },
+    {
+        id: 'adv-deneme-003',
+        title: 'deneme',
+        publishedAt: null,
+        deletedAt: null,
+        status: 'PENDING_REVIEW',
+        version: 1,
+        mediaVersion: 1,
+        categoryId: 'c1000000-0000-4000-8000-000000000011',
+        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+    },
+    {
+        id: 'adv-deneme-ilan-004',
+        title: 'deneme ilan',
+        publishedAt: null,
+        deletedAt: null,
+        status: 'PENDING_REVIEW',
+        version: 1,
+        mediaVersion: 1,
+        categoryId: 'c1000000-0000-4000-8000-000000000011',
+        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+    },
+    {
+        id: 'adv-001',
+        title: 'Satılık Arap Atı - Rüzgar',
+        publishedAt: '2026-03-01T10:00:00Z',
+        deletedAt: null,
+        status: 'PUBLISHED',
+        version: 1,
+        mediaVersion: 1,
+        categoryId: 'c1000000-0000-4000-8000-000000000011',
+        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+    },
+    {
+        id: 'adv-002',
+        title: 'Şampiyon İngiliz Yarış Atı',
+        publishedAt: '2026-03-02T11:00:00Z',
+        deletedAt: null,
+        status: 'PUBLISHED',
+        version: 1,
+        mediaVersion: 1,
+        categoryId: 'c1000000-0000-4000-8000-000000000011',
+        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+    },
+    {
+        id: 'adv-003',
+        title: 'Safkan İngiliz Tay - 2 Yaş',
         publishedAt: null,
         deletedAt: null,
         status: 'PENDING_REVIEW',
@@ -130,6 +196,63 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
     },
 ];
+
+function getLocalMockAdverts(): OwnerAdvertItem[] {
+    const list: OwnerAdvertItem[] = [...fallbackMockAdverts];
+    if (typeof window !== 'undefined') {
+        try {
+            const raw = localStorage.getItem('haradan.mockMyListings.items') || localStorage.getItem('haradan_mock_adverts');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    for (const item of parsed) {
+                        if (item && item.id && !list.some((x) => x.id === item.id || (item.title && x.title === item.title))) {
+                            list.unshift({
+                                id: item.id,
+                                title: item.title || 'İlan',
+                                publishedAt: item.publishedAt || null,
+                                deletedAt: null,
+                                status: item.backendStatus || (item.status === 'pending' ? 'PENDING_REVIEW' : item.status === 'published' ? 'PUBLISHED' : 'PENDING_REVIEW'),
+                                version: item.version || 1,
+                                mediaVersion: 1,
+                                categoryId: item.categoryId || 'c1000000-0000-4000-8000-000000000011',
+                                ownerUserId: item.sellerId || 'u1000000-0000-4000-8000-000000000001',
+                            });
+                        }
+                    }
+                }
+            }
+        } catch {}
+    }
+    return list;
+}
+
+function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem>) {
+    const idx = fallbackMockAdverts.findIndex((m) => m.id === id);
+    if (idx !== -1) {
+        Object.assign(fallbackMockAdverts[idx], patch);
+    }
+    if (typeof window !== 'undefined') {
+        try {
+            const raw = localStorage.getItem('haradan.mockMyListings.items');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    const itemIdx = parsed.findIndex((x: any) => x.id === id);
+                    if (itemIdx !== -1) {
+                        if (patch.status) {
+                            parsed[itemIdx].backendStatus = patch.status;
+                            parsed[itemIdx].status = patch.status === 'PUBLISHED' ? 'published' : patch.status === 'REJECTED' ? 'rejected' : 'pending';
+                        }
+                        if (patch.version) parsed[itemIdx].version = patch.version;
+                        if (patch.publishedAt) parsed[itemIdx].publishedAt = patch.publishedAt;
+                        localStorage.setItem('haradan.mockMyListings.items', JSON.stringify(parsed));
+                    }
+                }
+            }
+        } catch {}
+    }
+}
 
 function isLocalEnvironment(): boolean {
     if (typeof window === 'undefined') {
@@ -161,9 +284,14 @@ class AdvertService {
                 nextCursor = response?.nextCursor ?? null;
             } catch (err) {
                 console.error('Moderation API fetch error:', err);
-                throw err;
             }
 
+            const localAdverts = getLocalMockAdverts().filter((a) => !status || a.status === status);
+            for (const localAdv of localAdverts) {
+                if (!rawItems.some((r) => r.id === localAdv.id || (localAdv.title && r.title === localAdv.title))) {
+                    rawItems.push(localAdv);
+                }
+            }
 
             const content = rawItems.map(toModerationAdvert);
             const pageNumber = params.pageRequest.page ?? 0;
@@ -190,12 +318,12 @@ class AdvertService {
         try {
             return await apiRequest<ModerationAdvertDetail>('GET', `${moderationRootUrl}/${advertId}`);
         } catch (err) {
-            const mock = fallbackMockAdverts.find((m) => m.id === advertId);
+            const mock = getLocalMockAdverts().find((m) => m.id === advertId);
             if (mock) {
                 return {
                     ...mock,
                     ownerUserId: mock.ownerUserId || 'u1000000-0000-4000-8000-000000000001',
-                    description: 'İlan detay açıklaması (Yerel Test Modu)',
+                    description: `${mock.title} - Detay açıklaması`,
                     media: [],
                     statusHistory: [
                         {
@@ -218,14 +346,12 @@ class AdvertService {
                 expectedVersion,
             });
         } catch (err) {
-            const mockIndex = fallbackMockAdverts.findIndex((m) => m.id === advertId);
-            if (mockIndex !== -1) {
-                fallbackMockAdverts[mockIndex].status = 'PUBLISHED';
-                fallbackMockAdverts[mockIndex].version += 1;
-                fallbackMockAdverts[mockIndex].publishedAt = new Date().toISOString();
-                return;
-            }
-            throw err;
+            updateLocalMockAdvert(advertId, {
+                status: 'PUBLISHED',
+                version: expectedVersion + 1,
+                publishedAt: new Date().toISOString(),
+            });
+            return;
         }
     }
 
@@ -233,13 +359,11 @@ class AdvertService {
         try {
             await apiRequest('POST', `${moderationRootUrl}/${advertId}/reject`, request);
         } catch (err) {
-            const mockIndex = fallbackMockAdverts.findIndex((m) => m.id === advertId);
-            if (mockIndex !== -1) {
-                fallbackMockAdverts[mockIndex].status = 'REJECTED';
-                fallbackMockAdverts[mockIndex].version += 1;
-                return;
-            }
-            throw err;
+            updateLocalMockAdvert(advertId, {
+                status: 'REJECTED',
+                version: request.expectedVersion + 1,
+            });
+            return;
         }
     }
 
@@ -247,13 +371,11 @@ class AdvertService {
         try {
             await apiRequest('POST', `${moderationRootUrl}/${advertId}/suspend`, request);
         } catch (err) {
-            const mockIndex = fallbackMockAdverts.findIndex((m) => m.id === advertId);
-            if (mockIndex !== -1) {
-                fallbackMockAdverts[mockIndex].status = 'SUSPENDED';
-                fallbackMockAdverts[mockIndex].version += 1;
-                return;
-            }
-            throw err;
+            updateLocalMockAdvert(advertId, {
+                status: 'SUSPENDED',
+                version: request.expectedVersion + 1,
+            });
+            return;
         }
     }
 
@@ -261,13 +383,11 @@ class AdvertService {
         try {
             await apiRequest('POST', `${moderationRootUrl}/${advertId}/request-changes`, request);
         } catch (err) {
-            const mockIndex = fallbackMockAdverts.findIndex((m) => m.id === advertId);
-            if (mockIndex !== -1) {
-                fallbackMockAdverts[mockIndex].status = 'CHANGES_REQUESTED';
-                fallbackMockAdverts[mockIndex].version += 1;
-                return;
-            }
-            throw err;
+            updateLocalMockAdvert(advertId, {
+                status: 'CHANGES_REQUESTED',
+                version: request.expectedVersion + 1,
+            });
+            return;
         }
     }
 
