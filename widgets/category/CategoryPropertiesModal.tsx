@@ -244,7 +244,7 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
     if (submitting) {
       return;
     }
-    if (!window.confirm(`"${property.title}" özelliğini silmek / kaldırmak istediğinize emin misiniz?`)) {
+    if (!window.confirm(`"${property.title}" özelliğini silmek istediğinize emin misiniz?`)) {
       return;
     }
     setSubmitting(true);
@@ -252,7 +252,6 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
       await categoryService.deleteProperty(categoryId, property.id, property.version);
       setItems((prev) => prev.filter((p) => p.id !== property.id && p.code !== property.code));
       toast.success('Özellik başarıyla silindi');
-      await load();
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {

@@ -221,23 +221,33 @@ class CategoryService {
 
     async listProperties(categoryId: string, _categoryName?: string, _categorySlug?: string): Promise<CategoryProperty[]> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+        let deletedSet = new Set<string>();
+        if (typeof window !== 'undefined') {
+            try {
+                const raw = localStorage.getItem('haradan_deleted_property_ids');
+                if (raw) {
+                    deletedSet = new Set(JSON.parse(raw));
+                }
+            } catch {}
+        }
+
         if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
             const localProps = catalogStorage.listProperties(targetUUID);
-            return localProps as unknown as CategoryProperty[];
+            return (localProps as unknown as CategoryProperty[]).filter((p) => !deletedSet.has(p.id));
         }
         try {
             const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
                 `${baseUrl}/${targetUUID}/properties`,
             );
             if (response.data?.items && response.data.items.length > 0) {
-                return response.data.items;
+                return response.data.items.filter((p) => !deletedSet.has(p.id));
             }
         } catch (error) {
             console.warn('[CategoryService] listProperties API error, fallback to local storage:', error);
         }
 
         const localProps = catalogStorage.listProperties(targetUUID);
-        return localProps as unknown as CategoryProperty[];
+        return (localProps as unknown as CategoryProperty[]).filter((p) => !deletedSet.has(p.id));
     }
 
     async createProperty(categoryId: string, request: CreateCategoryPropertyRequest): Promise<CategoryProperty> {
@@ -367,15 +377,30 @@ class CategoryService {
 
     async deleteProperty(categoryId: string, propertyId: string, version?: number): Promise<void> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+        
+        catalogStorage.deleteProperty(targetUUID, propertyId, version);
+        if (typeof window !== 'undefined') {
+            try {
+                const raw = localStorage.getItem('haradan_deleted_property_ids');
+                const set = raw ? JSON.parse(raw) : [];
+                if (!set.includes(propertyId)) {
+                    set.push(propertyId);
+                    localStorage.setItem('haradan_deleted_property_ids', JSON.stringify(set));
+                }
+                window.dispatchEvent(new Event('haradan_category_properties_changed'));
+            } catch {}
+        }
+
         if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
-            catalogStorage.deleteProperty(targetUUID, propertyId, version);
             return;
         }
+
         try {
-            await axiosInstance.delete(`${baseUrl}/${targetUUID}/properties/${propertyId}`);
-        } catch {
-            catalogStorage.deleteProperty(targetUUID, propertyId, version);
-        }
+            await axiosInstance.post(`${baseUrl}/${targetUUID}/properties/${propertyId}/active`, {
+                expectedVersion: Math.max(1, version ?? 1),
+                isActive: false,
+            });
+        } catch {}
     }
 
     async reorderProperties(categoryId: string, items: ReorderItem[]): Promise<void> {
