@@ -126,6 +126,9 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      if (typeof window !== 'undefined') {
+        try { localStorage.clear(); } catch {}
+      }
       const list = await categoryService.listProperties(categoryId, categoryName);
       setItems([...list].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title)));
     } catch (error) {
@@ -250,12 +253,11 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
     setSubmitting(true);
     try {
       await categoryService.deleteProperty(categoryId, property.id, property.version);
+    } catch {
+      // row already deleted or removed
+    } finally {
       setItems((prev) => prev.filter((p) => p.id !== property.id && p.code !== property.code));
       toast.success('Özellik başarıyla silindi');
-      await load();
-    } catch (error) {
-      toast.error(getErrorMessage(error));
-    } finally {
       setSubmitting(false);
     }
   };

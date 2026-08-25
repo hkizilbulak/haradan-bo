@@ -225,12 +225,12 @@ export default function Categories() {
     try {
       const nodesToDelete = collectAllNodesToDelete(nodeToDelete);
       for (const item of nodesToDelete) {
-        await categoryService._delete(item.identifier, item.version);
+        await categoryService.hardDelete(item.identifier);
       }
-      toast.info(
+      toast.success(
         nodesToDelete.length > 1
-          ? `Kategori ve bağlı ${nodesToDelete.length - 1} alt kategori başarıyla silindi (pasife alındı).`
-          : "Kategori silindi (pasife alındı)."
+          ? `Kategori ve bağlı ${nodesToDelete.length - 1} alt kategori veritabanından kalıcı olarak silindi.`
+          : "Kategori veritabanından kalıcı olarak silindi."
       );
       setDeleteModalOpen(false);
       setNodeToDelete(null);
@@ -270,6 +270,28 @@ export default function Categories() {
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error));
+    }
+  }
+
+  async function hardDeleteNode(rowInfo: GenerateNodePropsParams) {
+    const { node } = rowInfo;
+    if (!node || !node.identifier) return;
+    if (
+      !window.confirm(
+        `"${node.name}" kategorisini ve altındaki tüm özellikleri VERİTABANINDAN KALICI OLARAK silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz!`
+      )
+    ) {
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await categoryService.hardDelete(node.identifier);
+      toast.success(`"${node.name}" kategorisi veritabanından kalıcı olarak silindi.`);
+      refetch();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -554,15 +576,26 @@ export default function Categories() {
                             </Button>
                           </>
                         ) : (
-                          <Button
-                            size="sm"
-                            variant="success"
-                            className="py-0 px-2 fw-semibold"
-                            title="Tekrar Aktif Et"
-                            onClick={() => restoreNode(rowInfo)}
-                          >
-                            <i className="fe fe-refresh-cw me-1"></i> Geri Yükle
-                          </Button>
+                          <div className="d-flex align-items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="success"
+                              className="py-0 px-2 fw-semibold"
+                              title="Tekrar Aktif Et"
+                              onClick={() => restoreNode(rowInfo)}
+                            >
+                              <i className="fe fe-refresh-cw me-1"></i> Geri Yükle
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              className="py-0 px-2 fw-semibold"
+                              title="Veritabanından Kalıcı Olarak Sil"
+                              onClick={() => hardDeleteNode(rowInfo)}
+                            >
+                              <i className="fe fe-trash-2 me-1"></i> Kalıcı Sil
+                            </Button>
+                          </div>
                         )}
                       </div>,
                     ],
@@ -654,7 +687,7 @@ export default function Categories() {
                 <div>
                   <strong className="text-warning-emphasis d-block mb-1">Dikkat: Alt kategoriler de silinecek</strong>
                   <span className="small text-dark-emphasis">
-                    Bu kategorinin altında <strong>{nodeToDelete.children.length} adet alt kategori</strong> bulunmaktadır. Bu ana kategoriyi silerseniz bağlı olan tüm alt kategoriler de otomatik olarak silinecektir (pasife alınacaktır).
+                    Bu kategorinin altında <strong>{nodeToDelete.children.length} adet alt kategori</strong> bulunmaktadır. Bu ana kategoriyi silerseniz bağlı olan tüm alt kategoriler de veritabanından kalıcı olarak silinecektir.
                   </span>
                 </div>
               </div>

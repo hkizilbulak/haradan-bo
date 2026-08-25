@@ -148,11 +148,28 @@ func resolveBackendURL() string {
 	if backendURL == "" {
 		backendURL = strings.TrimRight(os.Getenv("NEXT_PUBLIC_API_URL"), "/")
 	}
-	// Localhost fallback keeps local `go run` usable without env; production must set BACKEND_API_URL.
-	// APP_ENV is unused here — do not invent environment detection.
+	if backendURL == "" {
+		// Read from .env or .env.local if present
+		for _, envFile := range []string{".env.local", ".env"} {
+			if content, err := os.ReadFile(envFile); err == nil {
+				for _, line := range strings.Split(string(content), "\n") {
+					line = strings.TrimSpace(line)
+					if strings.HasPrefix(line, "BACKEND_API_URL=") {
+						backendURL = strings.TrimRight(strings.TrimPrefix(line, "BACKEND_API_URL="), "/")
+						break
+					}
+				}
+				if backendURL != "" {
+					break
+				}
+			}
+		}
+	}
 	if backendURL == "" {
 		backendURL = "http://localhost:8080"
 		log.Printf("WARNING: BACKEND_API_URL not set; falling back to %s. Production must set BACKEND_API_URL.", backendURL)
+	} else {
+		log.Printf("Using BACKEND_API_URL: %s", backendURL)
 	}
 	return backendURL
 }
@@ -586,6 +603,10 @@ func (s *appServer) doBackendJSONRequest(ctx context.Context, method string, tar
 }
 
 func (s *appServer) serveStatic(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
 	urlPath := strings.TrimPrefix(r.URL.Path, "/")
 	if urlPath == "" {
 		urlPath = "index.html"
