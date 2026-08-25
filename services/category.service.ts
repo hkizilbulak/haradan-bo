@@ -853,10 +853,10 @@ class CategoryService {
         }
 
         if (backendItems.length > 0) {
-            const merged = mergeWithDefaults(backendItems);
-            this.localProperties[categoryId] = merged;
-            this.saveStoredProperties(categoryId, merged);
-            return merged;
+            const filtered = filterDeleted(backendItems);
+            this.localProperties[categoryId] = filtered;
+            this.saveStoredProperties(categoryId, filtered);
+            return filtered;
         }
 
         const stored = this.getStoredProperties(categoryId);
@@ -1233,7 +1233,6 @@ class CategoryService {
         const items: AdminCategoryItem[] = [];
         let cursor: string | undefined;
         let hasMore = true;
-        const deletedCatSet = this.getDeletedCategoryIds();
 
         try {
             while (hasMore) {
@@ -1248,31 +1247,14 @@ class CategoryService {
                 cursor = response.data?.nextCursor;
             }
             if (items.length > 0) {
-                items.forEach((item) => {
-                    if (deletedCatSet.has(item.id) || (item.slug && deletedCatSet.has(item.slug))) {
-                        item.isActive = false;
-                    }
-                    const idx = this.localCategories.findIndex((c) => c.id === item.id || c.slug === item.slug);
-                    if (idx >= 0) {
-                        this.localCategories[idx] = { ...this.localCategories[idx], ...item };
-                        if (deletedCatSet.has(item.id) || (item.slug && deletedCatSet.has(item.slug))) {
-                            this.localCategories[idx].isActive = false;
-                        }
-                    } else {
-                        this.localCategories.push(item);
-                    }
-                });
-                return items.map((it) => {
-                    if (deletedCatSet.has(it.id) || (it.slug && deletedCatSet.has(it.slug))) {
-                        return { ...it, isActive: false };
-                    }
-                    return it;
-                });
+                this.localCategories = items;
+                return items;
             }
         } catch {
-            // fallback
+            // fallback to localCategories when offline
         }
 
+        const deletedCatSet = this.getDeletedCategoryIds();
         return this.localCategories.map((it) => {
             if (deletedCatSet.has(it.id) || (it.slug && deletedCatSet.has(it.slug))) {
                 return { ...it, isActive: false };
