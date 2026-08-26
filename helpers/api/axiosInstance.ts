@@ -21,16 +21,18 @@ export function getBackendBaseUrl(): string {
   if (custom) {
     return custom.replace(/\/+$/, '');
   }
-  return 'http://localhost:8080';
+  return 'https://haradan-be-production.up.railway.app';
 }
 
 axiosInstance.interceptors.request.use(
   async (config) => {
     if (config.url) {
       config.url = config.url.replace(/^\/api\/api\//, '/api/');
-      const proxyUrl = process.env.NEXT_PUBLIC_DEV_PROXY_URL;
-      if (typeof window !== 'undefined' && proxyUrl && config.url.startsWith('/api/')) {
-        config.url = proxyUrl + config.url;
+      const base = getBackendBaseUrl();
+      if (config.url.startsWith('/api/')) {
+        config.url = base + config.url;
+      } else if (!/^https?:\/\//i.test(config.url)) {
+        config.url = base + (config.url.startsWith('/') ? '' : '/') + config.url;
       }
     }
 

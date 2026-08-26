@@ -11,15 +11,35 @@ const apiClient = axios.create({
   withCredentials: true,
 });
 
+import { getBackendBaseUrl } from './axiosInstance';
+
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
     if (config.url) {
       config.url = config.url.replace(/^\/api\/api\//, '/api/');
-      const proxyUrl = process.env.NEXT_PUBLIC_DEV_PROXY_URL;
-      if (typeof window !== 'undefined' && proxyUrl && config.url.startsWith('/api/')) {
-        config.url = proxyUrl + config.url;
+      const base = getBackendBaseUrl();
+      if (config.url.startsWith('/api/')) {
+        config.url = base + config.url;
+      } else if (!/^https?:\/\//i.test(config.url)) {
+        config.url = base + (config.url.startsWith('/') ? '' : '/') + config.url;
       }
     }
+
+    if (typeof window !== 'undefined') {
+      try {
+        const token =
+          localStorage.getItem('token') ||
+          localStorage.getItem('accessToken') ||
+          localStorage.getItem('auth_token') ||
+          localStorage.getItem('haradan_admin_token') ||
+          sessionStorage.getItem('token') ||
+          sessionStorage.getItem('accessToken');
+        if (token && config.headers && !config.headers.Authorization) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      } catch {}
+    }
+
     return config;
   },
   (error) => Promise.reject(error),
