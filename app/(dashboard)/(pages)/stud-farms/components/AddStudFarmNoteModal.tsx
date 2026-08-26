@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Spinner } from 'react-bootstrap';
 import { studFarmService } from '@/services/StudFarmService';
 import { toast } from 'react-toastify';
@@ -10,13 +10,33 @@ interface Props {
     onHide: () => void;
     studFarmId: string;
     onSuccess: () => void;
+    existingNote?: {
+        id: string;
+        interview_date: string;
+        interviewer_name: string;
+        notes: string;
+    } | null;
 }
 
-export default function AddStudFarmNoteModal({ show, onHide, studFarmId, onSuccess }: Props) {
+export default function AddStudFarmNoteModal({ show, onHide, studFarmId, onSuccess, existingNote }: Props) {
     const [interviewDate, setInterviewDate] = useState('');
     const [interviewerName, setInterviewerName] = useState('');
     const [notes, setNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (show && existingNote) {
+            // Pre-fill for edit
+            setInterviewDate(existingNote.interview_date ? existingNote.interview_date.split('T')[0] : '');
+            setInterviewerName(existingNote.interviewer_name || '');
+            setNotes(existingNote.notes || '');
+        } else if (show) {
+            // Reset for new
+            setInterviewDate('');
+            setInterviewerName('');
+            setNotes('');
+        }
+    }, [show, existingNote]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -32,12 +52,21 @@ export default function AddStudFarmNoteModal({ show, onHide, studFarmId, onSucce
             const dateObj = new Date(interviewDate);
             const formattedDate = dateObj.toISOString();
 
-            await studFarmService.addStudFarmNote(studFarmId, {
-                interview_date: formattedDate,
-                interviewer_name: interviewerName,
-                notes: notes
-            });
-            toast.success("Görüşme kaydı başarıyla eklendi.");
+            if (existingNote) {
+                await studFarmService.updateStudFarmNote(studFarmId, existingNote.id, {
+                    interview_date: formattedDate,
+                    interviewer_name: interviewerName,
+                    notes: notes
+                });
+                toast.success("Görüşme kaydı başarıyla güncellendi.");
+            } else {
+                await studFarmService.addStudFarmNote(studFarmId, {
+                    interview_date: formattedDate,
+                    interviewer_name: interviewerName,
+                    notes: notes
+                });
+                toast.success("Görüşme kaydı başarıyla eklendi.");
+            }
             
             // Reset form
             setInterviewDate('');
@@ -57,7 +86,7 @@ export default function AddStudFarmNoteModal({ show, onHide, studFarmId, onSucce
     return (
         <Modal show={show} onHide={onHide} centered>
             <Modal.Header closeButton>
-                <Modal.Title>Yeni Görüşme Ekle</Modal.Title>
+                <Modal.Title>{existingNote ? 'Görüşme Düzenle' : 'Yeni Görüşme Ekle'}</Modal.Title>
             </Modal.Header>
             <Form onSubmit={handleSubmit}>
                 <Modal.Body>

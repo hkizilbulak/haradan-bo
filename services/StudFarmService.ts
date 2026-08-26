@@ -86,6 +86,17 @@ export const studFarmService = {
         } as StudFarm;
     },
 
+    
+    updateStudFarm: async (id: string, data: Partial<StudFarm>): Promise<void> => {
+        const payload = {
+            first_name: data.firstName,
+            last_name: data.lastName,
+            email: data.email,
+            phone: data.phone,
+            location: data.location,
+        };
+        await axiosInstance.put(`${baseUrl}/${id}`, payload);
+    },
     deleteStudFarm: async (id: string): Promise<void> => {
         await axiosInstance.delete(`${baseUrl}/${id}`);
     },
@@ -97,5 +108,13 @@ export const studFarmService = {
     listStudFarmNotes: async (studFarmId: string): Promise<any[]> => {
         const response = await axiosInstance.get(`${baseUrl}/${studFarmId}/notes`);
         return response.data.items || [];
+    },
+
+    deleteStudFarmNote: async (studFarmId: string, noteId: string): Promise<void> => {
+        await axiosInstance.delete(`${baseUrl}/${studFarmId}/notes/${noteId}`);
+    },
+
+    updateStudFarmNote: async (studFarmId: string, noteId: string, payload: any): Promise<void> => {
+        await axiosInstance.put(`${baseUrl}/${studFarmId}/notes/${noteId}`, payload);
     }
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form } from 'react-bootstrap';
 import { studFarmService } from '@/services';
 import { toast } from 'react-toastify';
@@ -8,10 +8,24 @@ interface AddStudFarmModalProps {
     show: boolean;
     onHide: () => void;
     onSuccess: (newStudFarm: StudFarm) => void;
+    existingStudFarm?: StudFarm | null;
 }
 
-export default function AddStudFarmModal({ show, onHide, onSuccess }: AddStudFarmModalProps) {
+export default function AddStudFarmModal({ show, onHide, onSuccess, existingStudFarm }: AddStudFarmModalProps) {
     const [loading, setLoading] = useState(false);
+    
+    useEffect(() => {
+        if (show && existingStudFarm) {
+            setFormData({
+                firstName: existingStudFarm.firstName || '',
+                lastName: existingStudFarm.lastName || '',
+                email: existingStudFarm.email || '',
+                phone: existingStudFarm.phone || '',
+                location: existingStudFarm.location || ''
+            });
+        }
+    }, [show, existingStudFarm]);
+
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -31,22 +45,30 @@ export default function AddStudFarmModal({ show, onHide, onSuccess }: AddStudFar
         e.preventDefault();
         
         if (!formData.firstName || !formData.lastName || !formData.email) {
-            toast.error("İsim, Soyisim ve E-posta alanları zorunludur.");
+            toast.error("Hara Adı, Hara Sorumlusu Ad Soyadı ve E-posta alanları zorunludur.");
             return;
         }
 
+
         try {
             setLoading(true);
-            const res = await studFarmService.createStudFarm(formData);
-            toast.success("Hara başarıyla eklendi.");
-            onSuccess(res);
+            if (existingStudFarm) {
+                await studFarmService.updateStudFarm(existingStudFarm.id, formData);
+                toast.success("Hara başarıyla güncellendi.");
+                onSuccess({ ...existingStudFarm, ...formData } as StudFarm);
+            } else {
+                const res = await studFarmService.createStudFarm(formData);
+                toast.success("Hara başarıyla eklendi.");
+                onSuccess(res);
+            }
             handleClose();
         } catch (error: any) {
-            const errorMsg = error?.response?.data?.message || "Hara eklenirken bir hata oluştu.";
+            const errorMsg = error?.response?.data?.message || "İşlem sırasında bir hata oluştu.";
             toast.error(errorMsg);
         } finally {
             setLoading(false);
         }
+
     };
 
     const handleClose = () => {
@@ -64,15 +86,15 @@ export default function AddStudFarmModal({ show, onHide, onSuccess }: AddStudFar
         <Modal show={show} onHide={handleClose} centered>
             <Form onSubmit={handleSubmit}>
                 <Modal.Header closeButton>
-                    <Modal.Title>Yeni Hara Ekle</Modal.Title>
+                    <Modal.Title>{existingStudFarm ? 'Hara Düzenle' : 'Yeni Hara Ekle'}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form.Group className="mb-3">
-                        <Form.Label>İsim <span className="text-danger">*</span></Form.Label>
+                        <Form.Label>Hara Adı <span className="text-danger">*</span></Form.Label>
                         <Form.Control
                             type="text"
                             name="firstName"
-                            placeholder="Ad giriniz"
+                            placeholder="Hara Adı giriniz"
                             value={formData.firstName}
                             onChange={handleChange}
                             required
@@ -80,11 +102,11 @@ export default function AddStudFarmModal({ show, onHide, onSuccess }: AddStudFar
                     </Form.Group>
                     
                     <Form.Group className="mb-3">
-                        <Form.Label>Soyad <span className="text-danger">*</span></Form.Label>
+                        <Form.Label>Hara Sorumlusu Ad Soyadı <span className="text-danger">*</span></Form.Label>
                         <Form.Control
                             type="text"
                             name="lastName"
-                            placeholder="Soyad giriniz"
+                            placeholder="Ad Soyad giriniz"
                             value={formData.lastName}
                             onChange={handleChange}
                             required

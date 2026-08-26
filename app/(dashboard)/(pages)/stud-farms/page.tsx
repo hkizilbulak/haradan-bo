@@ -8,7 +8,7 @@ import { studFarmService } from '@/services';
 import CursorPagination from '@/components/CursorPagination';
 import { Skeleton } from '@/components/Skeleton';
 import { Col, Row, Container, Card, Table, Button, Alert, Form } from 'react-bootstrap';
-import { Trash2, Plus, ChevronDown, ChevronUp } from 'react-feather';
+import { Trash2, Plus, ChevronDown, ChevronUp, Edit } from 'react-feather';
 import AddStudFarmModal from './components/AddStudFarmModal';
 import AddStudFarmNoteModal from './components/AddStudFarmNoteModal';
 import DeleteModal from '@/components/DeleteModal';
@@ -22,6 +22,7 @@ export default function StudFarms() {
     });
 
     const [showAddModal, setShowAddModal] = useState(false);
+    const [editStudFarm, setEditStudFarm] = useState<StudFarm | null>(null);
     const [showNoteModal, setShowNoteModal] = useState(false);
     const [selectedStudFarmId, setSelectedStudFarmId] = useState<string | null>(null);
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
@@ -122,10 +123,11 @@ export default function StudFarms() {
                                     <thead style={{ backgroundColor: '#f4f5f7' }}>
                                         <tr>
                                             <th style={{ width: '40px' }}></th>
-                                            <th className="text-muted fw-semibold">Ad Soyad</th>
+                                            <th className="text-muted fw-semibold">Hara Adı</th>
+                                            <th className="text-muted fw-semibold">Hara Sorumlusu Ad Soyadı</th>
                                             <th className="text-muted fw-semibold">E-Posta</th>
                                             <th className="text-muted fw-semibold">Telefon</th>
-                                            <th className="text-muted fw-semibold">Konum</th>
+                                            <th className="text-muted fw-semibold" style={{ maxWidth: '37ch' }}>Konum</th>
                                             <th className="text-muted fw-semibold">Görüşme Sayısı</th>
                                             <th className="text-muted fw-semibold">Eklenme Tarihi</th>
                                             <th className="text-end text-muted fw-semibold" style={{ paddingRight: '24px' }}>İşlemler</th>
@@ -136,6 +138,7 @@ export default function StudFarms() {
                                             Array.from({ length: 5 }).map((_, rowIdx) => (
                                                 <tr key={`sk-row-${rowIdx}`}>
                                                     <td></td>
+                                                    <td><Skeleton width="75%" height="1rem" /></td>
                                                     <td><Skeleton width="75%" height="1rem" /></td>
                                                     <td><Skeleton width="60%" height="1rem" /></td>
                                                     <td><Skeleton width="50%" height="1rem" /></td>
@@ -161,47 +164,69 @@ export default function StudFarms() {
                                                                 </span>
                                                             </td>
                                                             <td className="fw-medium text-dark">
-                                                                {capitalizeSentence(item.firstName + ' ' + item.lastName)}
+                                                                {capitalizeSentence(item.firstName)}
+                                                            </td>
+                                                            <td className="fw-medium text-dark">
+                                                                {capitalizeSentence(item.lastName)}
                                                             </td>
                                                             <td>{item.email}</td>
                                                             <td>{item.phone || '-'}</td>
-                                                            <td>{item.location || '-'}</td>
+                                                            <td style={{ maxWidth: '37ch', whiteSpace: 'normal', wordWrap: 'break-word' }}>{item.location || '-'}</td>
                                                             <td>{item.interviewCount || 0}</td>
                                                             <td>{formatDateForText(item.createdAt)}</td>
                                                             <td className="text-end" style={{ paddingRight: '24px' }}>
-                                                                <Button
-                                                                    variant="light"
-                                                                    size="sm"
-                                                                    className="me-2 text-danger border-0"
-                                                                    style={{ padding: '4px 8px' }}
-                                                                    title="Sil"
-                                                                    onClick={() => setDeleteStudFarmId(item.id)}
-                                                                >
-                                                                    <Trash2 size={16} />
-                                                                </Button>
-                                                                <Button
-                                                                    variant="success"
-                                                                    size="sm"
-                                                                    title="Görüşme Ekle"
-                                                                    className="text-white border-0"
-                                                                    style={{ padding: '4px 8px' }}
-                                                                    onClick={() => {
-                                                                        setSelectedStudFarmId(item.id);
-                                                                        setShowNoteModal(true);
-                                                                    }}
-                                                                >
-                                                                    <Plus size={16} />
-                                                                </Button>
+                                                                <div className="d-flex justify-content-end align-items-center gap-2">
+                                                                    <Button
+                                                                        variant="success"
+                                                                        size="sm"
+                                                                        title="Görüşme Ekle"
+                                                                        className="text-white border-0 d-flex align-items-center justify-content-center"
+                                                                        style={{ padding: '4px 8px', height: '32px' }}
+                                                                        onClick={() => {
+                                                                            setSelectedStudFarmId(item.id);
+                                                                            setShowNoteModal(true);
+                                                                        }}
+                                                                    >
+                                                                        <Plus size={16} />
+                                                                    </Button>
+                                                                    <Button 
+                                                                        variant="light" 
+                                                                        size="sm" 
+                                                                        title="Hara Düzenle"
+                                                                        className="bg-white border d-flex align-items-center justify-content-center"
+                                                                        style={{ width: '32px', height: '32px', padding: 0 }}
+                                                                        onClick={() => {
+                                                                            setEditStudFarm(item);
+                                                                            setShowAddModal(true);
+                                                                        }}
+                                                                    >
+                                                                        <Edit size={16} className="text-secondary" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="light"
+                                                                        size="sm"
+                                                                        className="text-danger border-0 d-flex align-items-center justify-content-center"
+                                                                        style={{ padding: '4px 8px', height: '32px' }}
+                                                                        title="Sil"
+                                                                        onClick={() => setDeleteStudFarmId(item.id)}
+                                                                    >
+                                                                        <Trash2 size={16} />
+                                                                    </Button>
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                         
                                                         {isExpanded && (
                                                             <tr>
-                                                                <td colSpan={8} className="p-0 border-0">
+                                                                <td colSpan={9} className="p-0 border-0">
                                                                     <div className="bg-white">
                                                                         <StudFarmNotesTimeline 
                                                                             studFarmId={item.id} 
                                                                             refreshTrigger={notesRefreshTrigger}
+                                                                            onNoteDeleted={() => {
+                                                                                setNotesRefreshTrigger(prev => prev + 1);
+                                                                                refetch({ silent: true });
+                                                                            }}
                                                                         />
                                                                     </div>
                                                                 </td>
@@ -212,7 +237,7 @@ export default function StudFarms() {
                                             })
                                         ) : (
                                             <tr>
-                                                <td colSpan={8} className="text-center py-4 text-muted">
+                                                <td colSpan={9} className="text-center py-4 text-muted">
                                                     Henüz kayıt bulunamadı.
                                                 </td>
                                             </tr>
@@ -239,8 +264,9 @@ export default function StudFarms() {
 
             <AddStudFarmModal 
                 show={showAddModal} 
-                onHide={() => setShowAddModal(false)} 
+                onHide={() => { setShowAddModal(false); setEditStudFarm(null); }} 
                 onSuccess={() => refetch({ silent: true })} 
+                existingStudFarm={editStudFarm}
             />
             {selectedStudFarmId && (
                 <AddStudFarmNoteModal 
