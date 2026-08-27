@@ -352,21 +352,6 @@ class CategoryService {
                 } catch (err) {
                     console.warn(`[CategoryService] Failed to create property ${dp.code}:`, err);
                 }
-            } else if (dp.initialActive === false) {
-                // Eğer daha önceden var ama aktifse, ilk kural olarak pasife al
-                const current = existingProps.find(
-                    (p) => String(p.code || '').toUpperCase() === codeUpper
-                );
-                if (current && current.isActive) {
-                    try {
-                        await this.setPropertyActive(
-                            catId,
-                            current.id,
-                            current.version || 1,
-                            false
-                        );
-                    } catch {}
-                }
             }
         }
 
