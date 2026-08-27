@@ -24,6 +24,7 @@ const DATA_TYPES: PropertyDataType[] = [
 type Props = {
   categoryId: string;
   categoryName: string;
+  parentId?: string | null;
   onClose: () => void;
 };
 
@@ -78,7 +79,7 @@ function optionValueFromLabel(label: string): string {
   s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   s = s.replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '').replace(/_+/g, '_');
   if (!s) {
-    s = 'OPTION';
+    return 'OPTION';
   }
   if (s.length > 64) {
     s = s.slice(0, 64).replace(/_+$/, '');
@@ -115,8 +116,9 @@ function optionsFromProperty(property: CategoryProperty): OptionRow[] {
   });
 }
 
-export default function CategoryPropertiesModal({ categoryId, categoryName, onClose }: Props) {
+export default function CategoryPropertiesModal({ categoryId, categoryName, parentId, onClose }: Props) {
   const [items, setItems] = useState<CategoryProperty[]>([]);
+  const [parentItems, setParentItems] = useState<CategoryProperty[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -128,18 +130,29 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
     try {
       const list = await categoryService.listProperties(categoryId, categoryName);
       setItems([...list].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title)));
+
+      if (parentId && parentId !== categoryId && parentId !== 'c1000000-0000-4000-8000-000000000000') {
+        try {
+          const parentList = await categoryService.listProperties(parentId);
+          setParentItems([...parentList].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title)));
+        } catch {
+          setParentItems([]);
+        }
+      } else {
+        setParentItems([]);
+      }
     } catch (error) {
       toast.error(getErrorMessage(error));
       setItems([]);
+      setParentItems([]);
     } finally {
       setLoading(false);
     }
-  }, [categoryId, categoryName]);
+  }, [categoryId, categoryName, parentId]);
 
   useEffect(() => {
     void load();
   }, [load]);
-
 
   const openCreate = () => {
     setEditing(null);
@@ -321,7 +334,10 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
         </Modal.Header>
         <Modal.Body>
           <div className="d-flex justify-content-between align-items-center mb-3">
-            <span className="text-muted small">İlan formunda ve filtrelerde kullanılacak alanlar</span>
+            <div>
+              <h6 className="mb-0 fw-bold">Bu Kategoriye Özel Alanlar</h6>
+              <span className="text-muted small">Bu alt kategoriye doğrudan tanımlanan ve öncelikli olan alanlar</span>
+            </div>
             <Button size="sm" variant="primary" onClick={openCreate} disabled={submitting}>
               + Yeni Özellik Ekle
             </Button>
@@ -334,13 +350,16 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
           )}
 
           {!loading && items.length === 0 && (
-            <div className="text-center text-muted py-4 border rounded bg-light">
-              Bu kategori için henüz özellik tanımlanmamış. İlk özelliği ekleyebilirsiniz.
+            <div className="text-center text-muted py-3 border rounded bg-light mb-4">
+              Bu kategori için henüz doğrudan bir özellik tanımlanmamış.
+              {parentItems.length > 0
+                ? ' Üst kategoriden miras alınan aşağıdaki özellikler geçerlidir.'
+                : ' İlk özelliği ekleyebilirsiniz.'}
             </div>
           )}
 
           {!loading && items.length > 0 && (
-            <Table responsive hover size="sm" className="align-middle mb-0">
+            <Table responsive hover size="sm" className="align-middle mb-4">
               <thead>
                 <tr>
                   <th>Alan Adı</th>
@@ -417,6 +436,62 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, onCl
                 ))}
               </tbody>
             </Table>
+          )}
+
+          {!loading && parentItems.length > 0 && (
+            <div className="mt-4 pt-3 border-top">
+              <div className="d-flex align-items-center gap-2 mb-2">
+                <h6 className="mb-0 fw-bold text-dark">Üst Kategoriden Miras Alınan Alanlar</h6>
+                <Badge bg="info" className="text-dark">
+                  Miras Alındı ({parentItems.length})
+                </Badge>
+              </div>
+              <p className="text-muted small mb-3">
+                Bu özellikler üst kategoriden otomatik olarak bu alt kategoriye ve frontend filtrelerine aktarılır.
+              </p>
+              <Table responsive size="sm" className="align-middle mb-0 table-striped">
+                <thead>
+                  <tr className="text-muted small">
+                    <th>Alan Adı</th>
+                    <th>Alan Türü</th>
+                    <th>Zorunlu</th>
+                    <th>Kaynak</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parentItems.map((pItem) => {
+                    const isOverridden = items.some(
+                      (it) => it.code === pItem.code || it.title.toLowerCase() === pItem.title.toLowerCase()
+                    );
+                    return (
+                      <tr key={pItem.id} style={{ opacity: isOverridden ? 0.5 : 1 }}>
+                        <td className="fw-semibold">
+                          {pItem.title}
+                          {isOverridden && (
+                            <Badge bg="warning" text="dark" className="ms-2">
+                              Bu kategoride özelleştirildi
+                            </Badge>
+                          )}
+                        </td>
+                        <td>{getPropertyDataTypeText(pItem.dataType)}</td>
+                        <td>
+                          {pItem.isRequired ? (
+                            <Badge bg="danger">Zorunlu</Badge>
+                          ) : (
+                            <span className="text-muted small">İsteğe Bağlı</span>
+                          )}
+                        </td>
+                        <td>
+                          <Badge bg="secondary" className="bg-opacity-50 text-dark">
+                            Üst Kategori
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </div>
           )}
         </Modal.Body>
         <Modal.Footer>

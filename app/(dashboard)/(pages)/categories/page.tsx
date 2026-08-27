@@ -736,6 +736,7 @@ export default function Categories() {
         <CategoryPropertiesModal
           categoryId={propertiesNode.identifier}
           categoryName={String(propertiesNode.name ?? '')}
+          parentId={propertiesNode.parentId ? String(propertiesNode.parentId) : undefined}
           onClose={() => setPropertiesNode(null)}
         />
       )}
