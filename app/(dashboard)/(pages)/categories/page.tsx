@@ -99,6 +99,11 @@ export default function Categories() {
   const [searchFoundCount, setSearchFoundCount] = useState<number>(0);
   const [treeData, setTreeData] = useState<TreeItem[]>([]);
 
+  useEffect(() => {
+    // Sayfa açıldığında ortak alanların backend'de tam ve eksiksiz olduğunu doğrula
+    void categoryService.ensureGlobalCategory();
+  }, []);
+
   const handleNameChange = (val: string) => {
     setCategoryName(val);
     setSlug(slugify(val));
@@ -469,9 +474,10 @@ export default function Categories() {
               variant="outline-primary"
               className="fw-semibold d-flex align-items-center gap-2 flex-shrink-0"
               style={{ borderRadius: '10px' }}
-              onClick={() => {
+              onClick={async () => {
+                const realId = await categoryService.ensureGlobalCategory();
                 setPropertiesNode({
-                  identifier: 'c1000000-0000-4000-8000-000000000000',
+                  identifier: realId || 'c1000000-0000-4000-8000-000000000000',
                   name: 'Ortak Alanlar (Tüm İlanlar)',
                 });
               }}

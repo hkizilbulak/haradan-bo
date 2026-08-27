@@ -219,8 +219,183 @@ class CategoryService {
         }
     }
 
+    async ensureGlobalCategory(): Promise<string> {
+        let catId = 'c1000000-0000-4000-8000-000000000000';
+
+        // 1. Kategoriyi bul veya oluştur (Unique constraint hrd_categories_slug_key korur)
+        try {
+            const all = await this.fetchAll();
+            const existing = all.find(
+                (c) => c.slug === 'ortak-alanlar' || c.id === 'c1000000-0000-4000-8000-000000000000'
+            );
+            if (existing) {
+                catId = existing.id;
+            } else {
+                const createRes = await axiosInstance.post<AdminCategoryItem>(baseUrl, {
+                    name: 'Ortak Alanlar (Tüm İlanlar)',
+                    slug: 'ortak-alanlar',
+                    description: 'Tüm ilan kategorilerinde geçerli olan genel alanlar',
+                    sortOrder: 0,
+                });
+                if (createRes.data?.id) {
+                    catId = createRes.data.id;
+                }
+            }
+        } catch (e: any) {
+            console.warn('[CategoryService] ensureGlobalCategory category resolve error:', e);
+        }
+
+        // 2. Mevcut oluşturulmuş özellikleri çek
+        let existingProps: CategoryProperty[] = [];
+        try {
+            const res = await axiosInstance.get<AdminCategoryPropertyListResponse>(
+                `${baseUrl}/${catId}/properties`
+            );
+            if (res.data?.items && Array.isArray(res.data.items)) {
+                existingProps = res.data.items;
+            }
+        } catch {}
+
+        const existingCodes = new Set(existingProps.map((p) => String(p.code || '').toUpperCase()));
+
+        // 3. 5 temel ortak alan tanımı
+        const defaultProps: (CreateCategoryPropertyRequest & { initialActive?: boolean })[] = [
+            {
+                code: 'ADDRESS',
+                title: 'Açık Adres',
+                helpText: 'İlanın detaylı açık adres veya tesis/hara konumu',
+                dataType: 'TEXT',
+                isRequired: true,
+                isFormVisible: false,
+                isPublicVisible: false,
+                isFilterable: false,
+                sortOrder: 1,
+                initialActive: false, // Pasif
+            },
+            {
+                code: 'DESCRIPTION',
+                title: 'İlan Açıklaması',
+                helpText: 'İlanın detaylı açıklama metni',
+                dataType: 'TEXT',
+                isRequired: false,
+                isFormVisible: true,
+                isPublicVisible: true,
+                isFilterable: false,
+                sortOrder: 2,
+                initialActive: true,
+            },
+            {
+                code: 'PRICE',
+                title: 'İlan Fiyatı',
+                helpText: 'İlan için talep edilen bedel (TL)',
+                dataType: 'DECIMAL',
+                isRequired: true,
+                isFormVisible: true,
+                isPublicVisible: true,
+                isFilterable: true,
+                sortOrder: 3,
+                initialActive: true,
+            },
+            {
+                code: 'LOCATION',
+                title: 'İl ve İlçe (Konum)',
+                helpText: 'İlanın bulunduğu şehir ve ilçe seçimi',
+                dataType: 'STRING',
+                isRequired: true,
+                isFormVisible: true,
+                isPublicVisible: true,
+                isFilterable: true,
+                sortOrder: 4,
+                initialActive: true,
+            },
+            {
+                code: 'PHONE',
+                title: 'İletişim Telefonu',
+                helpText: 'İlan sahibinin cep telefonu numarası',
+                dataType: 'STRING',
+                isRequired: true,
+                isFormVisible: true,
+                isPublicVisible: true,
+                isFilterable: false,
+                sortOrder: 5,
+                initialActive: true,
+            },
+        ];
+
+        // 4. Kategori var olsa bile eksik kalan özellikleri tamamla (Self-healing & Idempotent)
+        for (const dp of defaultProps) {
+            const codeUpper = String(dp.code || '').toUpperCase();
+            if (!existingCodes.has(codeUpper)) {
+                try {
+                    const created = await axiosInstance.post<CategoryProperty>(
+                        `${baseUrl}/${catId}/properties`,
+                        {
+                            code: dp.code,
+                            title: dp.title,
+                            helpText: dp.helpText,
+                            dataType: dp.dataType,
+                            isRequired: dp.isRequired,
+                            isPublicVisible: dp.isPublicVisible,
+                            isFormVisible: dp.isFormVisible,
+                            isFilterable: dp.isFilterable,
+                            sortOrder: dp.sortOrder,
+                        }
+                    );
+                    if (dp.initialActive === false && created.data?.id) {
+                        await this.setPropertyActive(
+                            catId,
+                            created.data.id,
+                            created.data.version || 1,
+                            false
+                        );
+                    }
+                } catch (err) {
+                    console.warn(`[CategoryService] Failed to create property ${dp.code}:`, err);
+                }
+            } else if (dp.initialActive === false) {
+                // Eğer daha önceden var ama aktifse, ilk kural olarak pasife al
+                const current = existingProps.find(
+                    (p) => String(p.code || '').toUpperCase() === codeUpper
+                );
+                if (current && current.isActive) {
+                    try {
+                        await this.setPropertyActive(
+                            catId,
+                            current.id,
+                            current.version || 1,
+                            false
+                        );
+                    } catch {}
+                }
+            }
+        }
+
+        return catId;
+    }
+
     async listProperties(categoryId: string, _categoryName?: string, _categorySlug?: string): Promise<CategoryProperty[]> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+
+        try {
+            const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
+                `${baseUrl}/${targetUUID}/properties`,
+            );
+            if (response.data?.items) {
+                return response.data.items;
+            }
+        } catch (error: any) {
+            if (
+                error?.response?.status === 404 &&
+                (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar')
+            ) {
+                const realId = await this.ensureGlobalCategory();
+                if (realId && realId !== targetUUID) {
+                    return this.listProperties(realId);
+                }
+            }
+            console.warn('[CategoryService] listProperties API error, fallback to local storage:', error);
+        }
+
         let deletedSet = new Set<string>();
         if (typeof window !== 'undefined') {
             try {
@@ -231,45 +406,12 @@ class CategoryService {
             } catch {}
         }
 
-        if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
-            const localProps = catalogStorage.listProperties(targetUUID);
-            return (localProps as unknown as CategoryProperty[]).filter((p) => !deletedSet.has(p.id));
-        }
-        try {
-            const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
-                `${baseUrl}/${targetUUID}/properties`,
-            );
-            if (response.data?.items && response.data.items.length > 0) {
-                return response.data.items.filter((p) => !deletedSet.has(p.id));
-            }
-        } catch (error) {
-            console.warn('[CategoryService] listProperties API error, fallback to local storage:', error);
-        }
-
         const localProps = catalogStorage.listProperties(targetUUID);
         return (localProps as unknown as CategoryProperty[]).filter((p) => !deletedSet.has(p.id));
     }
 
     async createProperty(categoryId: string, request: CreateCategoryPropertyRequest): Promise<CategoryProperty> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
-        if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
-            const local = catalogStorage.createProperty(targetUUID, {
-                code: request.code,
-                title: request.title,
-                helpText: request.helpText,
-                dataType: request.dataType,
-                isRequired: request.isRequired,
-                isPublicVisible: request.isPublicVisible,
-                isFormVisible: request.isFormVisible,
-                isFilterable: request.isFilterable,
-                sortOrder: request.sortOrder,
-                options: request.options as any,
-                validation: request.validation,
-                defaultValue: request.defaultValue,
-                uiMetadata: request.uiMetadata,
-            });
-            return local as unknown as CategoryProperty;
-        }
         try {
             const response = await axiosInstance.post<CategoryProperty>(
                 `${baseUrl}/${targetUUID}/properties`,
@@ -307,23 +449,6 @@ class CategoryService {
         request: UpdateCategoryPropertyRequest,
     ): Promise<CategoryProperty> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
-        if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
-            const local = catalogStorage.updateProperty(targetUUID, propertyId, {
-                title: request.title,
-                helpText: request.helpText,
-                isRequired: request.isRequired,
-                isPublicVisible: request.isPublicVisible,
-                isFormVisible: request.isFormVisible,
-                isFilterable: request.isFilterable,
-                sortOrder: request.sortOrder,
-                options: request.options as any,
-                validation: request.validation,
-                defaultValue: request.defaultValue,
-                uiMetadata: request.uiMetadata,
-                expectedVersion: request.expectedVersion,
-            });
-            return local as unknown as CategoryProperty;
-        }
         try {
             const response = await axiosInstance.patch<CategoryProperty>(
                 `${baseUrl}/${targetUUID}/properties/${propertyId}`,
@@ -356,10 +481,6 @@ class CategoryService {
         isActive: boolean,
     ): Promise<CategoryProperty> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
-        if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
-            const local = catalogStorage.setPropertyActive(targetUUID, propertyId, isActive, expectedVersion);
-            return local as unknown as CategoryProperty;
-        }
         try {
             const response = await axiosInstance.post<CategoryProperty>(
                 `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
@@ -391,10 +512,6 @@ class CategoryService {
             } catch {}
         }
 
-        if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
-            return;
-        }
-
         try {
             await axiosInstance.post(`${baseUrl}/${targetUUID}/properties/${propertyId}/active`, {
                 expectedVersion: Math.max(1, version ?? 1),
@@ -405,10 +522,6 @@ class CategoryService {
 
     async reorderProperties(categoryId: string, items: ReorderItem[]): Promise<void> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
-        if (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar' || targetUUID === 'cat-ortak-alanlar') {
-            catalogStorage.reorderProperties(targetUUID, items);
-            return;
-        }
         try {
             await axiosInstance.put(`${baseUrl}/${targetUUID}/properties/reorder`, { items });
         } catch (error) {
