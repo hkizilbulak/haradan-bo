@@ -665,24 +665,6 @@
       "uiMetadata": {}
     },
     {
-      "id": "p1000000-0000-4000-8000-000000000044",
-      "categoryId": "c1000000-0000-4000-8000-000000000003",
-      "code": "liveFoalGuarantee",
-      "title": "Canlı Tay Garantisi",
-      "helpText": "Canlı tay doğumu garantisi veriliyor mu?",
-      "dataType": "BOOLEAN",
-      "isRequired": false,
-      "isPublicVisible": true,
-      "isFormVisible": true,
-      "isFilterable": true,
-      "sortOrder": 4,
-      "isActive": true,
-      "version": 1,
-      "options": [],
-      "validation": {},
-      "uiMetadata": {}
-    },
-    {
       "id": "p1000000-0000-4000-8000-000000000051",
       "categoryId": "c1000000-0000-4000-8000-000000000004",
       "code": "equipmentType",
