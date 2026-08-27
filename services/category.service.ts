@@ -198,6 +198,50 @@ class CategoryService {
         }
     }
 
+    async hasActiveAdverts(categoryId: string): Promise<boolean> {
+        try {
+            const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+            const response = await axiosInstance.get<{ items?: unknown[] }>(`${API_URL}v1/adverts`, {
+                params: {
+                    categoryId: targetUUID,
+                    limit: 1,
+                },
+            });
+            return Boolean(response.data?.items && response.data.items.length > 0);
+        } catch (error) {
+            console.warn(`[CategoryService] Active advert check error for ${categoryId}:`, error);
+            return false;
+        }
+    }
+
+    async findActiveAdvertConflicts(
+        categories: { identifier: string; name: string }[]
+    ): Promise<{ identifier: string; name: string }[]> {
+        if (!categories || categories.length === 0) return [];
+        const conflicts: { identifier: string; name: string }[] = [];
+        const concurrency = 10;
+        let index = 0;
+
+        const worker = async () => {
+            while (index < categories.length) {
+                const i = index++;
+                const item = categories[i];
+                if (!item?.identifier) continue;
+                const hasAdverts = await this.hasActiveAdverts(item.identifier);
+                if (hasAdverts) {
+                    conflicts.push(item);
+                }
+            }
+        };
+
+        const workers = Array.from(
+            { length: Math.min(concurrency, categories.length) },
+            () => worker()
+        );
+        await Promise.all(workers);
+        return conflicts;
+    }
+
     async reparent(identifier: string, expectedVersion: number, parentId?: string): Promise<number | undefined> {
         try {
             const response = await axiosInstance.post<AdminCategoryItem>(`${baseUrl}/${identifier}/reparent`, {

@@ -1,7 +1,7 @@
 "use client";
 import { categoryService } from "@/services";
 import { PageHeading } from "@/widgets";
-import { useState, ReactNode, useEffect, useCallback } from "react";
+import { useState, ReactNode, useEffect, useCallback, useMemo } from "react";
 import { Alert, Col, Form, Row, Container, Button, Pagination, Badge, Modal, Card, Spinner } from "react-bootstrap";
 import SortableTree, {
   toggleExpandedForAll,
@@ -47,6 +47,75 @@ type TreeItem = {
   [x: string]: any;
 };
 
+type FlatCategoryOption = {
+  identifier: string;
+  name: string;
+  level: number;
+  slug?: string;
+};
+
+function flattenCategoryTree(
+  nodes: TreeItem[],
+  level = 0,
+  excludeIds: Set<string> = new Set()
+): FlatCategoryOption[] {
+  const result: FlatCategoryOption[] = [];
+  for (const node of nodes) {
+    if (!node.identifier) continue;
+    if (excludeIds.has(node.identifier)) continue;
+    if (
+      node.slug === "ortak-alanlar" ||
+      node.identifier === "c1000000-0000-4000-8000-000000000000"
+    ) {
+      continue;
+    }
+
+    result.push({
+      identifier: node.identifier,
+      name: String(node.name ?? "Kategori"),
+      level,
+      slug: String(node.slug ?? ""),
+    });
+
+    if (node.children && Array.isArray(node.children)) {
+      result.push(
+        ...flattenCategoryTree(node.children as TreeItem[], level + 1, excludeIds)
+      );
+    }
+  }
+  return result;
+}
+
+function collectAllNodesToDelete(node: any): { identifier: string; name: string; version: number }[] {
+  if (!node || !node.identifier) return [];
+  const list: { identifier: string; name: string; version: number }[] = [
+    {
+      identifier: node.identifier,
+      name: String(node.name ?? 'Kategori'),
+      version: node.version ?? 1,
+    },
+  ];
+  if (node.children && Array.isArray(node.children)) {
+    for (const child of node.children) {
+      list.push(...collectAllNodesToDelete(child));
+    }
+  }
+  return list;
+}
+
+function collectAllNodesToRestore(node: any): { identifier: string; version: number }[] {
+  if (!node || !node.identifier) return [];
+  const list: { identifier: string; version: number }[] = [
+    { identifier: node.identifier, version: node.version ?? 1 },
+  ];
+  if (node.children && Array.isArray(node.children)) {
+    for (const child of node.children) {
+      list.push(...collectAllNodesToRestore(child));
+    }
+  }
+  return list;
+}
+
 function slugify(value: string) {
   return value
     .toLowerCase()
@@ -72,10 +141,14 @@ export default function Categories() {
   // Form Fields
   const [categoryName, setCategoryName] = useState("");
   const [slug, setSlug] = useState("");
+  const [selectedParentId, setSelectedParentId] = useState("");
+  const [description, setDescription] = useState("");
 
   // Delete Confirmation Modal State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<any>(null);
+  const [checkingAdverts, setCheckingAdverts] = useState(false);
+  const [advertConflicts, setAdvertConflicts] = useState<{ identifier: string; name: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [moving, setMoving] = useState(false);
   const [propertiesNode, setPropertiesNode] = useState<any>(null);
@@ -112,16 +185,20 @@ export default function Categories() {
   const openCreateModal = () => {
     setModalMode("create");
     setSelectedNode(null);
+    setSelectedParentId("");
     setCategoryName("");
     setSlug("");
+    setDescription("");
     setFormModalOpen(true);
   };
 
   const openAddChildModal = (rowInfo: GenerateNodePropsParams) => {
     setModalMode("addChild");
     setSelectedNode(rowInfo.node);
+    setSelectedParentId(String(rowInfo.node.identifier || ""));
     setCategoryName("");
     setSlug("");
+    setDescription("");
     setFormModalOpen(true);
   };
 
@@ -129,15 +206,28 @@ export default function Categories() {
     const node = rowInfo.node;
     setModalMode("edit");
     setSelectedNode(node);
+    setSelectedParentId(node.parentId ? String(node.parentId) : "");
     setCategoryName(node.name || "");
     setSlug(node.slug || "");
+    setDescription(node.description || "");
     setFormModalOpen(true);
   };
 
   const openDeleteModal = (rowInfo: GenerateNodePropsParams) => {
     setNodeToDelete(rowInfo.node);
+    setAdvertConflicts([]);
     setDeleteModalOpen(true);
   };
+
+  const availableParentOptions = useMemo(() => {
+    if (!treeData || treeData.length === 0) return [];
+    const excludeIds = new Set<string>();
+    if (modalMode === "edit" && selectedNode?.identifier) {
+      const descendants = collectAllNodesToDelete(selectedNode);
+      descendants.forEach((d) => excludeIds.add(d.identifier));
+    }
+    return flattenCategoryTree(treeData, 0, excludeIds);
+  }, [treeData, modalMode, selectedNode]);
 
   const handleSaveCategory = async () => {
     if (!categoryName.trim()) {
@@ -146,33 +236,49 @@ export default function Categories() {
     }
 
     setSubmitting(true);
-    let finalSlug = slug.trim() || slugify(categoryName);
+    const finalSlug = slug.trim() || slugify(categoryName);
+    const parentId = selectedParentId.trim() || undefined;
 
     try {
-      if (modalMode === "create") {
+      if (modalMode === "create" || modalMode === "addChild") {
         await categoryService.save({
-          name: categoryName,
+          name: categoryName.trim(),
           slug: finalSlug,
+          parentId: parentId,
+          description: description.trim() || undefined,
           status: EntityStatusEnum.ACTIVE,
         });
-        toast.success("Kategori başarıyla eklendi");
-      } else if (modalMode === "addChild") {
-        await categoryService.save({
-          name: categoryName,
-          slug: finalSlug,
-          parentId: selectedNode?.identifier,
-          status: EntityStatusEnum.ACTIVE,
-        });
-        toast.success("Alt kategori başarıyla eklendi");
+        toast.success(
+          parentId
+            ? "Alt kategori başarıyla eklendi."
+            : "Yeni Ana (Root) Kategori başarıyla eklendi."
+        );
       } else if (modalMode === "edit") {
+        const currentParentId = selectedNode?.parentId ? String(selectedNode.parentId) : undefined;
+        let currentVersion = selectedNode?.version ?? 1;
+
+        // 1. Üst kategori değiştirildiyse reparent işlemi yap
+        if (parentId !== currentParentId) {
+          const newVer = await categoryService.reparent(
+            selectedNode.identifier,
+            currentVersion,
+            parentId
+          );
+          if (typeof newVer === "number") {
+            currentVersion = newVer;
+          }
+        }
+
+        // 2. Kategori detaylarını güncelle
         await categoryService.update({
           identifier: selectedNode?.identifier,
-          expectedVersion: selectedNode?.version ?? 0,
-          name: categoryName,
+          expectedVersion: currentVersion,
+          name: categoryName.trim(),
           slug: finalSlug,
+          description: description.trim() || undefined,
           status: EntityStatusEnum.ACTIVE,
         });
-        toast.success("Kategori güncellendi");
+        toast.success("Kategori başarıyla güncellendi.");
       }
 
       setFormModalOpen(false);
@@ -182,53 +288,50 @@ export default function Categories() {
       if (errMsg.includes("zaten mevcut") || error?.response?.status === 409) {
         const uniqueSlug = `${finalSlug}-${Date.now().toString().slice(-4)}`;
         try {
-          if (modalMode === "create") {
+          if (modalMode === "create" || modalMode === "addChild") {
             await categoryService.save({
-              name: categoryName,
+              name: categoryName.trim(),
               slug: uniqueSlug,
+              parentId: parentId,
+              description: description.trim() || undefined,
               status: EntityStatusEnum.ACTIVE,
             });
-          } else if (modalMode === "addChild") {
-            await categoryService.save({
-              name: categoryName,
-              slug: uniqueSlug,
-              parentId: selectedNode?.identifier,
-              status: EntityStatusEnum.ACTIVE,
-            });
+            toast.success('Kategori başarıyla eklendi. Bağlantı adresi otomatik oluşturuldu.');
+            setFormModalOpen(false);
+            refetch();
+            return;
           }
-          toast.success('Kategori başarıyla eklendi. Bağlantı adresi otomatik oluşturuldu.');
-          setFormModalOpen(false);
-          refetch();
-          return;
         } catch (retryErr) {
           toast.error(getErrorMessage(retryErr));
         }
-      } else {
-        toast.error(errMsg);
       }
+      toast.error(errMsg);
     } finally {
       setSubmitting(false);
     }
   };
 
-  function collectAllNodesToDelete(node: any): { identifier: string; version: number }[] {
-    if (!node || !node.identifier) return [];
-    const list: { identifier: string; version: number }[] = [
-      { identifier: node.identifier, version: node.version ?? 1 },
-    ];
-    if (node.children && Array.isArray(node.children)) {
-      for (const child of node.children) {
-        list.push(...collectAllNodesToDelete(child));
-      }
-    }
-    return list;
-  }
-
   const handleConfirmDelete = async () => {
     if (!nodeToDelete?.identifier) return;
     setSubmitting(true);
+    setCheckingAdverts(true);
+    setAdvertConflicts([]);
     try {
       const nodesToDelete = collectAllNodesToDelete(nodeToDelete);
+
+      // 1. Kategori ve tüm alt kategorilerinde aktif (PUBLISHED) ilan kontrolü
+      const conflicts = await categoryService.findActiveAdvertConflicts(nodesToDelete);
+
+      if (conflicts.length > 0) {
+        setAdvertConflicts(conflicts);
+        setCheckingAdverts(false);
+        setSubmitting(false);
+        return; // Silme işlemi iptal edilir, uyarı ekranı gösterilir
+      }
+
+      setCheckingAdverts(false);
+
+      // 2. Aktif ilan yoksa silme işlemine devam et
       for (const item of nodesToDelete) {
         await categoryService._delete(item.identifier, item.version);
       }
@@ -239,26 +342,15 @@ export default function Categories() {
       );
       setDeleteModalOpen(false);
       setNodeToDelete(null);
+      setAdvertConflicts([]);
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
       setSubmitting(false);
+      setCheckingAdverts(false);
     }
   };
-
-  function collectAllNodesToRestore(node: any): { identifier: string; version: number }[] {
-    if (!node || !node.identifier) return [];
-    const list: { identifier: string; version: number }[] = [
-      { identifier: node.identifier, version: node.version ?? 1 },
-    ];
-    if (node.children && Array.isArray(node.children)) {
-      for (const child of node.children) {
-        list.push(...collectAllNodesToRestore(child));
-      }
-    }
-    return list;
-  }
 
   async function restoreNode(rowInfo: GenerateNodePropsParams) {
     const { node } = rowInfo;
@@ -660,36 +752,69 @@ export default function Categories() {
       <Modal show={formModalOpen} onHide={() => setFormModalOpen(false)} centered animation>
         <Modal.Header closeButton className="border-0 pb-0">
           <Modal.Title className="fw-bold">
-            {modalMode === "create" && "Yeni Ana Kategori"}
+            {modalMode === "create" && (selectedParentId ? "Yeni Kategori Ekle" : "Yeni Ana Kategori Ekle")}
             {modalMode === "addChild" && `Alt Kategori Ekle (${selectedNode?.name})`}
             {modalMode === "edit" && `Kategoriyi Düzenle (${selectedNode?.name})`}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body className="py-3">
           <Form.Group className="mb-3">
-            <Form.Label className="fw-semibold">Kategori Adı</Form.Label>
+            <Form.Label className="fw-semibold">
+              Kategori Adı <span className="text-danger">*</span>
+            </Form.Label>
             <Form.Control
               value={categoryName}
               onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="Örn: İngiliz Atları"
+              placeholder="Örn: Satılık Atlar veya Yarış Atı"
               autoFocus
             />
           </Form.Group>
 
-          <Form.Text muted className="d-block mb-3">
-            Kategori bağlantısı addan otomatik oluşturulur.
-          </Form.Text>
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-semibold">Üst Kategori (Parent)</Form.Label>
+            <Form.Select
+              value={selectedParentId}
+              onChange={(e) => setSelectedParentId(e.target.value)}
+            >
+              <option value="">-- Yok (Ana / Root Kategori) --</option>
+              {availableParentOptions.map((opt) => (
+                <option key={opt.identifier} value={opt.identifier}>
+                  {opt.level > 0 ? `${'\u00A0\u00A0'.repeat(opt.level)}↳ ` : ''}
+                  {opt.name}
+                </option>
+              ))}
+            </Form.Select>
+            <Form.Text muted className="small">
+              {selectedParentId === ""
+                ? "Bu kategori en üst seviyede bağımsız bir Ana (Root) Kategori olarak oluşturulur."
+                : "Seçilen üst kategorinin altına alt kategori olarak eklenir/taşınır."}
+            </Form.Text>
+          </Form.Group>
 
-          {(modalMode === "create" || modalMode === "addChild") && (
-            <Form.Text muted className="d-block mb-3">
-              Yeni kategori ilgili kardeş listesinin sonuna eklenir. Sıra ağaç sürükle-bırak ile düzenlenir.
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-semibold text-muted small">Kategori Bağlantısı (Slug)</Form.Label>
+            <Form.Control
+              value={slug}
+              onChange={(e) => setSlug(slugify(e.target.value))}
+              placeholder="Otomatik oluşturulur..."
+              size="sm"
+            />
+            <Form.Text muted className="small">
+              Boş bırakılırsa kategori adından otomatik üretilir.
             </Form.Text>
-          )}
-          {modalMode === "edit" && (
-            <Form.Text muted className="d-block mb-3">
-              Sıra ağaçta sürükle-bırak ile düzenlenir.
-            </Form.Text>
-          )}
+          </Form.Group>
+
+          <Form.Group className="mb-2">
+            <Form.Label className="fw-semibold text-muted small">Açıklama (İsteğe Bağlı)</Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Kategori hakkında kısa açıklama..."
+              size="sm"
+            />
+          </Form.Group>
         </Modal.Body>
         <Modal.Footer className="border-0 pt-0">
           <Button variant="outline-secondary" onClick={() => setFormModalOpen(false)}>
@@ -701,40 +826,127 @@ export default function Categories() {
         </Modal.Footer>
       </Modal>
 
-      {/* POPUP / ANIMATED MODAL: Delete Confirmation */}
-      <Modal show={deleteModalOpen} onHide={() => setDeleteModalOpen(false)} centered animation>
+      {/* POPUP / ANIMATED MODAL: Delete Confirmation & Advert Conflict Warning */}
+      <Modal
+        show={deleteModalOpen}
+        onHide={() => {
+          if (!submitting) {
+            setDeleteModalOpen(false);
+            setAdvertConflicts([]);
+          }
+        }}
+        centered
+        animation
+      >
         <Modal.Body className="text-center p-4">
-          <div className="icon-shape icon-xl bg-light-danger text-danger rounded-circle mx-auto mb-3 p-3" style={{ width: '64px', height: '64px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-            <i className="fe fe-alert-triangle fs-1"></i>
-          </div>
-          <h4 className="fw-bold mb-2">Kategoriyi Sil?</h4>
-          <p className="text-muted small mb-3">
-            <strong>&quot;{nodeToDelete?.name}&quot;</strong> kategorisini silmek (pasife almak) istediğinizden emin misiniz?
-          </p>
+          {advertConflicts.length > 0 ? (
+            <div>
+              <div
+                className="icon-shape icon-xl bg-light-danger text-danger rounded-circle mx-auto mb-3 p-3"
+                style={{ width: '64px', height: '64px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <i className="fe fe-slash fs-1"></i>
+              </div>
+              <h4 className="fw-bold mb-2 text-danger">Silme İşlemi Engellendi</h4>
+              <p className="text-muted small mb-3">
+                Bu kategori veya bağlı alt kategorilerinde <strong>yayında olan aktif ilanlar</strong> bulunmaktadır. İlanı bulunan kategoriler silinemez (pasife alınamaz).
+              </p>
 
-          {/* Sub-categories warning if node has children */}
-          {nodeToDelete?.children && nodeToDelete.children.length > 0 && (
-            <div className="alert alert-warning text-start border-warning p-3 mb-4 rounded-3" style={{ backgroundColor: '#fffbe6' }}>
-              <div className="d-flex gap-2">
-                <i className="fe fe-alert-circle text-warning fs-4 flex-shrink-0 mt-1"></i>
-                <div>
-                  <strong className="text-warning-emphasis d-block mb-1">Dikkat: Alt kategoriler de silinecek</strong>
-                  <span className="small text-dark-emphasis">
-                    Bu kategorinin altında <strong>{nodeToDelete.children.length} adet alt kategori</strong> bulunmaktadır. Bu ana kategoriyi silerseniz bağlı olan tüm alt kategoriler de otomatik olarak silinecektir (pasife alınacaktır).
-                  </span>
+              <div className="alert alert-danger text-start border-danger p-3 mb-3 rounded-3" style={{ backgroundColor: '#fff5f5' }}>
+                <div className="d-flex gap-2">
+                  <i className="fe fe-alert-circle text-danger fs-4 flex-shrink-0 mt-1"></i>
+                  <div>
+                    <strong className="text-danger d-block mb-1">Aktif İlan Bulunan Kategoriler:</strong>
+                    <ul className="mb-0 ps-3 small text-dark">
+                      {advertConflicts.map((c) => (
+                        <li key={c.identifier} className="fw-semibold">
+                          {c.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
+              </div>
+
+              <p className="small text-muted mb-4">
+                Kategoriyi silebilmek için önce bu kategorilerdeki ilanları yayından kaldırın, pasife alın veya başka bir kategoriye taşıyın.
+              </p>
+
+              <Button
+                variant="primary"
+                className="w-100 fw-semibold"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setAdvertConflicts([]);
+                  setNodeToDelete(null);
+                }}
+              >
+                Anladım, Kapat
+              </Button>
+            </div>
+          ) : (
+            <div>
+              <div
+                className="icon-shape icon-xl bg-light-danger text-danger rounded-circle mx-auto mb-3 p-3"
+                style={{ width: '64px', height: '64px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <i className="fe fe-alert-triangle fs-1"></i>
+              </div>
+              <h4 className="fw-bold mb-2">Kategoriyi Sil?</h4>
+              <p className="text-muted small mb-3">
+                <strong>&quot;{nodeToDelete?.name}&quot;</strong> kategorisini silmek (pasife almak) istediğinizden emin misiniz?
+              </p>
+
+              {/* Sub-categories warning if node has children */}
+              {nodeToDelete?.children && nodeToDelete.children.length > 0 && (
+                <div className="alert alert-warning text-start border-warning p-3 mb-4 rounded-3" style={{ backgroundColor: '#fffbe6' }}>
+                  <div className="d-flex gap-2">
+                    <i className="fe fe-alert-circle text-warning fs-4 flex-shrink-0 mt-1"></i>
+                    <div>
+                      <strong className="text-warning-emphasis d-block mb-1">Dikkat: Alt kategoriler de silinecek</strong>
+                      <span className="small text-dark-emphasis">
+                        Bu kategorinin altında <strong>{nodeToDelete.children.length} adet alt kategori</strong> bulunmaktadır. Bu ana kategoriyi silerseniz bağlı olan tüm alt kategoriler de otomatik olarak silinecektir (pasife alınacaktır).
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="d-flex gap-2 justify-content-center mt-3">
+                <Button
+                  variant="light"
+                  className="w-50"
+                  disabled={submitting}
+                  onClick={() => {
+                    setDeleteModalOpen(false);
+                    setAdvertConflicts([]);
+                  }}
+                >
+                  Vazgeç
+                </Button>
+                <Button
+                  variant="danger"
+                  className="w-50 fw-semibold"
+                  disabled={submitting}
+                  onClick={handleConfirmDelete}
+                >
+                  {checkingAdverts ? (
+                    <>
+                      <Spinner animation="border" size="sm" className="me-2" />
+                      İlanlar Kontrol Ediliyor...
+                    </>
+                  ) : submitting ? (
+                    <>
+                      <Spinner animation="border" size="sm" className="me-2" />
+                      Siliniyor...
+                    </>
+                  ) : (
+                    "Evet, Tümünü Sil"
+                  )}
+                </Button>
               </div>
             </div>
           )}
-
-          <div className="d-flex gap-2 justify-content-center mt-3">
-            <Button variant="light" className="w-50" onClick={() => setDeleteModalOpen(false)}>
-              Vazgeç
-            </Button>
-            <Button variant="danger" className="w-50 fw-semibold" disabled={submitting} onClick={handleConfirmDelete}>
-              {submitting ? "Siliniyor..." : "Evet, Tümünü Sil"}
-            </Button>
-          </div>
         </Modal.Body>
       </Modal>
 
