@@ -15,10 +15,11 @@ import {
 import { getErrorMessage } from '@/helpers/HelperUtils';
 import { canModerationAction } from '@/helpers/moderationActions';
 import useCursorApi from '@/hooks/useCursorApi';
-import { ModerationAdvertResponse } from '@/models';
+import { ModerationAdvertResponse, UserResponse } from '@/models';
 import {
   advertService,
   categoryService,
+  userService,
   ModerationReasonRequest,
   AdvertPackageAssignment,
   AssignPackageRequest,
@@ -238,19 +239,114 @@ function PackageModal({ advert, onClose, onDone }: { advert: ModerationAdvertRes
   );
 }
 
+function ActionModal({
+  action,
+  advert,
+  onClose,
+  onSubmit,
+}: {
+  action: 'reject' | 'requestChanges' | 'suspend';
+  advert: ModerationAdvertResponse;
+  onClose: () => void;
+  onSubmit: (reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const title =
+    action === 'reject'
+      ? 'İlanı Reddet'
+      : action === 'requestChanges'
+        ? 'Düzeltme İste'
+        : 'İlanı Askıya Al';
+
+  const label =
+    action === 'reject'
+      ? 'Ret Sebebi'
+      : action === 'requestChanges'
+        ? 'Düzeltme Talebi Notu'
+        : 'Askıya Alma Sebebi';
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reason.trim()) {
+      toast.error('Lütfen bir açıklama girin');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await onSubmit(reason.trim());
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal show onHide={onClose} centered>
+      <Modal.Header closeButton>
+        <Modal.Title>{title}</Modal.Title>
+      </Modal.Header>
+      <Form onSubmit={handleSubmit}>
+        <Modal.Body>
+          <p className="text-muted mb-2">
+            <strong>İlan:</strong> {advert.title || advert.id}
+          </p>
+          <Form.Group>
+            <Form.Label>{label} <span className="text-danger">*</span></Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Açıklama giriniz..."
+              required
+              autoFocus
+            />
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={onClose} disabled={submitting}>
+            Vazgeç
+          </Button>
+          <Button
+            variant={action === 'reject' ? 'danger' : action === 'requestChanges' ? 'warning' : 'secondary'}
+            type="submit"
+            disabled={submitting || !reason.trim()}
+          >
+            {submitting ? 'İşleniyor...' : 'Onayla'}
+          </Button>
+        </Modal.Footer>
+      </Form>
+    </Modal>
+  );
+}
+
 function AdvertDetailModal({ advertId, categoryMap, onClose }: { advertId: string; categoryMap?: Map<string, string>; onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<Awaited<ReturnType<typeof advertService.getDetail>> | null>(null);
+  const [ownerUser, setOwnerUser] = useState<UserResponse | null>(null);
 
   useEffect(() => {
     setLoading(true);
     advertService.getDetail(advertId)
-      .then(setDetail)
+      .then((data) => {
+        setDetail(data);
+        if (data?.ownerUserId) {
+          userService.getById(data.ownerUserId)
+            .then(setOwnerUser)
+            .catch(() => setOwnerUser(null));
+        } else {
+          setOwnerUser(null);
+        }
+      })
       .catch((err) => toast.error(getErrorMessage(err)))
       .finally(() => setLoading(false));
   }, [advertId]);
 
   const categoryName = detail?.categoryId ? (categoryMap?.get(detail.categoryId) || detail.categoryId) : '-';
+  const ownerFullName = [ownerUser?.firstName, ownerUser?.lastName].filter(Boolean).join(' ').trim();
+  const ownerDisplayName = ownerFullName || ownerUser?.email || detail?.ownerUserId || '-';
+  const displayId = (detail?.id ?? advertId).replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase();
 
   return (
     <Modal show onHide={onClose} size="lg">
@@ -262,6 +358,15 @@ function AdvertDetailModal({ advertId, categoryMap, onClose }: { advertId: strin
         {!loading && detail && (
           <>
             <p className="mb-1"><strong>Başlık:</strong> {detail.title || '-'}</p>
+            <p className="mb-1">
+              <strong>İlan No:</strong> <Badge bg="light" text="dark" className="border">#{displayId}</Badge>
+            </p>
+            <p className="mb-1">
+              <strong>İlan Sahibi:</strong> {ownerDisplayName}
+              {ownerUser?.email && ownerDisplayName !== ownerUser.email ? (
+                <span className="text-muted ms-1 small">({ownerUser.email})</span>
+              ) : null}
+            </p>
             <p className="mb-1"><strong>Durum:</strong> {getAdvertStatusText(detail.status)}</p>
             <p className="mb-3"><strong>Kategori:</strong> {categoryName}</p>
             {detail.media && detail.media.length > 0 && (
@@ -303,9 +408,21 @@ function AdvertDetailModal({ advertId, categoryMap, onClose }: { advertId: strin
               <Accordion.Item eventKey="0">
                 <Accordion.Header>Teknik Bilgiler</Accordion.Header>
                 <Accordion.Body className="small text-muted">
-                  <div>Sahip: <code>{detail.ownerUserId}</code></div>
-                  <div>Versiyon: {detail.version}</div>
-                  <div>İlan kimliği: <code>{detail.id ?? advertId}</code></div>
+                  <div className="mb-1">
+                    <strong>İlan Sahibi:</strong> {ownerDisplayName} {ownerUser?.email ? `(${ownerUser.email})` : ''}
+                  </div>
+                  <div className="mb-1">
+                    <strong>İlan No:</strong> #{displayId}
+                  </div>
+                  <div className="mb-1">
+                    <strong>İlan Sistem Kimliği (UUID):</strong> <code>{detail.id ?? advertId}</code>
+                  </div>
+                  <div className="mb-1">
+                    <strong>Sahip Kullanıcı Kimliği (UUID):</strong> <code>{detail.ownerUserId}</code>
+                  </div>
+                  <div>
+                    <strong>Versiyon:</strong> v{detail.version}
+                  </div>
                 </Accordion.Body>
               </Accordion.Item>
             </Accordion>
