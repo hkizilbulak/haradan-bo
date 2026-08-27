@@ -514,24 +514,6 @@
       "uiMetadata": {}
     },
     {
-      "id": "p1000000-0000-4000-8000-000000000033",
-      "categoryId": "c1000000-0000-4000-8000-000000000022",
-      "code": "insurance",
-      "title": "Sigortalı Taşımacılık",
-      "helpText": "Nakliye süresince yük ve at sigortası sağlanıyor mu?",
-      "dataType": "BOOLEAN",
-      "isRequired": false,
-      "isPublicVisible": true,
-      "isFormVisible": true,
-      "isFilterable": true,
-      "sortOrder": 3,
-      "isActive": true,
-      "version": 1,
-      "options": [],
-      "validation": {},
-      "uiMetadata": {}
-    },
-    {
       "id": "p1000000-0000-4000-8000-000000000034",
       "categoryId": "c1000000-0000-4000-8000-000000000022",
       "code": "cameraTracking",
@@ -569,24 +551,6 @@
         { "value": "Ortopedik Nallama", "label": "Ortopedik Nallama" },
         { "value": "Tırnak Bakımı & Düzeltme", "label": "Tırnak Bakımı & Düzeltme" }
       ],
-      "validation": {},
-      "uiMetadata": {}
-    },
-    {
-      "id": "p1000000-0000-4000-8000-000000000036",
-      "categoryId": "c1000000-0000-4000-8000-000000000023",
-      "code": "mobileService",
-      "title": "Yerinde / Mobil Hizmet",
-      "helpText": "Haraya veya tesise gelerek hizmet veriyor musunuz?",
-      "dataType": "BOOLEAN",
-      "isRequired": false,
-      "isPublicVisible": true,
-      "isFormVisible": true,
-      "isFilterable": true,
-      "sortOrder": 2,
-      "isActive": true,
-      "version": 1,
-      "options": [],
       "validation": {},
       "uiMetadata": {}
     },

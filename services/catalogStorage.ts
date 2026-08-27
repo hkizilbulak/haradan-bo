@@ -93,8 +93,14 @@ class CatalogStorage {
                 parsed.categoryProperties.unshift(gp);
               }
             }
+            const ORPHAN_CODES = new Set(['liveFoalGuarantee', 'mobileService', 'insurance']);
+            const ORPHAN_IDS = new Set([
+              'p1000000-0000-4000-8000-000000000044',
+              'p1000000-0000-4000-8000-000000000036',
+              'p1000000-0000-4000-8000-000000000033',
+            ]);
             parsed.categoryProperties = parsed.categoryProperties.filter(
-              (p: any) => p.code !== 'liveFoalGuarantee' && p.id !== 'p1000000-0000-4000-8000-000000000044'
+              (p: any) => !ORPHAN_CODES.has(p.code) && !ORPHAN_IDS.has(p.id)
             );
             return parsed;
           }
