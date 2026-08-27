@@ -461,6 +461,10 @@ class CatalogStorage {
       throw new Error('Özellik bulunamadı.');
     }
     prop.isActive = isActive;
+    if (isActive && prop.code === 'ADDRESS') {
+      prop.isFormVisible = true;
+      prop.isPublicVisible = true;
+    }
     prop.version = (prop.version || 1) + 1;
     this.persist();
     return prop;

@@ -266,8 +266,8 @@ class CategoryService {
                 helpText: 'İlanın detaylı açık adres veya tesis/hara konumu',
                 dataType: 'TEXT',
                 isRequired: true,
-                isFormVisible: false,
-                isPublicVisible: false,
+                isFormVisible: true,
+                isPublicVisible: true,
                 isFilterable: false,
                 sortOrder: 1,
                 initialActive: false, // Pasif
@@ -466,6 +466,11 @@ class CategoryService {
         isActive: boolean,
     ): Promise<CategoryProperty> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+        catalogStorage.setPropertyActive(targetUUID, propertyId, isActive, expectedVersion);
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('haradan_global_properties_changed'));
+            window.dispatchEvent(new Event('haradan_category_properties_changed'));
+        }
         try {
             const response = await axiosInstance.post<CategoryProperty>(
                 `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
