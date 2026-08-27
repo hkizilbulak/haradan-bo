@@ -514,47 +514,6 @@
       "uiMetadata": {}
     },
     {
-      "id": "p1000000-0000-4000-8000-000000000034",
-      "categoryId": "c1000000-0000-4000-8000-000000000022",
-      "code": "cameraTracking",
-      "title": "Canlı Kamera Takibi",
-      "helpText": "Araç içi canlı kamera izleme imkanı var mı?",
-      "dataType": "BOOLEAN",
-      "isRequired": false,
-      "isPublicVisible": true,
-      "isFormVisible": true,
-      "isFilterable": true,
-      "sortOrder": 4,
-      "isActive": true,
-      "version": 1,
-      "options": [],
-      "validation": {},
-      "uiMetadata": {}
-    },
-    {
-      "id": "p1000000-0000-4000-8000-000000000035",
-      "categoryId": "c1000000-0000-4000-8000-000000000023",
-      "code": "serviceType",
-      "title": "Hizmet Türü",
-      "helpText": "Sunduğunuz nalbantlık hizmet türü",
-      "dataType": "SINGLE_SELECT",
-      "isRequired": true,
-      "isPublicVisible": true,
-      "isFormVisible": true,
-      "isFilterable": true,
-      "sortOrder": 1,
-      "isActive": true,
-      "version": 1,
-      "options": [
-        { "value": "Sıcak Nallama", "label": "Sıcak Nallama" },
-        { "value": "Soğuk Nallama", "label": "Soğuk Nallama" },
-        { "value": "Ortopedik Nallama", "label": "Ortopedik Nallama" },
-        { "value": "Tırnak Bakımı & Düzeltme", "label": "Tırnak Bakımı & Düzeltme" }
-      ],
-      "validation": {},
-      "uiMetadata": {}
-    },
-    {
       "id": "p1000000-0000-4000-8000-000000000041",
       "categoryId": "c1000000-0000-4000-8000-000000000003",
       "code": "STALLION_BREED",
