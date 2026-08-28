@@ -119,7 +119,6 @@ function optionsFromProperty(property: CategoryProperty): OptionRow[] {
 export default function CategoryPropertiesModal({ categoryId, categoryName, parentId, onClose }: Props) {
   const [items, setItems] = useState<CategoryProperty[]>([]);
   const [parentItems, setParentItems] = useState<CategoryProperty[]>([]);
-  const [showPassive, setShowPassive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -129,12 +128,12 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await categoryService.listProperties(categoryId, categoryName, undefined, true);
+      const list = await categoryService.listProperties(categoryId, categoryName);
       setItems([...list].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title)));
 
       if (parentId && parentId !== categoryId && parentId !== 'c1000000-0000-4000-8000-000000000000') {
         try {
-          const parentList = await categoryService.listProperties(parentId, undefined, undefined, false);
+          const parentList = await categoryService.listProperties(parentId);
           // Üst kategoriden miras alınanlarda yalnızca AKTİF olanlar alt kategoriye aktarılır
           const activeParentList = parentList.filter((p) => p.isActive);
           setParentItems([...activeParentList].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title)));
@@ -263,16 +262,20 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
     if (submitting) {
       return;
     }
-    if (!window.confirm(`"${property.title}" özelliğini silmek (pasife almak) istediğinize emin misiniz?`)) {
+    if (!window.confirm(`"${property.title}" özelliğini silmek istediğinize emin misiniz?`)) {
       return;
     }
     setSubmitting(true);
     try {
-      const updated = await categoryService.deleteProperty(categoryId, property.id, property.version);
-      setItems((prev) =>
-        prev.map((p) => (p.id === property.id ? { ...p, ...updated } : p))
-      );
-      toast.success('Özellik pasife alındı');
+      await categoryService.deleteProperty(categoryId, property.id, property.version);
+      console.log('DEBUG property.id:', property.id, typeof property.id);
+      console.log('DEBUG items before:', items.map(p => p.id));
+      setItems((prev) => {
+        const filtered = prev.filter((p) => p.id !== property.id);
+        console.log('DEBUG prev.length:', prev.length, 'filtered.length:', filtered.length);
+        return filtered;
+      });
+      toast.success('Özellik silindi');
     } catch (error) {
       toast.error(getErrorMessage(error));
       await load();
@@ -281,17 +284,14 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
     }
   };
 
-  const displayedItems = showPassive ? items : items.filter((p) => p.isActive);
-  const passiveCount = items.filter((p) => !p.isActive).length;
-
   const moveProperty = async (displayedIndex: number, direction: -1 | 1) => {
     const targetDisplayed = displayedIndex + direction;
-    if (targetDisplayed < 0 || targetDisplayed >= displayedItems.length || submitting) {
+    if (targetDisplayed < 0 || targetDisplayed >= items.length || submitting) {
       return;
     }
 
-    const currentItem = displayedItems[displayedIndex];
-    const targetItem = displayedItems[targetDisplayed];
+    const currentItem = items[displayedIndex];
+    const targetItem = items[targetDisplayed];
     if (!currentItem || !targetItem) return;
 
     const fromIndex = items.findIndex((p) => p.id === currentItem.id);
@@ -358,23 +358,9 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
               <h6 className="mb-0 fw-bold">Bu Kategoriye Özel Alanlar</h6>
               <span className="text-muted small">Bu alt kategoriye doğrudan tanımlanan ve öncelikli olan alanlar</span>
             </div>
-            <div className="d-flex align-items-center gap-3">
-              <Form.Check
-                type="switch"
-                id="show-passive-props-switch"
-                label={
-                  <span className="small text-muted">
-                    Pasif Özellikleri Göster {passiveCount > 0 && <Badge bg="secondary" className="ms-1">{passiveCount}</Badge>}
-                  </span>
-                }
-                checked={showPassive}
-                onChange={(e) => setShowPassive(e.target.checked)}
-                className="mb-0"
-              />
-              <Button size="sm" variant="primary" onClick={openCreate} disabled={submitting}>
-                + Yeni Özellik Ekle
-              </Button>
-            </div>
+            <Button size="sm" variant="primary" onClick={openCreate} disabled={submitting}>
+              + Yeni Özellik Ekle
+            </Button>
           </div>
 
           {loading && (
@@ -383,28 +369,16 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
             </div>
           )}
 
-          {!loading && displayedItems.length === 0 && (
+          {!loading && items.length === 0 && (
             <div className="text-center text-muted py-3 border rounded bg-light mb-4">
-              {items.length > 0 && !showPassive ? (
-                <>
-                  Bu kategoride şu anda <strong>{passiveCount} adet pasif</strong> özellik bulunmaktadır.
-                  <br />
-                  <small className="text-primary" style={{ cursor: 'pointer' }} onClick={() => setShowPassive(true)}>
-                    Pasif özellikleri görmek ve tekrar aktif etmek için tıklayın.
-                  </small>
-                </>
-              ) : (
-                <>
-                  Bu kategori için henüz doğrudan bir özellik tanımlanmamış.
-                  {parentItems.length > 0
-                    ? ' Üst kategoriden miras alınan aşağıdaki özellikler geçerlidir.'
-                    : ' İlk özelliği ekleyebilirsiniz.'}
-                </>
-              )}
+              Bu kategori için henüz doğrudan bir özellik tanımlanmamış.
+              {parentItems.length > 0
+                ? ' Üst kategoriden miras alınan aşağıdaki özellikler geçerlidir.'
+                : ' İlk özelliği ekleyebilirsiniz.'}
             </div>
           )}
 
-          {!loading && displayedItems.length > 0 && (
+          {!loading && items.length > 0 && (
             <Table responsive hover size="sm" className="align-middle mb-4">
               <thead>
                 <tr>
@@ -416,7 +390,7 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
                 </tr>
               </thead>
               <tbody>
-                {displayedItems.map((item, originalIndex) => (
+                {items.map((item, originalIndex) => (
                   <tr key={item.id} style={{ opacity: item.isActive ? 1 : 0.65 }}>
                     <td className="fw-semibold">{item.title}</td>
                     <td>{getPropertyDataTypeText(item.dataType)}</td>
@@ -446,7 +420,7 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
                         size="sm"
                         variant="outline-secondary"
                         className="me-1"
-                        disabled={submitting || originalIndex === displayedItems.length - 1}
+                        disabled={submitting || originalIndex === items.length - 1}
                         onClick={() => void moveProperty(originalIndex, 1)}
                       >
                         ↓

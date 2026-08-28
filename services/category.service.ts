@@ -406,32 +406,8 @@ class CategoryService {
         categoryId: string,
         _categoryName?: string,
         _categorySlug?: string,
-        includeInactive = false,
     ): Promise<CategoryProperty[]> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
-
-        try {
-            const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
-                `${baseUrl}/${targetUUID}/properties`,
-            );
-            if (response.data?.items) {
-                const items = response.data.items;
-                // Soft-delete filtresi: includeInactive=false (default) ise yalnızca aktif özellikler döner.
-                // Bu, kategori/alt-kategori silmedeki status==ACTIVE filtre mantığının property karşılığıdır.
-                return includeInactive ? items : items.filter((p) => p.isActive);
-            }
-        } catch (error: any) {
-            if (
-                error?.response?.status === 404 &&
-                (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar')
-            ) {
-                const realId = await this.ensureGlobalCategory();
-                if (realId && realId !== targetUUID) {
-                    return this.listProperties(realId, undefined, undefined, includeInactive);
-                }
-            }
-            console.warn('[CategoryService] listProperties API error, fallback to local storage:', error);
-        }
 
         let deletedSet = new Set<string>();
         if (typeof window !== 'undefined') {
@@ -443,10 +419,32 @@ class CategoryService {
             } catch {}
         }
 
+        try {
+            const response = await axiosInstance.get<AdminCategoryPropertyListResponse>(
+                `${baseUrl}/${targetUUID}/properties`,
+            );
+            if (response.data?.items) {
+                const items = response.data.items;
+                // Silinenler filtrelenir, pasife alınanlar (isActive: false) ise listede gösterilir
+                return items.filter((p) => !deletedSet.has(p.id));
+            }
+        } catch (error: any) {
+            if (
+                error?.response?.status === 404 &&
+                (targetUUID === 'c1000000-0000-4000-8000-000000000000' || targetUUID === 'ortak-alanlar')
+            ) {
+                const realId = await this.ensureGlobalCategory();
+                if (realId && realId !== targetUUID) {
+                    return this.listProperties(realId);
+                }
+            }
+            console.warn('[CategoryService] listProperties API error, fallback to local storage:', error);
+        }
+
         const localProps = catalogStorage.listProperties(targetUUID);
-        // Local fallback: deletedSet + isActive filtresi aynı anda uygulanır
+        // Local fallback: silinenler filtrelenir
         return (localProps as unknown as CategoryProperty[]).filter(
-            (p) => !deletedSet.has(p.id) && (includeInactive || p.isActive),
+            (p) => !deletedSet.has(p.id),
         );
     }
 
