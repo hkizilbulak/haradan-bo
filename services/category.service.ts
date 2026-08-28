@@ -155,46 +155,52 @@ class CategoryService {
     }
 
     async _delete(identifier: string, expectedVersion?: number) {
+        const targetUUID = this.resolveCategoryUUID(identifier) || identifier;
+        catalogStorage.setCategoryActive(targetUUID, false, expectedVersion);
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('haradan_catalog_data_changed'));
+        }
         try {
-            await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
+            await axiosInstance.post(`${baseUrl}/${targetUUID}/active`, {
                 expectedVersion: Math.max(1, expectedVersion ?? 1),
                 isActive: false,
             });
         } catch {
             try {
-                const detail = await axiosInstance.get<AdminCategoryItem>(`${baseUrl}/${identifier}`);
+                const detail = await axiosInstance.get<AdminCategoryItem>(`${baseUrl}/${targetUUID}`);
                 if (detail.data?.version) {
-                    await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
+                    await axiosInstance.post(`${baseUrl}/${targetUUID}/active`, {
                         expectedVersion: detail.data.version,
                         isActive: false,
                     });
                     return;
                 }
             } catch {}
-            // Local fallback
-            catalogStorage.setCategoryActive(identifier, false, expectedVersion);
         }
     }
 
     async activate(identifier: string, expectedVersion?: number) {
+        const targetUUID = this.resolveCategoryUUID(identifier) || identifier;
+        catalogStorage.setCategoryActive(targetUUID, true, expectedVersion);
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('haradan_catalog_data_changed'));
+        }
         try {
-            await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
+            await axiosInstance.post(`${baseUrl}/${targetUUID}/active`, {
                 expectedVersion: Math.max(1, expectedVersion ?? 1),
                 isActive: true,
             });
         } catch {
             try {
-                const detail = await axiosInstance.get<AdminCategoryItem>(`${baseUrl}/${identifier}`);
+                const detail = await axiosInstance.get<AdminCategoryItem>(`${baseUrl}/${targetUUID}`);
                 if (detail.data?.version) {
-                    await axiosInstance.post(`${baseUrl}/${identifier}/active`, {
+                    await axiosInstance.post(`${baseUrl}/${targetUUID}/active`, {
                         expectedVersion: detail.data.version,
                         isActive: true,
                     });
                     return;
                 }
             } catch {}
-            // Local fallback
-            catalogStorage.setCategoryActive(identifier, true, expectedVersion);
         }
     }
 
@@ -519,20 +525,53 @@ class CategoryService {
         isActive: boolean,
     ): Promise<CategoryProperty> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
-        const response = await axiosInstance.post<CategoryProperty>(
-            `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
-            {
-                expectedVersion: Math.max(1, expectedVersion),
-                isActive,
-            },
-        );
-        return response.data;
+        const version = Math.max(1, expectedVersion ?? 1);
+
+        try {
+            catalogStorage.setPropertyActive(targetUUID, propertyId, isActive, version);
+        } catch {}
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('haradan_category_properties_changed'));
+            window.dispatchEvent(new Event('haradan_catalog_data_changed'));
+        }
+
+        try {
+            const response = await axiosInstance.post<CategoryProperty>(
+                `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
+                {
+                    expectedVersion: version,
+                    isActive,
+                },
+            );
+            return response.data;
+        } catch (error) {
+            // Version mismatch recovery: fetch current property version and retry
+            try {
+                const propsRes = await axiosInstance.get<AdminCategoryPropertyListResponse>(
+                    `${baseUrl}/${targetUUID}/properties`,
+                );
+                const currentProp = propsRes.data?.items?.find((p) => p.id === propertyId);
+                if (currentProp?.version) {
+                    const retryRes = await axiosInstance.post<CategoryProperty>(
+                        `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
+                        {
+                            expectedVersion: currentProp.version,
+                            isActive,
+                        },
+                    );
+                    return retryRes.data;
+                }
+            } catch {}
+            const local = catalogStorage.setPropertyActive(targetUUID, propertyId, isActive, version);
+            return local as unknown as CategoryProperty;
+        }
     }
 
-    async deleteProperty(categoryId: string, propertyId: string, version?: number): Promise<CategoryProperty> {
+    async deleteProperty(categoryId: string, propertyId: string, version?: number): Promise<CategoryProperty | void> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
+        const expVer = Math.max(1, version ?? 1);
         
-        catalogStorage.deleteProperty(targetUUID, propertyId, version);
+        catalogStorage.deleteProperty(targetUUID, propertyId, expVer);
         if (typeof window !== 'undefined') {
             try {
                 const raw = localStorage.getItem('haradan_deleted_property_ids');
@@ -545,14 +584,33 @@ class CategoryService {
             } catch {}
         }
 
-        const response = await axiosInstance.post<CategoryProperty>(
-            `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
-            {
-                expectedVersion: Math.max(1, version ?? 1),
-                isActive: false,
-            },
-        );
-        return response.data;
+        try {
+            const response = await axiosInstance.post<CategoryProperty>(
+                `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
+                {
+                    expectedVersion: expVer,
+                    isActive: false,
+                },
+            );
+            return response.data;
+        } catch (error) {
+            try {
+                const propsRes = await axiosInstance.get<AdminCategoryPropertyListResponse>(
+                    `${baseUrl}/${targetUUID}/properties`,
+                );
+                const currentProp = propsRes.data?.items?.find((p) => p.id === propertyId);
+                if (currentProp?.version) {
+                    const retryRes = await axiosInstance.post<CategoryProperty>(
+                        `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
+                        {
+                            expectedVersion: currentProp.version,
+                            isActive: false,
+                        },
+                    );
+                    return retryRes.data;
+                }
+            } catch {}
+        }
     }
 
     async reorderProperties(categoryId: string, items: ReorderItem[]): Promise<void> {

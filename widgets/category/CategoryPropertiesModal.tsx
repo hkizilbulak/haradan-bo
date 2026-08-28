@@ -240,15 +240,25 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
     }
     setSubmitting(true);
     try {
+      const nextActive = !property.isActive;
       const updated = await categoryService.setPropertyActive(
         categoryId,
         property.id,
         property.version,
-        !property.isActive,
+        nextActive,
       );
-      toast.success(property.isActive ? 'Özellik pasife alındı' : 'Özellik aktifleştirildi');
+      toast.success(nextActive ? 'Özellik aktifleştirildi' : 'Özellik pasife alındı');
       setItems((prev) =>
-        prev.map((p) => (p.id === property.id ? { ...p, ...updated } : p))
+        prev.map((p) =>
+          p.id === property.id
+            ? {
+                ...p,
+                ...updated,
+                isActive: nextActive,
+                version: updated?.version ?? (p.version || 1) + 1,
+              }
+            : p
+        )
       );
     } catch (error) {
       toast.error(getErrorMessage(error));
