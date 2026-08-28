@@ -521,22 +521,17 @@ class CategoryService {
         isActive: boolean,
     ): Promise<CategoryProperty> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
-        try {
-            const response = await axiosInstance.post<CategoryProperty>(
-                `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
-                {
-                    expectedVersion: Math.max(1, expectedVersion),
-                    isActive,
-                },
-            );
-            return response.data;
-        } catch (error) {
-            const local = catalogStorage.setPropertyActive(targetUUID, propertyId, isActive, expectedVersion);
-            return local as unknown as CategoryProperty;
-        }
+        const response = await axiosInstance.post<CategoryProperty>(
+            `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
+            {
+                expectedVersion: Math.max(1, expectedVersion),
+                isActive,
+            },
+        );
+        return response.data;
     }
 
-    async deleteProperty(categoryId: string, propertyId: string, version?: number): Promise<void> {
+    async deleteProperty(categoryId: string, propertyId: string, version?: number): Promise<CategoryProperty> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
         
         catalogStorage.deleteProperty(targetUUID, propertyId, version);
@@ -552,12 +547,14 @@ class CategoryService {
             } catch {}
         }
 
-        try {
-            await axiosInstance.post(`${baseUrl}/${targetUUID}/properties/${propertyId}/active`, {
+        const response = await axiosInstance.post<CategoryProperty>(
+            `${baseUrl}/${targetUUID}/properties/${propertyId}/active`,
+            {
                 expectedVersion: Math.max(1, version ?? 1),
                 isActive: false,
-            });
-        } catch {}
+            },
+        );
+        return response.data;
     }
 
     async reorderProperties(categoryId: string, items: ReorderItem[]): Promise<void> {

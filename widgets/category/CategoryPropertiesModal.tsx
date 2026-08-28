@@ -241,7 +241,7 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
     }
     setSubmitting(true);
     try {
-      await categoryService.setPropertyActive(
+      const updated = await categoryService.setPropertyActive(
         categoryId,
         property.id,
         property.version,
@@ -249,7 +249,7 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
       );
       toast.success(property.isActive ? 'Özellik pasife alındı' : 'Özellik aktifleştirildi');
       setItems((prev) =>
-        prev.map((p) => (p.id === property.id ? { ...p, isActive: !property.isActive, version: (p.version || 1) + 1 } : p))
+        prev.map((p) => (p.id === property.id ? { ...p, ...updated } : p))
       );
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -268,9 +268,9 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
     }
     setSubmitting(true);
     try {
-      await categoryService.deleteProperty(categoryId, property.id, property.version);
+      const updated = await categoryService.deleteProperty(categoryId, property.id, property.version);
       setItems((prev) =>
-        prev.map((p) => (p.id === property.id ? { ...p, isActive: false, version: (p.version || 1) + 1 } : p))
+        prev.map((p) => (p.id === property.id ? { ...p, ...updated } : p))
       );
       toast.success('Özellik pasife alındı');
     } catch (error) {
