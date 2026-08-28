@@ -129,12 +129,12 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await categoryService.listProperties(categoryId, categoryName);
+      const list = await categoryService.listProperties(categoryId, categoryName, undefined, true);
       setItems([...list].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title)));
 
       if (parentId && parentId !== categoryId && parentId !== 'c1000000-0000-4000-8000-000000000000') {
         try {
-          const parentList = await categoryService.listProperties(parentId);
+          const parentList = await categoryService.listProperties(parentId, undefined, undefined, false);
           // Üst kategoriden miras alınanlarda yalnızca AKTİF olanlar alt kategoriye aktarılır
           const activeParentList = parentList.filter((p) => p.isActive);
           setParentItems([...activeParentList].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title)));

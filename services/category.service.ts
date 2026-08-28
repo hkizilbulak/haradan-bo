@@ -402,7 +402,12 @@ class CategoryService {
         return catId;
     }
 
-    async listProperties(categoryId: string, _categoryName?: string, _categorySlug?: string): Promise<CategoryProperty[]> {
+    async listProperties(
+        categoryId: string,
+        _categoryName?: string,
+        _categorySlug?: string,
+        includeInactive = false,
+    ): Promise<CategoryProperty[]> {
         const targetUUID = this.resolveCategoryUUID(categoryId) || categoryId;
 
         try {
@@ -410,7 +415,10 @@ class CategoryService {
                 `${baseUrl}/${targetUUID}/properties`,
             );
             if (response.data?.items) {
-                return response.data.items;
+                const items = response.data.items;
+                // Soft-delete filtresi: includeInactive=false (default) ise yalnızca aktif özellikler döner.
+                // Bu, kategori/alt-kategori silmedeki status==ACTIVE filtre mantığının property karşılığıdır.
+                return includeInactive ? items : items.filter((p) => p.isActive);
             }
         } catch (error: any) {
             if (
@@ -419,7 +427,7 @@ class CategoryService {
             ) {
                 const realId = await this.ensureGlobalCategory();
                 if (realId && realId !== targetUUID) {
-                    return this.listProperties(realId);
+                    return this.listProperties(realId, undefined, undefined, includeInactive);
                 }
             }
             console.warn('[CategoryService] listProperties API error, fallback to local storage:', error);
@@ -436,7 +444,10 @@ class CategoryService {
         }
 
         const localProps = catalogStorage.listProperties(targetUUID);
-        return (localProps as unknown as CategoryProperty[]).filter((p) => !deletedSet.has(p.id));
+        // Local fallback: deletedSet + isActive filtresi aynı anda uygulanır
+        return (localProps as unknown as CategoryProperty[]).filter(
+            (p) => !deletedSet.has(p.id) && (includeInactive || p.isActive),
+        );
     }
 
     async createProperty(categoryId: string, request: CreateCategoryPropertyRequest): Promise<CategoryProperty> {
