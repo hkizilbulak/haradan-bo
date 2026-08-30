@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form } from 'react-bootstrap';
+import { Offcanvas, Button, Form } from 'react-bootstrap';
 import { studFarmService } from '@/services';
 import { toast } from 'react-toastify';
 import { StudFarm } from '@/models/StudFarm';
@@ -83,79 +83,82 @@ export default function AddStudFarmModal({ show, onHide, onSuccess, existingStud
     };
 
     return (
-        <Modal show={show} onHide={handleClose} centered>
-            <Form onSubmit={handleSubmit}>
-                <Modal.Header closeButton>
-                    <Modal.Title>{existingStudFarm ? 'Hara Düzenle' : 'Yeni Hara Ekle'}</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Form.Group className="mb-3">
-                        <Form.Label>Hara Adı <span className="text-danger">*</span></Form.Label>
-                        <Form.Control
-                            type="text"
-                            name="firstName"
-                            placeholder="Hara Adı giriniz"
-                            value={formData.firstName}
-                            onChange={handleChange}
-                            required
-                        />
-                    </Form.Group>
+        <Offcanvas show={show} onHide={handleClose} placement="end" style={{ maxWidth: 540 }} className="w-100">
+            <Offcanvas.Header closeButton>
+                <Offcanvas.Title className="h5 mb-0">{existingStudFarm ? 'Hara Düzenle' : 'Yeni Hara Ekle'}</Offcanvas.Title>
+            </Offcanvas.Header>
+            <Offcanvas.Body>
+                <Form onSubmit={handleSubmit} className="d-flex flex-column h-100">
+                    <div className="flex-grow-1">
+                        <Form.Group className="mb-3">
+                            <Form.Label>Hara Adı <span className="text-danger">*</span></Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="firstName"
+                                placeholder="Hara Adı giriniz"
+                                value={formData.firstName}
+                                onChange={handleChange}
+                                required
+                            />
+                        </Form.Group>
+                        
+                        <Form.Group className="mb-3">
+                            <Form.Label>Hara Sorumlusu Ad Soyadı <span className="text-danger">*</span></Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="lastName"
+                                placeholder="Ad Soyad giriniz"
+                                value={formData.lastName}
+                                onChange={handleChange}
+                                required
+                            />
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>E-posta <span className="text-danger">*</span></Form.Label>
+                            <Form.Control
+                                type="email"
+                                name="email"
+                                placeholder="E-posta adresi giriniz"
+                                value={formData.email}
+                                onChange={handleChange}
+                                required
+                            />
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>Telefon</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="phone"
+                                placeholder="Telefon numarası giriniz (Opsiyonel)"
+                                value={formData.phone}
+                                onChange={handleChange}
+                            />
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>Konum</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="location"
+                                placeholder="Konum giriniz (Opsiyonel)"
+                                value={formData.location}
+                                onChange={handleChange}
+                            />
+                        </Form.Group>
+                    </div>
                     
-                    <Form.Group className="mb-3">
-                        <Form.Label>Hara Sorumlusu Ad Soyadı <span className="text-danger">*</span></Form.Label>
-                        <Form.Control
-                            type="text"
-                            name="lastName"
-                            placeholder="Ad Soyad giriniz"
-                            value={formData.lastName}
-                            onChange={handleChange}
-                            required
-                        />
-                    </Form.Group>
-
-                    <Form.Group className="mb-3">
-                        <Form.Label>E-posta <span className="text-danger">*</span></Form.Label>
-                        <Form.Control
-                            type="email"
-                            name="email"
-                            placeholder="E-posta adresi giriniz"
-                            value={formData.email}
-                            onChange={handleChange}
-                            required
-                        />
-                    </Form.Group>
-
-                    <Form.Group className="mb-3">
-                        <Form.Label>Telefon</Form.Label>
-                        <Form.Control
-                            type="text"
-                            name="phone"
-                            placeholder="Telefon numarası giriniz (Opsiyonel)"
-                            value={formData.phone}
-                            onChange={handleChange}
-                        />
-                    </Form.Group>
-
-                    <Form.Group className="mb-3">
-                        <Form.Label>Konum</Form.Label>
-                        <Form.Control
-                            type="text"
-                            name="location"
-                            placeholder="Konum giriniz (Opsiyonel)"
-                            value={formData.location}
-                            onChange={handleChange}
-                        />
-                    </Form.Group>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={handleClose} disabled={loading}>
-                        İptal
-                    </Button>
-                    <Button variant="primary" type="submit" disabled={loading} style={{ backgroundColor: '#6f42c1', borderColor: '#6f42c1' }}>
-                        {loading ? 'Ekleniyor...' : 'Kaydet'}
-                    </Button>
-                </Modal.Footer>
-            </Form>
-        </Modal>
+                    <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <Button variant="secondary" onClick={handleClose} disabled={loading}>
+                            İptal
+                        </Button>
+                        <Button variant="primary" type="submit" disabled={loading} style={{ backgroundColor: '#6f42c1', borderColor: '#6f42c1' }}>
+                            {loading ? 'Ekleniyor...' : 'Kaydet'}
+                        </Button>
+                    </div>
+                </Form>
+            </Offcanvas.Body>
+        </Offcanvas>
     );
 }

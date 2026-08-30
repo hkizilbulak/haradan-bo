@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Spinner } from 'react-bootstrap';
+import { Offcanvas, Button, Form, Spinner } from 'react-bootstrap';
 import { studFarmService } from '@/services/StudFarmService';
 import { toast } from 'react-toastify';
 
@@ -84,54 +84,57 @@ export default function AddStudFarmNoteModal({ show, onHide, studFarmId, onSucce
     };
 
     return (
-        <Modal show={show} onHide={onHide} centered>
-            <Modal.Header closeButton>
-                <Modal.Title>{existingNote ? 'Görüşme Düzenle' : 'Yeni Görüşme Ekle'}</Modal.Title>
-            </Modal.Header>
-            <Form onSubmit={handleSubmit}>
-                <Modal.Body>
-                    <Form.Group className="mb-3">
-                        <Form.Label>Görüşme Tarihi <span className="text-danger">*</span></Form.Label>
-                        <Form.Control 
-                            type="date" 
-                            required 
-                            value={interviewDate}
-                            onChange={(e) => setInterviewDate(e.target.value)}
-                        />
-                    </Form.Group>
-                    
-                    <Form.Group className="mb-3">
-                        <Form.Label>Görüşmeci <span className="text-danger">*</span></Form.Label>
-                        <Form.Control 
-                            type="text" 
-                            placeholder="Görüşmeci adı" 
-                            required 
-                            value={interviewerName}
-                            onChange={(e) => setInterviewerName(e.target.value)}
-                        />
-                    </Form.Group>
+        <Offcanvas show={show} onHide={onHide} placement="end" style={{ maxWidth: 540 }} className="w-100">
+            <Offcanvas.Header closeButton>
+                <Offcanvas.Title className="h5 mb-0">{existingNote ? 'Görüşme Düzenle' : 'Yeni Görüşme Ekle'}</Offcanvas.Title>
+            </Offcanvas.Header>
+            <Offcanvas.Body>
+                <Form onSubmit={handleSubmit} className="d-flex flex-column h-100">
+                    <div className="flex-grow-1">
+                        <Form.Group className="mb-3">
+                            <Form.Label>Görüşme Tarihi <span className="text-danger">*</span></Form.Label>
+                            <Form.Control 
+                                type="date" 
+                                required 
+                                value={interviewDate}
+                                onChange={(e) => setInterviewDate(e.target.value)}
+                            />
+                        </Form.Group>
+                        
+                        <Form.Group className="mb-3">
+                            <Form.Label>Görüşmeci <span className="text-danger">*</span></Form.Label>
+                            <Form.Control 
+                                type="text" 
+                                placeholder="Görüşmeci adı" 
+                                required 
+                                value={interviewerName}
+                                onChange={(e) => setInterviewerName(e.target.value)}
+                            />
+                        </Form.Group>
 
-                    <Form.Group className="mb-3">
-                        <Form.Label>Notlar <span className="text-danger">*</span></Form.Label>
-                        <Form.Control 
-                            as="textarea" 
-                            rows={4} 
-                            placeholder="Görüşme notları..." 
-                            required 
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                        />
-                    </Form.Group>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={onHide} disabled={isSubmitting}>
-                        İptal
-                    </Button>
-                    <Button variant="primary" type="submit" disabled={isSubmitting}>
-                        {isSubmitting ? <Spinner size="sm" /> : 'Kaydet'}
-                    </Button>
-                </Modal.Footer>
-            </Form>
-        </Modal>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Notlar <span className="text-danger">*</span></Form.Label>
+                            <Form.Control 
+                                as="textarea" 
+                                rows={4} 
+                                placeholder="Görüşme notları..." 
+                                required 
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                            />
+                        </Form.Group>
+                    </div>
+                    
+                    <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <Button variant="secondary" onClick={onHide} disabled={isSubmitting}>
+                            İptal
+                        </Button>
+                        <Button variant="primary" type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? <Spinner size="sm" /> : 'Kaydet'}
+                        </Button>
+                    </div>
+                </Form>
+            </Offcanvas.Body>
+        </Offcanvas>
     );
 }
