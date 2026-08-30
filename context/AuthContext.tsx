@@ -67,8 +67,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
+      console.error("Failed to load session:", error);
       clearSession(false);
-      throw error;
     }
   }, [clearSession]);
 
