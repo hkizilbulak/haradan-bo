@@ -38,12 +38,18 @@ function validateSetup() {
 }
 
 function environmentFromFile(filename, overrides = {}) {
-  const parsed = dotenv.parse(fs.readFileSync(filename));
-  return {
-    ...parsed,
+  const parsed = fs.existsSync(filename) ? dotenv.parse(fs.readFileSync(filename)) : {};
+  const env = {
     ...process.env,
+    ...parsed,
     ...overrides,
   };
+  const systemPath = process.env.PATH || process.env.Path || '';
+  const nodeBin = path.join(boDir, 'node_modules', '.bin');
+  const fullPath = nodeBin + path.delimiter + systemPath;
+  env.PATH = fullPath;
+  env.Path = fullPath;
+  return env;
 }
 
 function addAllowedOrigin(value, requiredOrigin) {
@@ -81,7 +87,7 @@ function startService(label, command, args, cwd, env) {
     cwd,
     env,
     detached: false,
-    shell: false,
+    shell: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -181,12 +187,12 @@ function isReady(url) {
       resolve(response.statusCode === 200);
     });
 
-    request.setTimeout(2000, () => request.destroy());
+    request.setTimeout(30000, () => request.destroy());
     request.once('error', () => resolve(false));
   });
 }
 
-async function waitForReady(label, url, timeoutMilliseconds = 45000) {
+async function waitForReady(label, url, timeoutMilliseconds = 120000) {
   const deadline = Date.now() + timeoutMilliseconds;
   while (!stopping && Date.now() < deadline) {
     if (await isReady(url)) {
