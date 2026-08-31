@@ -194,7 +194,7 @@ export default function NotificationsPage() {
   useEffect(() => {
     providerEmailTemplateService.list()
       .then((items) => {
-        setProviderTemplates(items);
+        setProviderTemplates(items.filter((item) => item.name.toLowerCase().includes('haradan')));
         setProviderUnavailable(false);
         setProviderMessage(null);
       })
