@@ -19,6 +19,7 @@
     "test:phone": "node --experimental-strip-types helpers/phone.test.ts",
     "test:money": "node --experimental-strip-types helpers/money.test.ts",
     "test:property-ui-metadata": "node --experimental-strip-types helpers/propertyUiMetadata.test.ts",
+    "test:advert-url": "node --experimental-strip-types helpers/advertUrl.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:local": "bash scripts/run-e2e-local.sh"
   },

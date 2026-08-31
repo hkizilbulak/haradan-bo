@@ -1,11 +1,11 @@
 "use client"
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Col, Container, Form, Modal, Row, Badge, Table, Alert, Accordion } from 'react-bootstrap';
+import { Button, Col, Container, Form, Modal, Row, Badge, Table, Alert } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import Loading from '@/components/Loading';
 import PrepareTable from '@/components/PrepareTable';
 import StatusBadge from '@/components/StatusBadge';
-import { buildMediaUrl } from '@/contants/urls';
+import { buildAdvertDetailUrl } from '@/contants/urls';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
 import {
   getAdvertStatusText,
@@ -15,11 +15,10 @@ import {
 import { getErrorMessage } from '@/helpers/HelperUtils';
 import { canModerationAction } from '@/helpers/moderationActions';
 import useCursorApi from '@/hooks/useCursorApi';
-import { ModerationAdvertResponse, UserResponse } from '@/models';
+import { ModerationAdvertResponse } from '@/models';
 import {
   advertService,
   categoryService,
-  userService,
   ModerationReasonRequest,
   AdvertPackageAssignment,
   AssignPackageRequest,
@@ -321,128 +320,12 @@ function ActionModal({
   );
 }
 
-function AdvertDetailModal({ advertId, categoryMap, onClose }: { advertId: string; categoryMap?: Map<string, string>; onClose: () => void }) {
-  const [loading, setLoading] = useState(true);
-  const [detail, setDetail] = useState<Awaited<ReturnType<typeof advertService.getDetail>> | null>(null);
-  const [ownerUser, setOwnerUser] = useState<UserResponse | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    advertService.getDetail(advertId)
-      .then((data) => {
-        setDetail(data);
-        if (data?.ownerUserId) {
-          userService.getById(data.ownerUserId)
-            .then(setOwnerUser)
-            .catch(() => setOwnerUser(null));
-        } else {
-          setOwnerUser(null);
-        }
-      })
-      .catch((err) => toast.error(getErrorMessage(err)))
-      .finally(() => setLoading(false));
-  }, [advertId]);
-
-  const categoryName = detail?.categoryId ? (categoryMap?.get(detail.categoryId) || detail.categoryId) : '-';
-  const ownerFullName = [ownerUser?.firstName, ownerUser?.lastName].filter(Boolean).join(' ').trim();
-  const ownerDisplayName = ownerFullName || ownerUser?.email || detail?.ownerUserId || '-';
-  const displayId = (detail?.id ?? advertId).replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase();
-
-  return (
-    <Modal show onHide={onClose} size="lg">
-      <Modal.Header closeButton>
-        <Modal.Title>İlan Detayı</Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        {loading && <Loading />}
-        {!loading && detail && (
-          <>
-            <p className="mb-1"><strong>Başlık:</strong> {detail.title || '-'}</p>
-            <p className="mb-1">
-              <strong>İlan No:</strong> <Badge bg="light" text="dark" className="border">#{displayId}</Badge>
-            </p>
-            <p className="mb-1">
-              <strong>İlan Sahibi:</strong> {ownerDisplayName}
-              {ownerUser?.email && ownerDisplayName !== ownerUser.email ? (
-                <span className="text-muted ms-1 small">({ownerUser.email})</span>
-              ) : null}
-            </p>
-            <p className="mb-1"><strong>Durum:</strong> {getAdvertStatusText(detail.status)}</p>
-            <p className="mb-3"><strong>Kategori:</strong> {categoryName}</p>
-            {detail.media && detail.media.length > 0 && (
-              <div className="d-flex flex-wrap gap-2 mb-3">
-                {detail.media.map((item) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={item.assetId}
-                    src={buildMediaUrl(item.assetId, 'DETAIL')}
-                    alt="İlan görseli"
-                    style={{ width: 96, height: 72, objectFit: 'cover', borderRadius: 6 }}
-                  />
-                ))}
-              </div>
-            )}
-            {detail.statusHistory && detail.statusHistory.length > 0 && (
-              <Table size="sm" bordered>
-                <thead>
-                  <tr>
-                    <th>Önceki</th>
-                    <th>Yeni</th>
-                    <th>Sebep</th>
-                    <th>Tarih</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.statusHistory.map((item, index) => (
-                    <tr key={`${item.createdAt}-${index}`}>
-                      <td>{item.fromStatus ? getAdvertStatusText(item.fromStatus) : '-'}</td>
-                      <td>{getAdvertStatusText(item.toStatus)}</td>
-                      <td>{item.reason ?? '-'}</td>
-                      <td>{formatDateTimeForText(item.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            )}
-            <Accordion className="mt-3">
-              <Accordion.Item eventKey="0">
-                <Accordion.Header>Teknik Bilgiler</Accordion.Header>
-                <Accordion.Body className="small text-muted">
-                  <div className="mb-1">
-                    <strong>İlan Sahibi:</strong> {ownerDisplayName} {ownerUser?.email ? `(${ownerUser.email})` : ''}
-                  </div>
-                  <div className="mb-1">
-                    <strong>İlan No:</strong> #{displayId}
-                  </div>
-                  <div className="mb-1">
-                    <strong>İlan Sistem Kimliği (UUID):</strong> <code>{detail.id ?? advertId}</code>
-                  </div>
-                  <div className="mb-1">
-                    <strong>Sahip Kullanıcı Kimliği (UUID):</strong> <code>{detail.ownerUserId}</code>
-                  </div>
-                  <div>
-                    <strong>Versiyon:</strong> v{detail.version}
-                  </div>
-                </Accordion.Body>
-              </Accordion.Item>
-            </Accordion>
-          </>
-        )}
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="secondary" onClick={onClose}>Kapat</Button>
-      </Modal.Footer>
-    </Modal>
-  );
-}
-
 export default function Adverts() {
   const [pendingAction, setPendingAction] = useState<{
     advert: ModerationAdvertResponse;
     action: 'reject' | 'requestChanges' | 'suspend';
   } | null>(null);
   const [packageAdvert, setPackageAdvert] = useState<ModerationAdvertResponse | null>(null);
-  const [detailAdvertId, setDetailAdvertId] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
   const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
@@ -553,7 +436,14 @@ export default function Adverts() {
         <td title={advert.categoryId || undefined}>{categoryName}</td>
         <td><StatusBadge status={advert.status} /></td>
         <td className="d-flex flex-wrap gap-1">
-          <Button size="sm" variant="outline-primary" onClick={() => setDetailAdvertId(advertId!)}>
+          <Button
+            as="a"
+            href={buildAdvertDetailUrl(advertId!)}
+            target="_blank"
+            rel="noopener noreferrer"
+            size="sm"
+            variant="outline-primary"
+          >
             Detay
           </Button>
           {canApprove && (
@@ -613,7 +503,6 @@ export default function Adverts() {
       </Modal>
 
       {packageAdvert && <PackageModal advert={packageAdvert} onClose={() => setPackageAdvert(null)} onDone={() => { setPackageAdvert(null); refetch(); }} />}
-      {detailAdvertId && <AdvertDetailModal advertId={detailAdvertId} categoryMap={categoryMap} onClose={() => setDetailAdvertId(null)} />}
 
       {isLoading && <Loading />}
 
