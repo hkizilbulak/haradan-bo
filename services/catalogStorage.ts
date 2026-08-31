@@ -93,6 +93,16 @@ class CatalogStorage {
                 parsed.categoryProperties.unshift(gp);
               }
             }
+            const highlightProps = initial.categoryProperties.filter(
+              (p) => p.categoryId === 'c1000000-0000-4000-8000-000000000001'
+                && p.uiMetadata
+                && (p.uiMetadata as Record<string, unknown>).displayGroup === 'highlight',
+            );
+            for (const hp of highlightProps) {
+              if (!parsed.categoryProperties.some((p: any) => p.code === hp.code && p.categoryId === hp.categoryId)) {
+                parsed.categoryProperties.push(hp);
+              }
+            }
             for (const ip of initial.categoryProperties) {
               const found = parsed.categoryProperties.find((p: any) => p.code === ip.code);
               if (found && ip.options && ip.options.length > 0) {

@@ -360,6 +360,78 @@
       "uiMetadata": {}
     },
     {
+      "id": "p1000000-0000-4000-8000-000000000071",
+      "categoryId": "c1000000-0000-4000-8000-000000000001",
+      "code": "HEALTH_VACCINATION",
+      "title": "Sağlık & aşı kaydı",
+      "helpText": "Veteriner raporu ve aşı kartı talep edilebilir.",
+      "dataType": "BOOLEAN",
+      "isRequired": false,
+      "isPublicVisible": true,
+      "isFormVisible": true,
+      "isFilterable": false,
+      "sortOrder": 20,
+      "isActive": true,
+      "version": 1,
+      "options": [],
+      "validation": {},
+      "uiMetadata": {
+        "displayGroup": "highlight",
+        "sectionTitle": "ÖNE ÇIKAN BİLGİLER",
+        "sectionSubtitle": "GÜVENCE VE İNCELEME",
+        "icon": "activity",
+        "inputWidget": "checkbox"
+      }
+    },
+    {
+      "id": "p1000000-0000-4000-8000-000000000072",
+      "categoryId": "c1000000-0000-4000-8000-000000000001",
+      "code": "PEDIGREE_IDENTITY",
+      "title": "Şecere ve kimlik",
+      "helpText": "Soy ağacı ve kimlik belgeleri satış öncesi paylaşılır.",
+      "dataType": "BOOLEAN",
+      "isRequired": false,
+      "isPublicVisible": true,
+      "isFormVisible": true,
+      "isFilterable": false,
+      "sortOrder": 21,
+      "isActive": true,
+      "version": 1,
+      "options": [],
+      "validation": {},
+      "uiMetadata": {
+        "displayGroup": "highlight",
+        "sectionTitle": "ÖNE ÇIKAN BİLGİLER",
+        "sectionSubtitle": "GÜVENCE VE İNCELEME",
+        "icon": "file-text",
+        "inputWidget": "checkbox"
+      }
+    },
+    {
+      "id": "p1000000-0000-4000-8000-000000000073",
+      "categoryId": "c1000000-0000-4000-8000-000000000001",
+      "code": "ONSITE_INSPECTION",
+      "title": "Yerinde inceleme",
+      "helpText": "Deneme binişi ve hara ziyareti randevu ile.",
+      "dataType": "BOOLEAN",
+      "isRequired": false,
+      "isPublicVisible": true,
+      "isFormVisible": true,
+      "isFilterable": false,
+      "sortOrder": 22,
+      "isActive": true,
+      "version": 1,
+      "options": [],
+      "validation": {},
+      "uiMetadata": {
+        "displayGroup": "highlight",
+        "sectionTitle": "ÖNE ÇIKAN BİLGİLER",
+        "sectionSubtitle": "GÜVENCE VE İNCELEME",
+        "icon": "eye",
+        "inputWidget": "checkbox"
+      }
+    },
+    {
       "id": "p1000000-0000-4000-8000-000000000021",
       "categoryId": "c1000000-0000-4000-8000-000000000021",
       "code": "grassPaddock",

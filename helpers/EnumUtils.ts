@@ -1,5 +1,7 @@
 import { ENTITY_STATUS_TEXTS, PROPERTY_TYPE_TEXTS } from "@/contants/variables";
 import { EntityStatusEnum, PropertyTypeEnum } from '@/models/enums';
+import { isHighlightProperty } from '@/helpers/propertyUiMetadata';
+import type { CategoryProperty } from '@/services/category.service';
 
 export function getEnumText(textArray: { key: any, value: any }[], searchType: any) {
     return textArray.find(text => text?.key === searchType)?.value;
@@ -28,6 +30,13 @@ export function getPropertyDataTypeText(searchType?: string) {
     if (searchType === 'SINGLE_SELECT') return 'Tek Seçim';
     if (searchType === 'YEAR') return 'Yıl';
     return searchType ? 'Desteklenmeyen alan türü' : '-';
+}
+
+export function getPropertyDisplayTypeText(property: Pick<CategoryProperty, 'dataType' | 'uiMetadata'>) {
+    if (property.dataType === 'BOOLEAN' && isHighlightProperty(property.uiMetadata)) {
+        return 'Onay Kutusu (Öne Çıkan)';
+    }
+    return getPropertyDataTypeText(property.dataType);
 }
 
 export function getUserStatusText(searchType?: string) {

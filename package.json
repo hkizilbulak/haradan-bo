@@ -18,6 +18,7 @@
     "test:sanitize-html": "node --experimental-strip-types helpers/sanitizeHtml.test.ts",
     "test:phone": "node --experimental-strip-types helpers/phone.test.ts",
     "test:money": "node --experimental-strip-types helpers/money.test.ts",
+    "test:property-ui-metadata": "node --experimental-strip-types helpers/propertyUiMetadata.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:local": "bash scripts/run-e2e-local.sh"
   },

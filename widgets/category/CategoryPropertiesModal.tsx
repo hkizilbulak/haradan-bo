@@ -9,7 +9,15 @@ import {
   PropertyDataType,
 } from '@/services/category.service';
 import { getErrorMessage } from '@/helpers/HelperUtils';
-import { getPropertyDataTypeText } from '@/helpers/EnumUtils';
+import { getPropertyDataTypeText, getPropertyDisplayTypeText } from '@/helpers/EnumUtils';
+import {
+  HIGHLIGHT_ICON_OPTIONS,
+  HIGHLIGHT_SECTION_DEFAULTS,
+  isHighlightProperty,
+  readUiMetadata,
+  uiMetadataFromForm,
+  type PropertyDisplayGroup,
+} from '@/helpers/propertyUiMetadata';
 
 const DATA_TYPES: PropertyDataType[] = [
   'STRING',
@@ -42,6 +50,10 @@ type FormState = {
   isFormVisible: boolean;
   isFilterable: boolean;
   options: OptionRow[];
+  displayGroup: PropertyDisplayGroup;
+  sectionTitle: string;
+  sectionSubtitle: string;
+  icon: string;
 };
 
 const emptyForm: FormState = {
@@ -53,6 +65,10 @@ const emptyForm: FormState = {
   isFormVisible: true,
   isFilterable: false,
   options: [],
+  displayGroup: 'default',
+  sectionTitle: HIGHLIGHT_SECTION_DEFAULTS.sectionTitle,
+  sectionSubtitle: HIGHLIGHT_SECTION_DEFAULTS.sectionSubtitle,
+  icon: HIGHLIGHT_ICON_OPTIONS[0].value,
 };
 
 /** Uppercase slug-like option value from label (Turkish normalize, similar to BE property codes). */
@@ -163,6 +179,7 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
   };
 
   const openEdit = (property: CategoryProperty) => {
+    const ui = readUiMetadata(property.uiMetadata);
     setEditing(property);
     setForm({
       title: property.title,
@@ -173,6 +190,10 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
       isFormVisible: property.isFormVisible,
       isFilterable: property.isFilterable,
       options: optionsFromProperty(property),
+      displayGroup: ui.displayGroup ?? 'default',
+      sectionTitle: ui.sectionTitle ?? HIGHLIGHT_SECTION_DEFAULTS.sectionTitle,
+      sectionSubtitle: ui.sectionSubtitle ?? HIGHLIGHT_SECTION_DEFAULTS.sectionSubtitle,
+      icon: ui.icon ?? HIGHLIGHT_ICON_OPTIONS[0].value,
     });
     setFormOpen(true);
   };
@@ -197,6 +218,15 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
       structuredOptions = assignUniqueOptionValues(filled);
     }
 
+    const uiMetadata = uiMetadataFromForm({
+      dataType: form.dataType,
+      displayGroup: form.displayGroup,
+      sectionTitle: form.sectionTitle,
+      sectionSubtitle: form.sectionSubtitle,
+      icon: form.icon,
+    });
+    const isHighlightCheckbox = form.dataType === 'BOOLEAN' && form.displayGroup === 'highlight';
+
     setSubmitting(true);
     try {
       if (editing) {
@@ -207,8 +237,9 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
           isRequired: form.isRequired,
           isPublicVisible: form.isPublicVisible,
           isFormVisible: form.isFormVisible,
-          isFilterable: form.isFilterable,
+          isFilterable: isHighlightCheckbox ? false : form.isFilterable,
           options: needsOptions ? structuredOptions : undefined,
+          uiMetadata,
         });
         toast.success('Özellik güncellendi');
       } else {
@@ -219,8 +250,9 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
           isRequired: form.isRequired,
           isPublicVisible: form.isPublicVisible,
           isFormVisible: form.isFormVisible,
-          isFilterable: form.isFilterable,
+          isFilterable: isHighlightCheckbox ? false : form.isFilterable,
           options: needsOptions ? structuredOptions : undefined,
+          uiMetadata,
         };
         await categoryService.createProperty(categoryId, payload);
         toast.success('Özellik eklendi');
@@ -278,13 +310,7 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
     setSubmitting(true);
     try {
       await categoryService.deleteProperty(categoryId, property.id, property.version);
-      console.log('DEBUG property.id:', property.id, typeof property.id);
-      console.log('DEBUG items before:', items.map(p => p.id));
-      setItems((prev) => {
-        const filtered = prev.filter((p) => p.id !== property.id);
-        console.log('DEBUG prev.length:', prev.length, 'filtered.length:', filtered.length);
-        return filtered;
-      });
+      setItems((prev) => prev.filter((p) => p.id !== property.id));
       toast.success('Özellik silindi');
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -402,8 +428,15 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
               <tbody>
                 {items.map((item, originalIndex) => (
                   <tr key={item.id} style={{ opacity: item.isActive ? 1 : 0.65 }}>
-                    <td className="fw-semibold">{item.title}</td>
-                    <td>{getPropertyDataTypeText(item.dataType)}</td>
+                    <td className="fw-semibold">
+                      {item.title}
+                      {isHighlightProperty(item.uiMetadata) && (
+                        <Badge bg="primary" className="ms-2 text-white">
+                          Öne Çıkan
+                        </Badge>
+                      )}
+                    </td>
+                    <td>{getPropertyDisplayTypeText(item)}</td>
                     <td>
                       {item.isRequired ? (
                         <Badge bg="danger" className="text-white">Zorunlu</Badge>
@@ -503,7 +536,7 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
                             </Badge>
                           )}
                         </td>
-                        <td>{getPropertyDataTypeText(pItem.dataType)}</td>
+                        <td>{getPropertyDisplayTypeText(pItem)}</td>
                         <td>
                           {pItem.isRequired ? (
                             <Badge bg="danger">Zorunlu</Badge>
@@ -556,6 +589,8 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
                     setForm((prev) => ({
                       ...prev,
                       dataType,
+                      displayGroup: dataType === 'BOOLEAN' ? prev.displayGroup : 'default',
+                      isFilterable: dataType === 'BOOLEAN' && prev.displayGroup === 'highlight' ? false : prev.isFilterable,
                       options: dataType === 'SINGLE_SELECT' && prev.options.length === 0
                         ? [{ value: '', label: '' }]
                         : prev.options,
@@ -579,10 +614,73 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
                   onChange={(e) => setForm((prev) => ({ ...prev, helpText: e.target.value }))}
                 />
                 <Form.Text muted>
-                  İlan oluştururken alanın altında gösterilir.
+                  İlan oluştururken alanın altında gösterilir. Öne çıkan bilgilerde ilan detayında da alt metin olarak kullanılır.
                 </Form.Text>
               </Form.Group>
             </Col>
+
+            {form.dataType === 'BOOLEAN' && (
+              <Col md={12}>
+                <Form.Group>
+                  <Form.Label>Görünüm Türü</Form.Label>
+                  <Form.Select
+                    value={form.displayGroup}
+                    onChange={(e) => {
+                      const displayGroup = e.target.value as PropertyDisplayGroup;
+                      setForm((prev) => ({
+                        ...prev,
+                        displayGroup,
+                        isFilterable: displayGroup === 'highlight' ? false : prev.isFilterable,
+                      }));
+                    }}
+                  >
+                    <option value="default">Evet / Hayır (standart)</option>
+                    <option value="highlight">Onay Kutusu — Öne Çıkan Bilgi</option>
+                  </Form.Select>
+                  <Form.Text muted>
+                    Öne çıkan bilgiler ilan verme adımında checkbox olarak gösterilir; ilan detayında yalnızca seçilenler listelenir.
+                  </Form.Text>
+                </Form.Group>
+              </Col>
+            )}
+
+            {form.dataType === 'BOOLEAN' && form.displayGroup === 'highlight' && (
+              <>
+                <Col md={6}>
+                  <Form.Group>
+                    <Form.Label>Bölüm Başlığı</Form.Label>
+                    <Form.Control
+                      value={form.sectionTitle}
+                      onChange={(e) => setForm((prev) => ({ ...prev, sectionTitle: e.target.value }))}
+                      placeholder={HIGHLIGHT_SECTION_DEFAULTS.sectionTitle}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group>
+                    <Form.Label>Alt Başlık</Form.Label>
+                    <Form.Control
+                      value={form.sectionSubtitle}
+                      onChange={(e) => setForm((prev) => ({ ...prev, sectionSubtitle: e.target.value }))}
+                      placeholder={HIGHLIGHT_SECTION_DEFAULTS.sectionSubtitle}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={12}>
+                  <Form.Group>
+                    <Form.Label>İkon</Form.Label>
+                    <Form.Select
+                      value={form.icon}
+                      onChange={(e) => setForm((prev) => ({ ...prev, icon: e.target.value }))}
+                    >
+                      {HIGHLIGHT_ICON_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+              </>
+            )}
 
             {form.dataType === 'SINGLE_SELECT' && (
               <Col md={12}>
@@ -641,6 +739,7 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
                 id="prop-filterable"
                 label="Filtrelerde kullanılabilir"
                 checked={form.isFilterable}
+                disabled={form.dataType === 'BOOLEAN' && form.displayGroup === 'highlight'}
                 onChange={(e) => setForm((prev) => ({ ...prev, isFilterable: e.target.checked }))}
               />
             </Col>

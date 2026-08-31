@@ -175,6 +175,7 @@ export default function Categories() {
   useEffect(() => {
     // Sayfa açıldığında ortak alanların backend'de tam ve eksiksiz olduğunu doğrula
     void categoryService.ensureGlobalCategory();
+    void categoryService.ensureHighlightProperties();
   }, []);
 
   const handleNameChange = (val: string) => {

@@ -408,6 +408,97 @@ class CategoryService {
         return catId;
     }
 
+    /** Satılık Atlar için öne çıkan bilgi (checkbox) özelliklerini idempotent olarak seed eder. */
+    async ensureHighlightProperties(): Promise<void> {
+        const categoryId = 'c1000000-0000-4000-8000-000000000001';
+
+        let existingProps: CategoryProperty[] = [];
+        try {
+            const res = await axiosInstance.get<AdminCategoryPropertyListResponse>(
+                `${baseUrl}/${categoryId}/properties`,
+            );
+            if (res.data?.items && Array.isArray(res.data.items)) {
+                existingProps = res.data.items;
+            }
+        } catch (e) {
+            console.warn('[CategoryService] ensureHighlightProperties list error:', e);
+            return;
+        }
+
+        const existingCodes = new Set(existingProps.map((p) => String(p.code || '').toUpperCase()));
+
+        const highlightProps: CreateCategoryPropertyRequest[] = [
+            {
+                code: 'HEALTH_VACCINATION',
+                title: 'Sağlık & aşı kaydı',
+                helpText: 'Veteriner raporu ve aşı kartı talep edilebilir.',
+                dataType: 'BOOLEAN',
+                isRequired: false,
+                isPublicVisible: true,
+                isFormVisible: true,
+                isFilterable: false,
+                sortOrder: 20,
+                uiMetadata: {
+                    displayGroup: 'highlight',
+                    sectionTitle: 'ÖNE ÇIKAN BİLGİLER',
+                    sectionSubtitle: 'GÜVENCE VE İNCELEME',
+                    icon: 'activity',
+                    inputWidget: 'checkbox',
+                },
+            },
+            {
+                code: 'PEDIGREE_IDENTITY',
+                title: 'Şecere ve kimlik',
+                helpText: 'Soy ağacı ve kimlik belgeleri satış öncesi paylaşılır.',
+                dataType: 'BOOLEAN',
+                isRequired: false,
+                isPublicVisible: true,
+                isFormVisible: true,
+                isFilterable: false,
+                sortOrder: 21,
+                uiMetadata: {
+                    displayGroup: 'highlight',
+                    sectionTitle: 'ÖNE ÇIKAN BİLGİLER',
+                    sectionSubtitle: 'GÜVENCE VE İNCELEME',
+                    icon: 'file-text',
+                    inputWidget: 'checkbox',
+                },
+            },
+            {
+                code: 'ONSITE_INSPECTION',
+                title: 'Yerinde inceleme',
+                helpText: 'Deneme binişi ve hara ziyareti randevu ile.',
+                dataType: 'BOOLEAN',
+                isRequired: false,
+                isPublicVisible: true,
+                isFormVisible: true,
+                isFilterable: false,
+                sortOrder: 22,
+                uiMetadata: {
+                    displayGroup: 'highlight',
+                    sectionTitle: 'ÖNE ÇIKAN BİLGİLER',
+                    sectionSubtitle: 'GÜVENCE VE İNCELEME',
+                    icon: 'eye',
+                    inputWidget: 'checkbox',
+                },
+            },
+        ];
+
+        for (const prop of highlightProps) {
+            const codeUpper = String(prop.code || '').toUpperCase();
+            if (!existingCodes.has(codeUpper)) {
+                try {
+                    await axiosInstance.post<CategoryProperty>(
+                        `${baseUrl}/${categoryId}/properties`,
+                        prop,
+                    );
+                } catch (err) {
+                    console.warn(`[CategoryService] Failed to create highlight property ${prop.code}:`, err);
+                }
+            }
+        }
+    }
+
     async listProperties(
         categoryId: string,
         _categoryName?: string,
