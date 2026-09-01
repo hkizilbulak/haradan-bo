@@ -20,6 +20,7 @@ type ModerationQueueResponse = {
     hasMore: boolean;
     items: OwnerAdvertItem[];
     nextCursor?: string;
+    totalCount?: number;
 };
 
 export type ModerationAdvertDetail = OwnerAdvertItem & {
@@ -271,6 +272,7 @@ class AdvertService {
             let rawItems: OwnerAdvertItem[] = [];
             let hasMore = false;
             let nextCursor: string | null = null;
+            let totalCount: number | undefined;
             try {
                 const response = await apiRequest<ModerationQueueResponse>('GET', baseUrl, undefined, {
                     params: {
@@ -282,6 +284,7 @@ class AdvertService {
                 rawItems = response?.items ?? [];
                 hasMore = Boolean(response?.hasMore);
                 nextCursor = response?.nextCursor ?? null;
+                totalCount = response?.totalCount;
             } catch (err) {
                 console.error('Moderation API fetch error:', err);
             }
@@ -289,9 +292,10 @@ class AdvertService {
             const localAdverts = getLocalMockAdverts().filter((a) => !status || a.status === status);
             for (const localAdv of localAdverts) {
                 if (!rawItems.some((r) => r.id === localAdv.id || (localAdv.title && r.title === localAdv.title))) {
-                    rawItems.push(localAdv);
+                    rawItems.unshift(localAdv);
                 }
             }
+            rawItems = rawItems.slice(0, limit);
 
             const content = rawItems.map(toModerationAdvert);
             const pageNumber = params.pageRequest.page ?? 0;
@@ -300,8 +304,8 @@ class AdvertService {
                 page: {
                     size: limit,
                     number: pageNumber,
-                    totalElements: content.length,
-                    totalPages: hasMore ? pageNumber + 2 : pageNumber + 1,
+                    totalElements: totalCount ?? content.length,
+                    totalPages: totalCount ? Math.max(1, Math.ceil(totalCount / limit)) : (hasMore ? pageNumber + 2 : pageNumber + 1),
                     hasMore,
                     nextCursor,
                     cursorMode: true,

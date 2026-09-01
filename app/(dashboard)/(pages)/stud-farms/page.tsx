@@ -16,9 +16,10 @@ import StudFarmNotesTimeline from './components/StudFarmNotesTimeline';
 import { toast } from 'react-toastify';
 
 export default function StudFarms() {
+    const [pageSize, setPageSize] = useState(10);
     const [{ data, isLoading, isError, handleFilter, goNext, goPrev, canGoPrev, canGoNext, pageIndex, refetch }] = useCursorApi<StudFarm>({
         service: studFarmService,
-        pageSize: 10,
+        pageSize,
     });
 
     const [showAddModal, setShowAddModal] = useState(false);
@@ -258,6 +259,10 @@ export default function StudFarms() {
                         onPrev={goPrev}
                         onNext={goNext}
                         pageIndex={pageIndex}
+                        pageSize={pageSize}
+                        totalElements={data?.page?.totalElements}
+                        totalPages={data?.page?.totalPages}
+                        onPageSizeChange={setPageSize}
                     />
                 </div>
             )}

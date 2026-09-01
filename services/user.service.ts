@@ -12,6 +12,7 @@ type AdminUserListResponse = {
   items?: AdminUserListItem[];
   nextCursor?: string | null;
   hasMore?: boolean;
+  totalCount?: number;
 };
 
 type UserFilterParams = {
@@ -100,8 +101,8 @@ export class UserService {
         page: {
           size: limit,
           number: pageNumber,
-          totalElements: content.length,
-          totalPages: data.hasMore ? pageNumber + 2 : pageNumber + 1,
+          totalElements: data.totalCount ?? content.length,
+          totalPages: data.totalCount ? Math.max(1, Math.ceil(data.totalCount / limit)) : (data.hasMore ? pageNumber + 2 : pageNumber + 1),
           hasMore: Boolean(data.hasMore),
           nextCursor: data.nextCursor ?? null,
           cursorMode: true,

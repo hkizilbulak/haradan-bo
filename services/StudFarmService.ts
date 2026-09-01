@@ -51,8 +51,8 @@ export const studFarmService = {
             page: {
                 size: limit,
                 number: pageNumber,
-                totalElements: (data.items ?? []).length, // Note: opaque cursors don't usually give total elements accurately
-                totalPages: data.hasMore ? pageNumber + 2 : pageNumber + 1,
+                totalElements: data.totalCount ?? (data.items ?? []).length,
+                totalPages: data.totalCount ? Math.max(1, Math.ceil(data.totalCount / limit)) : (data.hasMore ? pageNumber + 2 : pageNumber + 1),
                 hasMore: Boolean(data.hasMore),
                 nextCursor: data.nextCursor ?? null,
                 cursorMode: true,

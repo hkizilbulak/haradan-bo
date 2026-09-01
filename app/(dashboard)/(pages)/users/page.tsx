@@ -19,9 +19,10 @@ import { Eye, Trash2 } from 'react-feather';
 import { toast } from 'react-toastify';
 
 export default function Users() {
+  const [pageSize, setPageSize] = useState(10);
   const [{ data, isLoading, isError, handleFilter, refetch, goNext, goPrev, canGoPrev, canGoNext, pageIndex }] = useCursorApi<UserResponse>({
     service: userService,
-    pageSize: 10,
+    pageSize,
   });
 
   const [openFilter, setOpenFilter] = useState(false);
@@ -188,6 +189,10 @@ export default function Users() {
             onPrev={goPrev}
             onNext={goNext}
             pageIndex={pageIndex}
+            pageSize={pageSize}
+            totalElements={data?.page?.totalElements}
+            totalPages={data?.page?.totalPages}
+            onPageSizeChange={setPageSize}
           />
         </div>
       )}

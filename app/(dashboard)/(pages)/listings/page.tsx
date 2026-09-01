@@ -353,9 +353,10 @@ export default function Adverts() {
       .catch(() => {});
   }, []);
 
+  const [pageSize, setPageSize] = useState(10);
   const [{ data, isLoading, isError, handleFilter, refetch, goNext, goPrev, canGoPrev, canGoNext, pageIndex }] = useCursorApi<ModerationAdvertResponse>({
     service: advertService,
-    pageSize: 10,
+    pageSize,
   });
 
   const closeActionModal = () => {
@@ -526,6 +527,10 @@ export default function Adverts() {
             onPrev={goPrev}
             onNext={goNext}
             pageIndex={pageIndex}
+            pageSize={pageSize}
+            totalElements={data?.page?.totalElements}
+            totalPages={data?.page?.totalPages}
+            onPageSizeChange={setPageSize}
           />
         </>
       )}
