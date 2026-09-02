@@ -70,7 +70,6 @@ export default function StudFarms() {
                 <Button 
                     variant="primary" 
                     onClick={() => setShowAddModal(true)}
-                    style={{ backgroundColor: '#6f42c1', borderColor: '#6f42c1' }}
                 >
                     <Plus size={18} className="me-2" /> Yeni Ekle
                 </Button>
@@ -100,7 +99,7 @@ export default function StudFarms() {
                                 <Button variant="outline-secondary" className="me-2 px-4" onClick={handleClear}>
                                     Temizle
                                 </Button>
-                                <Button variant="primary" type="submit" className="px-4" style={{ backgroundColor: '#6f42c1', borderColor: '#6f42c1' }}>
+                                <Button variant="primary" type="submit" className="px-4">
                                     Ara
                                 </Button>
                             </Col>
