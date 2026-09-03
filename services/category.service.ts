@@ -348,7 +348,7 @@ class CategoryService {
             },
             {
                 code: 'LOCATION',
-                title: 'İl ve İlçe (Konum)',
+                title: 'İl',
                 helpText: 'İlanın bulunduğu şehir ve ilçe seçimi',
                 dataType: 'STRING',
                 isRequired: true,
