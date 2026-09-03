@@ -736,17 +736,17 @@ class CategoryService {
             const allItems: AdminCategoryItem[] = [];
 
             while (hasMore) {
-                const response = await axiosInstance.get<AdminCategoryListResponse>(baseUrl, {
+                const res = (await axiosInstance.get<AdminCategoryListResponse>(baseUrl, {
                     params: {
                         limit: 100,
                         cursor,
                     },
-                });
-                const items = response.data?.items || [];
+                })) as any;
+                const items = res.data?.items || [];
                 allItems.push(...items);
                 
-                hasMore = response.data?.hasMore ?? false;
-                cursor = response.data?.nextCursor;
+                hasMore = res.data?.hasMore ?? false;
+                cursor = res.data?.nextCursor;
             }
 
             if (allItems.length > 0) {
