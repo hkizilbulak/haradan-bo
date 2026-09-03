@@ -1,6 +1,6 @@
 "use client"
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Col, Container, Form, Modal, Row, Badge, Table, Alert } from 'react-bootstrap';
+import { Button, Col, Container, Form, Modal, Row, Badge, Table, Alert, Tabs, Tab } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import Loading from '@/components/Loading';
 import PrepareTable from '@/components/PrepareTable';
@@ -14,7 +14,7 @@ import {
 } from '@/helpers/EnumUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
 import { canModerationAction } from '@/helpers/moderationActions';
-import useCursorApi from '@/hooks/useCursorApi';
+import useApi from '@/hooks/useApi';
 import { ModerationAdvertResponse } from '@/models';
 import {
   advertService,
@@ -27,7 +27,7 @@ import {
 } from '@/services';
 import { PageHeading } from '@/widgets';
 import AdvertFilter from '@/widgets/advert/AdvertFilter';
-import CursorPagination from '@/components/CursorPagination';
+import CustomPagination from '@/components/Pagination';
 
 const headItems = [
   'Başlık',
@@ -321,6 +321,7 @@ function ActionModal({
 }
 
 export default function Adverts() {
+  const [tab, setTab] = useState<'published' | 'unpublished'>('published');
   const [pendingAction, setPendingAction] = useState<{
     advert: ModerationAdvertResponse;
     action: 'reject' | 'requestChanges' | 'suspend';
@@ -353,11 +354,24 @@ export default function Adverts() {
       .catch(() => {});
   }, []);
 
-  const [pageSize, setPageSize] = useState(10);
-  const [{ data, isLoading, isError, handleFilter, refetch, goNext, goPrev, canGoPrev, canGoNext, pageIndex }] = useCursorApi<ModerationAdvertResponse>({
+  const [{ data, parameters, isLoading, isError, handleFilter, handlePageChange, setParameters, refetch }] = useApi<ModerationAdvertResponse>({
     service: advertService,
-    pageSize,
   });
+
+  const pageIndex = parameters?.pageRequest?.page ?? 0;
+  const pageSize = parameters?.pageRequest?.size ?? 10;
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+
+  const handlePageSizeChange = (size: number) => {
+    setParameters({
+      ...parameters,
+      pageRequest: {
+        ...parameters.pageRequest,
+        size,
+        page: 0, // Reset to first page when size changes
+      }
+    });
+  };
 
   const closeActionModal = () => {
     setPendingAction(null);
@@ -436,40 +450,56 @@ export default function Adverts() {
         <td>{advert.publishedAt ? formatDateTimeForText(advert.publishedAt) : '-'}</td>
         <td title={advert.categoryId || undefined}>{categoryName}</td>
         <td><StatusBadge status={advert.status} /></td>
-        <td className="d-flex flex-wrap gap-1">
-          <Button
-            as="a"
-            href={buildAdvertDetailUrl(advertId!)}
-            target="_blank"
-            rel="noopener noreferrer"
-            size="sm"
-            variant="outline-primary"
-          >
-            Detay
-          </Button>
-          {canApprove && (
-            <Button size="sm" variant="success" disabled={actionBusy} onClick={() => void handleApprove(advert)}>
-              Onayla
+        <td style={{ minWidth: '420px' }}>
+          <div className="d-flex flex-wrap gap-1 align-items-center">
+            <Button
+              as="a"
+              href={buildAdvertDetailUrl(advertId!)}
+              target="_blank"
+              rel="noopener noreferrer"
+              size="sm"
+              variant="outline-primary"
+            >
+              Detay
             </Button>
-          )}
-          {canRequestChanges && (
-            <Button size="sm" variant="warning" onClick={() => openActionModal(advert, 'requestChanges')}>
-              Düzeltme İste
+            {canApprove && (
+              <Button size="sm" variant="success" disabled={actionBusy} onClick={() => void handleApprove(advert)}>
+                Onayla
+              </Button>
+            )}
+
+            <Button 
+              size="sm" 
+              variant="light" 
+              onClick={() => setExpandedRow(expandedRow === advertId ? null : (advertId as string))}
+              className="border"
+            >
+              {expandedRow === advertId ? '◁' : '▷'}
             </Button>
-          )}
-          {canReject && (
-            <Button size="sm" variant="danger" onClick={() => openActionModal(advert, 'reject')}>
-              Reddet
-            </Button>
-          )}
-          {canSuspend && (
-            <Button size="sm" variant="secondary" onClick={() => openActionModal(advert, 'suspend')}>
-              Askıya Al
-            </Button>
-          )}
-          <Button size="sm" variant="info" onClick={() => setPackageAdvert(advert)}>
-            Paket
-          </Button>
+
+            {expandedRow === advertId && (
+              <>
+                {canRequestChanges && (
+                  <Button size="sm" variant="warning" onClick={() => openActionModal(advert, 'requestChanges')}>
+                    Düzeltme İste
+                  </Button>
+                )}
+                {canReject && (
+                  <Button size="sm" variant="danger" onClick={() => openActionModal(advert, 'reject')}>
+                    Reddet
+                  </Button>
+                )}
+                {canSuspend && (
+                  <Button size="sm" variant="secondary" onClick={() => openActionModal(advert, 'suspend')}>
+                    Askıya Al
+                  </Button>
+                )}
+                <Button size="sm" variant="info" onClick={() => setPackageAdvert(advert)}>
+                  Paket
+                </Button>
+              </>
+            )}
+          </div>
         </td>
       </tr>
     );
@@ -483,7 +513,12 @@ export default function Adverts() {
         </Col>
       </Row>
 
-      <AdvertFilter onFilter={(values: string) => handleFilter(values)} />
+      <Tabs activeKey={tab} onSelect={(k) => setTab(k as any)} className="mb-3">
+        <Tab eventKey="published" title="Yayında Olan İlanlar" />
+        <Tab eventKey="unpublished" title="Yayında Olmayan İlanlar" />
+      </Tabs>
+
+      <AdvertFilter onFilter={(values: string) => handleFilter(values)} tab={tab} />
 
       <Modal show={pendingAction !== null} onHide={closeActionModal}>
         <Modal.Header closeButton>
@@ -521,17 +556,29 @@ export default function Adverts() {
       {!isLoading && !isError && (data?.content?.length ?? 0) > 0 && (
         <>
           <PrepareTable headItems={headItems} content={content} page={undefined} onHandlePageChange={() => undefined} />
-          <CursorPagination
-            canGoPrev={canGoPrev}
-            canGoNext={canGoNext}
-            onPrev={goPrev}
-            onNext={goNext}
-            pageIndex={pageIndex}
-            pageSize={pageSize}
-            totalElements={data?.page?.totalElements}
-            totalPages={data?.page?.totalPages}
-            onPageSizeChange={setPageSize}
-          />
+          
+          <div className="d-flex justify-content-between align-items-center mt-3">
+            <div className="d-flex align-items-center text-muted small">
+              <span className="me-2">Sayfa başına:</span>
+              <Form.Select 
+                size="sm" 
+                className="me-3" 
+                style={{ width: '70px', display: 'inline-block' }} 
+                value={pageSize} 
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </Form.Select>
+              <span>Toplam {data?.page?.totalElements ?? 0} kayıt, sayfa {pageIndex + 1} / {data?.page?.totalPages ?? 1}</span>
+            </div>
+            
+            <div className="me-4">
+              <CustomPagination page={data?.page} onPageChange={handlePageChange} />
+            </div>
+          </div>
         </>
       )}
     </Container>

@@ -268,7 +268,9 @@ class AdvertService {
         const status = parseStatusFilter(params.filter);
         const limit = params.pageRequest.size ?? 10;
 
-        if (params.cursor !== undefined) {
+        const needsClientFiltering = params.filter ? (params.filter.includes('!=') || (params.filter.split(';').filter(Boolean).length > 1)) : false;
+
+        if (params.cursor !== undefined && !needsClientFiltering) {
             let rawItems: OwnerAdvertItem[] = [];
             let hasMore = false;
             let nextCursor: string | null = null;
@@ -507,16 +509,21 @@ class AdvertService {
     }
 
     private matchesClause(item: ModerationAdvertResponse, clause: string) {
-        const match = clause.match(/^([a-zA-Z0-9_]+)==(.+)$/);
-        if (!match) {
+        const matchEq = clause.match(/^([a-zA-Z0-9_]+)==(.+)$/);
+        const matchNeq = clause.match(/^([a-zA-Z0-9_]+)!=(.+)$/);
+        
+        if (!matchEq && !matchNeq) {
             return true;
         }
 
+        const isEq = !!matchEq;
+        const match = matchEq || matchNeq!;
         const field = match[1];
         let expected = match[2].trim();
         const actual = this.readField(item, field);
+        
         if (actual === undefined || actual === null) {
-            return false;
+            return !isEq;
         }
 
         const isContains = expected.includes('*');
@@ -524,11 +531,14 @@ class AdvertService {
         const actualText = String(actual).toLowerCase();
         const expectedText = expected.toLowerCase();
 
+        let result = false;
         if (isContains) {
-            return actualText.includes(expectedText);
+            result = actualText.includes(expectedText);
+        } else {
+            result = actualText === expectedText;
         }
 
-        return actualText === expectedText;
+        return isEq ? result : !result;
     }
 
     private readField(item: ModerationAdvertResponse, field: string): unknown {
