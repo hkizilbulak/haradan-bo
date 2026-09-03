@@ -332,7 +332,7 @@ export default function Adverts() {
   const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
-    categoryService.search({ pageRequest: { page: 0, size: 500 } })
+    categoryService.search({ pageRequest: { page: 0, size: 100 } })
       .then((res) => {
         const map = new Map<string, string>();
         const extract = (items: Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>) => {
@@ -356,6 +356,10 @@ export default function Adverts() {
 
   const [{ data, parameters, isLoading, isError, handleFilter, handlePageChange, setParameters, refetch }] = useApi<ModerationAdvertResponse>({
     service: advertService,
+    params: {
+      filter: 'status==PUBLISHED',
+      pageRequest: { page: 0, size: 10, sort: [{ direction: 'DESC', property: 'createdDate' }] },
+    } as any,
   });
 
   const pageIndex = parameters?.pageRequest?.page ?? 0;

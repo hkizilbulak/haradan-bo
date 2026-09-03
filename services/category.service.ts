@@ -731,15 +731,27 @@ class CategoryService {
 
     private async fetchAll(): Promise<AdminCategoryItem[]> {
         try {
-            const response = await axiosInstance.get<AdminCategoryListResponse>(baseUrl, {
-                params: {
-                    limit: 500,
-                },
-            });
-            const items = response.data?.items || [];
-            if (items.length > 0) {
-                this.categoriesCache = items;
-                return items;
+            let hasMore = true;
+            let cursor: string | undefined = undefined;
+            const allItems: AdminCategoryItem[] = [];
+
+            while (hasMore) {
+                const response = await axiosInstance.get<AdminCategoryListResponse>(baseUrl, {
+                    params: {
+                        limit: 100,
+                        cursor,
+                    },
+                });
+                const items = response.data?.items || [];
+                allItems.push(...items);
+                
+                hasMore = response.data?.hasMore ?? false;
+                cursor = response.data?.nextCursor;
+            }
+
+            if (allItems.length > 0) {
+                this.categoriesCache = allItems;
+                return allItems;
             }
         } catch (error) {
             console.warn('[CategoryService] fetchAll API error, falling back to local JSON storage:', error);
