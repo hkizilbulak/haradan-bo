@@ -1,6 +1,7 @@
 import { Button, Card, Col, Form, Row } from 'react-bootstrap';
 import { useFormik } from 'formik';
 import { appendOperator } from '@/helpers/HelperUtils';
+import { UserRole } from '@/models';
 
 export type IUserFilterForm = {
   firstName?: string;
@@ -8,7 +9,7 @@ export type IUserFilterForm = {
   email?: string;
   phone?: string;
   status?: 'ACTIVE' | 'CLOSED' | 'DISABLED' | '';
-  role?: 'admin' | 'user' | '';
+  role?: UserRole | '';
 };
 
 const initialValues: IUserFilterForm = {
@@ -133,6 +134,7 @@ export default function UserFilter({ onFilter }: IProps) {
               >
                 <option value="">Tüm Roller</option>
                 <option value="admin">Yönetici</option>
+                <option value="CALL_CENTER">Çağrı Merkezi</option>
                 <option value="user">Kullanıcı</option>
               </Form.Select>
             </Form.Group>

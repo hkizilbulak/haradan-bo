@@ -1,4 +1,5 @@
 import { BaseResponse } from '@/models/common';
+import { UserRole } from './session-response.model';
 
 export interface UserResponse extends BaseResponse {
   id: string;
@@ -6,7 +7,7 @@ export interface UserResponse extends BaseResponse {
   emailVerified: boolean;
   firstName: string;
   lastName: string;
-  role: 'admin' | 'user';
+  role: UserRole;
   status: 'ACTIVE' | 'CLOSED' | 'DISABLED';
   phone?: string | null;
   activeSessionCount?: number;

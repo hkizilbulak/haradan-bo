@@ -4,6 +4,7 @@ import { API_URL } from '@/contants/urls';
 import { PagedResponse, SearchParams } from '@/models/common';
 import { UserRequest } from '@/models/request/user-request.model';
 import { UserResponse } from '@/models/response/user-response.model';
+import { UserRole } from '@/models/response/session-response.model';
 import { toCanonicalPhoneTR } from '@/helpers/phone';
 
 type AdminUserListItem = Omit<UserResponse, 'identifier'> & { id: string };
@@ -231,7 +232,7 @@ export class UserService {
     firstName: string;
     lastName: string;
     phone?: string;
-    role: 'admin' | 'user';
+    role: UserRole;
   }): Promise<{ invitationEmailSent: boolean }> => {
     const response = await axiosInstance.post(baseUrl, {
       email: request.email,

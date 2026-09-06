@@ -1,3 +1,5 @@
+export type UserRole = 'admin' | 'user' | 'CALL_CENTER';
+
 export interface SessionUserResponse {
   id: string;
   email: string;
@@ -5,7 +7,7 @@ export interface SessionUserResponse {
   firstName: string;
   lastName: string;
   phone?: string | null;
-  role: 'admin' | 'user';
+  role: UserRole;
   status: 'ACTIVE' | 'CLOSED' | 'DISABLED';
 }
 

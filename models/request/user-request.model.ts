@@ -1,4 +1,5 @@
 import { BaseRequest } from './base-request.model';
+import { UserRole } from '../response/session-response.model';
 
 export interface UserRequest extends BaseRequest {
   firstName: string;
@@ -6,8 +7,8 @@ export interface UserRequest extends BaseRequest {
   email: string;
   phone?: string;
   expectedUpdatedAt?: string;
-  expectedCurrentRole: 'admin' | 'user';
-  newRole: 'admin' | 'user';
+  expectedCurrentRole: UserRole;
+  newRole: UserRole;
   expectedCurrentStatus: 'ACTIVE' | 'CLOSED' | 'DISABLED';
   newStatus: 'ACTIVE' | 'CLOSED' | 'DISABLED';
 }

@@ -20,7 +20,7 @@ export default function UserCreateModal({ onClose, onCreated }: IProps) {
     lastName: Yup.string().required('Soyisim zorunludur'),
     email: Yup.string().email('Geçerli bir e-posta giriniz').required('E-posta zorunludur'),
     phone: Yup.string().test('phone', PHONE_INVALID_MESSAGE, (v) => isValidOptionalPhoneTR(v)),
-    role: Yup.string().oneOf(['user', 'admin']).required('Rol zorunludur'),
+    role: Yup.string().oneOf(['user', 'admin', 'CALL_CENTER']).required('Rol zorunludur'),
   });
 
   const generatePassword = (email: string) => {
@@ -39,7 +39,7 @@ export default function UserCreateModal({ onClose, onCreated }: IProps) {
           lastName: '',
           email: '',
           phone: '',
-          role: 'user' as 'user' | 'admin',
+          role: 'user' as 'user' | 'admin' | 'CALL_CENTER',
         }}
         validationSchema={validationSchema}
         onSubmit={async (values, helpers) => {
@@ -152,6 +152,7 @@ export default function UserCreateModal({ onClose, onCreated }: IProps) {
                 <Form.Select name="role" value={values.role} onChange={handleChange}>
                   <option value="user">Kullanıcı</option>
                   <option value="admin">Yönetici</option>
+                  <option value="CALL_CENTER">Call Center</option>
                 </Form.Select>
               </Form.Group>
 

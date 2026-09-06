@@ -4,7 +4,7 @@ import { Info } from 'react-feather';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { toast } from 'react-toastify';
-import { UserResponse, UserRequest } from '@/models';
+import { UserResponse, UserRequest, UserRole } from '@/models';
 import { userService, SecurityEvent } from '@/services/user.service';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
 import { formatPhoneDisplayTR, isValidOptionalPhoneTR, PHONE_INVALID_MESSAGE, toCanonicalPhoneTR } from '@/helpers/phone';
@@ -41,21 +41,21 @@ const getEventDetails = (event: SecurityEvent): string | null => {
   const m = event.metadata;
   if (event.eventType === 'EMAIL_CHANGE') {
     const parts: string[] = [];
-    if (m.previousEmail) parts.push(`Eski: ${m.previousEmail}`);
-    if (m.newEmail) parts.push(`Yeni: ${m.newEmail}`);
-    else if (m.pendingEmail) parts.push(`Talep: ${m.pendingEmail}`);
+    if (m.previousEmail) parts.push(`Eski: ${String(m.previousEmail)}`);
+    if (m.newEmail) parts.push(`Yeni: ${String(m.newEmail)}`);
+    else if (m.pendingEmail) parts.push(`Talep: ${String(m.pendingEmail)}`);
     return parts.length > 0 ? parts.join('\n') : null;
   }
   if (event.eventType === 'ROLE_CHANGE' && m.newRole) {
     const parts: string[] = [];
-    if (m.previousRole) parts.push(`Önceki: ${getUserRoleText(m.previousRole)}`);
-    parts.push(`Yeni: ${getUserRoleText(m.newRole)}`);
+    if (m.previousRole) parts.push(`Önceki: ${getUserRoleText(String(m.previousRole))}`);
+    parts.push(`Yeni: ${getUserRoleText(String(m.newRole))}`);
     return parts.join('\n');
   }
   if (event.eventType === 'ACCOUNT_STATUS_CHANGE' && m.newStatus) {
     const parts: string[] = [];
-    if (m.previousStatus) parts.push(`Önceki: ${m.previousStatus}`);
-    parts.push(`Yeni: ${m.newStatus}`);
+    if (m.previousStatus) parts.push(`Önceki: ${String(m.previousStatus)}`);
+    parts.push(`Yeni: ${String(m.newStatus)}`);
     return parts.join('\n');
   }
   return null;
@@ -196,7 +196,7 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                     await userService.changeRole(detail.id ?? detail.identifier, {
                       ...values,
                       expectedCurrentRole: detail.role,
-                      newRole: values.newRole as 'admin' | 'user' | 'CALL_CENTER',
+                      newRole: values.newRole as UserRole,
                     });
                   }
 
