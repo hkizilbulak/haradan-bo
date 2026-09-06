@@ -50,6 +50,7 @@ Thumbs.db
 
 #nextjs
 .next/
+.next-dev/
 
 # Local environment files
 .env
