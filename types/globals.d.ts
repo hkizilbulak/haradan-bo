@@ -15,6 +15,7 @@ declare global {
         children?: IMenuProps[];
         badge?: string;
         badgecolor?: string;
+        allowedRoles?: string[];
     }
 
     interface FieldProps<V = any> {

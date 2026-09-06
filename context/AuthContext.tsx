@@ -34,7 +34,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 function hasActiveAdminAccess(user?: SessionUserResponse | null) {
-  return user?.role === "admin" && user?.status === "ACTIVE";
+  return (user?.role === "admin" || user?.role === "CALL_CENTER") && user?.status === "ACTIVE";
 }
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -104,7 +104,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSession(nextSession);
       setStatus("authenticated");
 
-      const safePath = resolveSafeInternalPath(options.callbackUrl) || "/";
+      let safePath = resolveSafeInternalPath(options.callbackUrl) || "/";
+      if (nextSession.user?.role === "CALL_CENTER" && safePath === "/") {
+        safePath = "/stud-farms";
+      }
       router.push(safePath);
 
       return { ok: true, error: null };

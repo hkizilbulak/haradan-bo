@@ -17,6 +17,7 @@ import SimpleBar from 'simplebar-react';
 import 'simplebar/dist/simplebar.min.css';
 
 import { DashboardMenu } from '@/routes/DashboardRoutes';
+import { useAuth } from '@/context/AuthContext';
 
 type IProps = {
 	showMenu: boolean;
@@ -31,6 +32,27 @@ type IToggleProps = {
 
 const NavbarVertical = (props: IProps) => {
 	const location = usePathname()
+	const { session } = useAuth();
+	const userRole = session?.user?.role || 'admin';
+
+	const filteredMenu = DashboardMenu.filter(menu => {
+		if (menu.allowedRoles && !menu.allowedRoles.includes(userRole)) {
+			return false;
+		}
+		return true;
+	}).map(menu => {
+		if (menu.children) {
+			const filteredChildren = menu.children.filter(child => {
+				if (child.allowedRoles && !child.allowedRoles.includes(userRole)) {
+					return false;
+				}
+				return true;
+			});
+			return { ...menu, children: filteredChildren };
+		}
+		return menu;
+	});
+
 	const CustomToggle = ({ children, eventKey, icon }: IToggleProps) => {
 		const { activeEventKey } = useContext(AccordionContext);
 		const decoratedOnClick = useAccordionButton(eventKey?.toString() as any);
@@ -128,7 +150,7 @@ const NavbarVertical = (props: IProps) => {
 					</Link>
 				</div>
 				<Accordion defaultActiveKey="0" as="ul" className="navbar-nav flex-column">
-					{DashboardMenu.map(function (menu, index) {
+					{filteredMenu.map(function (menu, index) {
 						if (menu.grouptitle) {
 							return (
 								<Card bsPrefix="nav-item" key={index}>

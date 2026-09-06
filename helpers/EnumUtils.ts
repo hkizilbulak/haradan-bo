@@ -17,6 +17,7 @@ export function getPropertyTypeEnumText(searchType: PropertyTypeEnum) {
 
 export function getUserRoleText(searchType?: string) {
     if (searchType === 'admin') return 'Yönetici';
+    if (searchType === 'CALL_CENTER') return 'Çağrı Merkezi';
     if (searchType === 'user') return 'Kullanıcı';
     return searchType ? 'Tanımsız rol' : '-';
 }

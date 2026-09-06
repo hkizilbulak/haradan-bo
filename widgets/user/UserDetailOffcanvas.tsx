@@ -9,6 +9,7 @@ import { userService, SecurityEvent } from '@/services/user.service';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
 import { formatPhoneDisplayTR, isValidOptionalPhoneTR, PHONE_INVALID_MESSAGE, toCanonicalPhoneTR } from '@/helpers/phone';
 import { getErrorMessage } from '@/helpers/HelperUtils';
+import { getUserRoleText } from '@/helpers/EnumUtils';
 
 type IProps = {
   userId: string;
@@ -47,8 +48,8 @@ const getEventDetails = (event: SecurityEvent): string | null => {
   }
   if (event.eventType === 'ROLE_CHANGE' && m.newRole) {
     const parts: string[] = [];
-    if (m.previousRole) parts.push(`Önceki: ${m.previousRole === 'admin' ? 'Yönetici' : 'Kullanıcı'}`);
-    parts.push(`Yeni: ${m.newRole === 'admin' ? 'Yönetici' : 'Kullanıcı'}`);
+    if (m.previousRole) parts.push(`Önceki: ${getUserRoleText(m.previousRole)}`);
+    parts.push(`Yeni: ${getUserRoleText(m.newRole)}`);
     return parts.join('\n');
   }
   if (event.eventType === 'ACCOUNT_STATUS_CHANGE' && m.newStatus) {
@@ -195,7 +196,7 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                     await userService.changeRole(detail.id ?? detail.identifier, {
                       ...values,
                       expectedCurrentRole: detail.role,
-                      newRole: values.newRole as 'admin' | 'user',
+                      newRole: values.newRole as 'admin' | 'user' | 'CALL_CENTER',
                     });
                   }
 
@@ -283,6 +284,7 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                       <Form.Select name="newRole" value={values.newRole} onChange={handleChange}>
                         <option value="user">Kullanıcı</option>
                         <option value="admin">Yönetici</option>
+                        <option value="CALL_CENTER">Call Center</option>
                       </Form.Select>
                     </Form.Group>
 
