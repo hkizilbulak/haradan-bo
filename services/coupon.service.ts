@@ -101,6 +101,10 @@ export class CouponService {
     const response = await axiosInstance.patch(`${baseUrl}/${id}/active`, { expectedVersion, isActive });
     return response.data as CouponResponse;
   };
+
+  delete = async (id: string): Promise<void> => {
+    await axiosInstance.delete(`${baseUrl}/${id}`);
+  };
 }
 
 export const couponService = new CouponService();

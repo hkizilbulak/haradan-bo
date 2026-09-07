@@ -3,18 +3,19 @@ import { Modal, Button, Row } from 'react-bootstrap';
 type IProps = {
     onClose: () => void;
     onHandleDelete: () => void;
-
+    title?: string;
+    message?: string;
 }
 
-export default function DeleteModal({ onClose, onHandleDelete }: IProps) {
+export default function DeleteModal({ onClose, onHandleDelete, title = "Silme Onayı", message = "Silme işlemini onaylıyor musunuz?" }: IProps) {
     return (
-        <Modal show={true} onHide={onClose} size="sm">
+        <Modal show={true} onHide={onClose} size="sm" centered>
             <Modal.Header closeButton>
-                <Modal.Title>Silme Onayı</Modal.Title>
+                <Modal.Title>{title}</Modal.Title>
             </Modal.Header>
             <Modal.Body>
-                <p>
-                    Silme işlemini onaylıyor musunuz?
+                <p className="mb-0">
+                    {message}
                 </p>
             </Modal.Body>
             <Modal.Footer>

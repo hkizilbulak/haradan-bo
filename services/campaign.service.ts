@@ -184,6 +184,10 @@ export class CampaignService {
       ...sharedFields(request),
     });
   };
+
+  delete = async (campaignId: string): Promise<void> => {
+    await axiosInstance.delete(`${baseUrl}/${campaignId}`);
+  };
 }
 
 export const campaignService = new CampaignService();

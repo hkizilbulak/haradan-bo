@@ -60,16 +60,9 @@ export const DashboardMenu: IMenuProps[] = [
 	},
 	{
 		id: uuid(),
-		title: 'Kampanyalar',
+		title: 'Kampanyalar & Kuponlar',
 		icon: 'tag',
 		link: '/campaigns',
-		allowedRoles: ['admin']
-	},
-	{
-		id: uuid(),
-		title: 'Kuponlar',
-		icon: 'percent',
-		link: '/coupons',
 		allowedRoles: ['admin']
 	},
 	{
