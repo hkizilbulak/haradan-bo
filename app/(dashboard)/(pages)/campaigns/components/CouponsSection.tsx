@@ -1,10 +1,11 @@
 "use client";
 import React, { useState, useMemo, useEffect } from 'react';
-import { Badge, Button, Card, Col, Form, Offcanvas, Row, InputGroup } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Col, Form, InputGroup, Offcanvas, Row } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import Loading from '@/components/Loading';
 import PrepareTable from '@/components/PrepareTable';
+import StatusBadge from '@/components/StatusBadge';
 import { formatDateForText, toDateInputValue, toApiDateStart, toApiDateEnd } from '@/helpers/DateUtils';
 import { formatMoney, getErrorMessage } from '@/helpers/HelperUtils';
 import useApi from '@/hooks/useApi';
@@ -14,11 +15,10 @@ import { packageService, PackageResponse } from '@/services/package.service';
 import DeleteModal from '@/components/DeleteModal';
 import { PageHeading } from '@/widgets';
 import { toast } from 'react-toastify';
-import { Edit, Copy, Check, Percent, Tag, Users, CheckCircle, RefreshCw, Trash2 } from 'react-feather';
+import { Edit, Copy, Check, Percent, Users, CheckCircle, RefreshCw, Trash2, Calendar, ArrowRight } from 'react-feather';
 
 const headItems = [
-  'Kupon Kodu',
-  'Kupon Adı',
+  'Kupon Kodu & Adı',
   'İndirim',
   'Geçerli Paket',
   'Kullanım Durumu',
@@ -32,6 +32,19 @@ function generateRandomCouponCode(): string {
   const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
   const randomChars = Math.random().toString(36).substring(2, 6).toUpperCase();
   return `${prefix}-${randomChars}`;
+}
+
+interface CouponFormValues {
+  code: string;
+  name: string;
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discountValue: number | string;
+  maxUses: number | string;
+  maxUsesPerUser: number | string;
+  applicablePackageCode: string;
+  startsAt: string;
+  endsAt: string;
+  isActive: boolean;
 }
 
 function CouponFormModal({
@@ -50,7 +63,11 @@ function CouponFormModal({
   const isEdit = Boolean(coupon);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const initialValues = {
+  const [percentInput, setPercentInput] = useState<string | null>(null);
+  const [discountTLInput, setDiscountTLInput] = useState<string | null>(null);
+  const [campaignTLInput, setCampaignTLInput] = useState<string | null>(null);
+
+  const initialValues: CouponFormValues = {
     code: coupon?.code ?? '',
     name: coupon?.name ?? '',
     discountType: coupon?.discountType ?? 'PERCENTAGE',
@@ -60,8 +77,7 @@ function CouponFormModal({
         : coupon.discountValue
       : 20,
     maxUses: coupon?.maxUses ?? '',
-    maxUsesPerUser: coupon?.maxUsesPerUser ?? 1,
-    minSpendAmountMinor: coupon?.minSpendAmountMinor ? coupon.minSpendAmountMinor / 100 : '',
+    maxUsesPerUser: coupon?.maxUsesPerUser ?? '',
     applicablePackageCode: coupon?.applicablePackageCode ?? '',
     startsAt: coupon?.startsAt
       ? toDateInputValue(coupon.startsAt)
@@ -76,8 +92,15 @@ function CouponFormModal({
     discountType: Yup.string().oneOf(['PERCENTAGE', 'FIXED_AMOUNT']).required(),
     discountValue: Yup.number()
       .positive("İndirim değeri 0'dan büyük olmalıdır.")
+      .when('discountType', {
+        is: 'PERCENTAGE',
+        then: (schema) => schema.max(100, 'Yüzdesel indirim azami 100 olabilir.'),
+      })
       .required('İndirim değeri zorunludur.'),
-    maxUsesPerUser: Yup.number().positive('Kullanıcı başı limit 1 veya üzeri olmalıdır.').required(),
+    maxUsesPerUser: Yup.number()
+      .min(1, 'Kullanıcı başı limit 1 veya üzeri olmalıdır.')
+      .nullable()
+      .transform((val, orig) => (orig === '' ? null : val)),
     startsAt: Yup.string().required('Başlangıç tarihi zorunludur.'),
     endsAt: Yup.string().test('end-after-start', 'Bitiş başlangıçtan sonra veya aynı gün olmalıdır.', function (end) {
       const { startsAt } = this.parent as { startsAt?: string };
@@ -89,11 +112,11 @@ function CouponFormModal({
   });
 
   return (
-    <Offcanvas show placement="end" onHide={onClose} scroll style={{ width: 'min(560px, 100vw)' }}>
+    <Offcanvas show placement="end" onHide={onClose} scroll style={{ width: 'min(720px, 100vw)' }}>
       <Offcanvas.Header closeButton className="border-bottom">
         <Offcanvas.Title className="fw-bold d-flex align-items-center gap-2">
           <Percent className="text-primary" size={20} />
-          {isEdit ? 'Kuponu Düzenle' : 'Yeni İndirim Kuponu Oluştur'}
+          {isEdit ? 'Kuponu Düzenle' : 'Yeni İndirim Kuponu Ekle'}
         </Offcanvas.Title>
       </Offcanvas.Header>
       <Offcanvas.Body className="p-4">
@@ -106,17 +129,15 @@ function CouponFormModal({
               const endsAtIso = values.endsAt ? toApiDateEnd(values.endsAt) ?? null : null;
 
               const payloadBase = {
-                name: values.name,
-                discountType: values.discountType as 'PERCENTAGE' | 'FIXED_AMOUNT',
+                name: values.name.trim(),
+                discountType: values.discountType,
                 discountValue:
                   values.discountType === 'FIXED_AMOUNT'
                     ? Math.round(Number(values.discountValue) * 100)
                     : Number(values.discountValue),
                 maxUses: values.maxUses ? Number(values.maxUses) : null,
-                maxUsesPerUser: Number(values.maxUsesPerUser),
-                minSpendAmountMinor: values.minSpendAmountMinor
-                  ? Math.round(Number(values.minSpendAmountMinor) * 100)
-                  : null,
+                maxUsesPerUser: values.maxUsesPerUser ? Number(values.maxUsesPerUser) : 1,
+                minSpendAmountMinor: null,
                 applicablePackageCode: values.applicablePackageCode ? values.applicablePackageCode : null,
                 startsAt: startsAtIso,
                 endsAt: endsAtIso,
@@ -141,293 +162,533 @@ function CouponFormModal({
             }
           }}
         >
-          {({ handleSubmit, handleChange, setFieldValue, values, errors, touched, isSubmitting }) => (
-            <Form noValidate onSubmit={handleSubmit} className="d-flex flex-column gap-3">
-              {/* Kupon Kodu & Tanım */}
-              <Card className="border shadow-sm">
-                <Card.Header className="bg-light fw-bold py-2 d-flex align-items-center gap-2">
-                  <span className="badge bg-primary rounded-pill">1</span>
-                  Kupon Kodu ve Başlığı
-                </Card.Header>
-                <Card.Body className="p-3">
-                  <Form.Group className="mb-3">
-                    <Form.Label className="fw-semibold">
-                      Kupon Kodu <span className="text-danger">*</span>
-                    </Form.Label>
-                    <InputGroup>
+          {({ handleSubmit, handleChange, setFieldValue, values, errors, touched, isSubmitting }) => {
+            const activePackages = packages.filter((p) => p.isActive);
+            const selectedPackage = packages.find((p) => p.code === values.applicablePackageCode);
+            const isSpecificPackage = Boolean(selectedPackage?.displayPrice?.amountMinor);
+            const originalTL = isSpecificPackage
+              ? selectedPackage!.displayPrice!.amountMinor / 100
+              : 0;
+
+            const discountTL = isSpecificPackage
+              ? values.discountType === 'FIXED_AMOUNT'
+                ? Math.min(originalTL, Number(values.discountValue) || 0)
+                : Math.round(originalTL * ((Number(values.discountValue) || 0) / 100) * 100) / 100
+              : 0;
+
+            const discountPercent = isSpecificPackage
+              ? values.discountType === 'PERCENTAGE'
+                ? Math.min(100, Number(values.discountValue) || 0)
+                : originalTL > 0
+                  ? Math.min(100, Math.round(((Number(values.discountValue) || 0) / originalTL) * 100))
+                  : 0
+              : 0;
+
+            const campaignTL = isSpecificPackage
+              ? Math.max(0, Math.round((originalTL - discountTL) * 100) / 100)
+              : 0;
+
+            const applyDiscountPercent = (percent: number) => {
+              const clamped = Math.min(100, Math.max(0, percent));
+              setFieldValue('discountType', 'PERCENTAGE');
+              setFieldValue('discountValue', clamped);
+            };
+
+            const applyDiscountTL = (disc: number) => {
+              const clamped = Math.min(originalTL, Math.max(0, disc));
+              setFieldValue('discountType', 'FIXED_AMOUNT');
+              setFieldValue('discountValue', clamped);
+            };
+
+            const applyCampaignPriceTL = (camp: number) => {
+              const clamped = Math.min(originalTL, Math.max(0, camp));
+              const disc = Math.max(0, Math.round((originalTL - clamped) * 100) / 100);
+              setFieldValue('discountType', 'FIXED_AMOUNT');
+              setFieldValue('discountValue', disc);
+            };
+
+            return (
+              <Form noValidate onSubmit={handleSubmit} className="d-flex flex-column gap-4">
+                {/* 1. Bölüm: İndirim ve Geçerli Paket Belirleme */}
+                <Card className="border shadow-sm">
+                  <Card.Header className="bg-light fw-bold py-2 d-flex align-items-center gap-2">
+                    <span className="badge bg-primary rounded-pill">1</span>
+                    İndirim Uygulanacak Premium Paket & Fiyat
+                  </Card.Header>
+                  <Card.Body className="p-3">
+                    <Form.Group className="mb-3">
+                      <Form.Label className="fw-semibold">Hangi Premium Pakette Geçerli Olsun?</Form.Label>
+                      <Form.Select
+                        name="applicablePackageCode"
+                        value={values.applicablePackageCode}
+                        onChange={(e) => {
+                          handleChange(e);
+                          const pkg = packages.find((p) => p.code === e.target.value);
+                          if (pkg?.displayPrice?.amountMinor && values.discountType === 'FIXED_AMOUNT') {
+                            const pTL = pkg.displayPrice.amountMinor / 100;
+                            if (Number(values.discountValue) > pTL) {
+                              setFieldValue('discountValue', Math.round(pTL * 0.2));
+                            }
+                          }
+                        }}
+                        className="form-select-lg fs-6"
+                      >
+                        <option value="">✨ Tüm Paketlerde Geçerli</option>
+                        {packages
+                          .filter((pkg) => pkg.isActive || pkg.code === values.applicablePackageCode)
+                          .map((pkg) => (
+                            <option key={pkg.code} value={pkg.code}>
+                              {pkg.displayName} — Normal Fiyat:{' '}
+                              {pkg.displayPrice?.amountMinor
+                                ? formatMoney(pkg.displayPrice.amountMinor, 'TRY')
+                                : 'Ücretsiz'}
+                            </option>
+                          ))}
+                      </Form.Select>
+                    </Form.Group>
+
+                    <div className="mt-3 p-3 rounded-3 border bg-light-subtle">
+                      {isSpecificPackage ? (
+                        <>
+                          {/* 1. DURUM: BELİRLİ BİR PAKET SEÇİLİ (3'lü Senkronize Hesaplayıcı) */}
+                          <Row className="g-3">
+                            {/* 1. İndirim Oranı (%) */}
+                            <Col md={4}>
+                              <div className="bg-white p-3 rounded-3 border shadow-xs">
+                                <Form.Label className="small fw-bold text-primary mb-1">
+                                  İndirim Oranı (%) <span className="text-danger">*</span>
+                                </Form.Label>
+                                <InputGroup>
+                                  <Form.Control
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    step="any"
+                                    value={percentInput !== null ? percentInput : (discountPercent !== null ? discountPercent : '')}
+                                    onFocus={() => setPercentInput(discountPercent !== null ? String(discountPercent) : '')}
+                                    onBlur={() => setPercentInput(null)}
+                                    onChange={(e) => {
+                                      let val = e.target.value;
+                                      if (val === '') {
+                                        setPercentInput('');
+                                        applyDiscountPercent(0);
+                                        return;
+                                      }
+                                      const num = parseFloat(val);
+                                      if (!isNaN(num)) {
+                                        if (num >= 100 || val.length >= 3) {
+                                          val = '100';
+                                          setPercentInput('100');
+                                          applyDiscountPercent(100);
+                                        } else {
+                                          setPercentInput(val);
+                                          applyDiscountPercent(num);
+                                        }
+                                      }
+                                    }}
+                                    placeholder="0"
+                                    className="fw-bold fs-5 text-primary border-primary-subtle"
+                                  />
+                                  <InputGroup.Text className="bg-primary text-white fw-bold">%</InputGroup.Text>
+                                </InputGroup>
+                              </div>
+                            </Col>
+
+                            {/* 2. İndirim Tutarı (TL) */}
+                            <Col md={4}>
+                              <div className="bg-white p-3 rounded-3 border shadow-xs">
+                                <Form.Label className="small fw-bold text-primary mb-1">
+                                  İndirim Tutarı (TL) <span className="text-danger">*</span>
+                                </Form.Label>
+                                <InputGroup>
+                                  <Form.Control
+                                    type="number"
+                                    min={0}
+                                    max={originalTL > 0 ? originalTL : undefined}
+                                    step="any"
+                                    value={discountTLInput !== null ? discountTLInput : (discountTL !== null && discountTL >= 0 ? discountTL : '')}
+                                    onFocus={() => setDiscountTLInput(discountTL > 0 ? String(discountTL) : '')}
+                                    onBlur={() => setDiscountTLInput(null)}
+                                    onChange={(e) => {
+                                      let val = e.target.value;
+                                      if (val === '') {
+                                        setDiscountTLInput('');
+                                        applyDiscountTL(0);
+                                        return;
+                                      }
+                                      let num = parseFloat(val);
+                                      if (!isNaN(num)) {
+                                        if (num > originalTL) {
+                                          num = originalTL;
+                                          val = String(originalTL);
+                                        } else if (num < 0) {
+                                          num = 0;
+                                          val = '0';
+                                        }
+                                        setDiscountTLInput(val);
+                                        applyDiscountTL(num);
+                                      }
+                                    }}
+                                    placeholder="0"
+                                    className="fw-bold fs-5 text-primary border-primary-subtle"
+                                  />
+                                  <InputGroup.Text className="bg-primary text-white fw-bold">₺</InputGroup.Text>
+                                </InputGroup>
+                              </div>
+                            </Col>
+
+                            {/* 3. Kuponlu Fiyat (TL) */}
+                            <Col md={4}>
+                              <div className="bg-white p-3 rounded-3 border border-success-subtle shadow-xs">
+                                <Form.Label className="small fw-bold text-success mb-1">
+                                  Kuponlu Fiyat (TL) <span className="text-danger">*</span>
+                                </Form.Label>
+                                <InputGroup>
+                                  <Form.Control
+                                    type="number"
+                                    min={0}
+                                    max={originalTL > 0 ? originalTL : undefined}
+                                    step="any"
+                                    value={campaignTLInput !== null ? campaignTLInput : (originalTL > 0 ? campaignTL : '')}
+                                    onFocus={() => setCampaignTLInput(originalTL > 0 ? String(campaignTL) : '')}
+                                    onBlur={() => setCampaignTLInput(null)}
+                                    onChange={(e) => {
+                                      let val = e.target.value;
+                                      if (val === '') {
+                                        setCampaignTLInput('');
+                                        applyCampaignPriceTL(0);
+                                        return;
+                                      }
+                                      let num = parseFloat(val);
+                                      if (!isNaN(num)) {
+                                        if (num > originalTL) {
+                                          num = originalTL;
+                                          val = String(originalTL);
+                                        } else if (num < 0) {
+                                          num = 0;
+                                          val = '0';
+                                        }
+                                        setCampaignTLInput(val);
+                                        applyCampaignPriceTL(num);
+                                      }
+                                    }}
+                                    placeholder="Örn: 200"
+                                    className="fw-bold fs-5 text-success border-success"
+                                  />
+                                  <InputGroup.Text className="bg-success text-white fw-bold">₺</InputGroup.Text>
+                                </InputGroup>
+                              </div>
+                            </Col>
+                          </Row>
+
+                          {/* Canlı Tek Paket Özet Şeridi */}
+                          {originalTL > 0 && (
+                            <div className="mt-3 p-2 px-3 rounded-3 bg-white border border-success-subtle d-flex align-items-center justify-content-between gap-2 shadow-xs flex-wrap">
+                              <div className="d-flex align-items-center gap-2">
+                                <span className="small text-muted fw-semibold">Müşteri Görünümü:</span>
+                                {campaignTL < originalTL && (
+                                  <>
+                                    <span className="text-muted text-decoration-line-through small">
+                                      {formatMoney(Math.round(originalTL * 100), 'TRY')}
+                                    </span>
+                                    <ArrowRight size={14} className="text-muted" />
+                                  </>
+                                )}
+                                <span className="fs-5 fw-bolder text-success">
+                                  {formatMoney(Math.round(campaignTL * 100), 'TRY')}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {/* 2. DURUM: TÜM PAKETLERDE GEÇERLİ KUPON (İndirim Türü ve Tutarı Yan Yana) */}
+                          <div className="bg-white p-3 rounded-3 border shadow-xs">
+                            <Row className="g-3">
+                              {/* Sol Sütun: İndirim Türü */}
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-primary mb-1">
+                                    İndirim Türü <span className="text-danger">*</span>
+                                  </Form.Label>
+                                  <div className="btn-group w-100" style={{ height: '42px' }}>
+                                    <button
+                                      type="button"
+                                      className={`btn d-flex align-items-center justify-content-center text-nowrap px-2 fw-semibold ${values.discountType === 'PERCENTAGE' ? 'btn-primary shadow-xs' : 'btn-outline-primary'}`}
+                                      style={{ fontSize: '0.85rem' }}
+                                      onClick={() => {
+                                        setFieldValue('discountType', 'PERCENTAGE');
+                                        if (Number(values.discountValue) > 100 || !values.discountValue) {
+                                          setFieldValue('discountValue', 20);
+                                        }
+                                      }}
+                                    >
+                                      % Yüzde
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`btn d-flex align-items-center justify-content-center text-nowrap px-2 fw-semibold ${values.discountType === 'FIXED_AMOUNT' ? 'btn-primary shadow-xs' : 'btn-outline-primary'}`}
+                                      style={{ fontSize: '0.85rem' }}
+                                      onClick={() => {
+                                        setFieldValue('discountType', 'FIXED_AMOUNT');
+                                        if (Number(values.discountValue) < 10) {
+                                          setFieldValue('discountValue', 50);
+                                        }
+                                      }}
+                                    >
+                                      ₺ Sabit Tutar
+                                    </button>
+                                  </div>
+                                </Form.Group>
+                              </Col>
+
+                              {/* Sağ Sütun: İndirim Tutarı / Oranı */}
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-primary mb-1">
+                                    {values.discountType === 'PERCENTAGE' ? 'İndirim Oranı (%)' : 'İndirim Tutarı (₺)'} <span className="text-danger">*</span>
+                                  </Form.Label>
+                                  <InputGroup style={{ height: '42px' }}>
+                                    <Form.Control
+                                      type="number"
+                                      min={0}
+                                      max={values.discountType === 'PERCENTAGE' ? 100 : undefined}
+                                      step="any"
+                                      name="discountValue"
+                                      value={values.discountValue}
+                                      onChange={handleChange}
+                                      isInvalid={touched.discountValue && Boolean(errors.discountValue)}
+                                      className="fw-bold fs-5 text-primary border-primary-subtle"
+                                      placeholder={values.discountType === 'PERCENTAGE' ? 'Örn: 20' : 'Örn: 50'}
+                                    />
+                                    <InputGroup.Text className="bg-primary text-white fw-bold">
+                                      {values.discountType === 'PERCENTAGE' ? '%' : '₺'}
+                                    </InputGroup.Text>
+                                  </InputGroup>
+                                  <Form.Control.Feedback type="invalid">{errors.discountValue}</Form.Control.Feedback>
+                                </Form.Group>
+                              </Col>
+                            </Row>
+                          </div>
+
+                          {/* Aktif Paketlerdeki Müşteri Fiyat Yansıması */}
+                          <div className="mt-3 p-3 rounded-3 bg-white border border-success-subtle shadow-xs">
+                            <div className="small text-muted fw-bold mb-2 d-flex align-items-center gap-1">
+                              <CheckCircle size={15} className="text-success" />
+                              <span>Tüm Aktif Paketlerde Kupon Fiyat Yansıması:</span>
+                            </div>
+                            <div className="d-flex flex-column gap-2">
+                              {activePackages.map((pkg) => {
+                                const pMinor = pkg.displayPrice?.amountMinor || 0;
+                                const pTL = pMinor / 100;
+                                let discTL = 0;
+                                if (values.discountType === 'PERCENTAGE') {
+                                  discTL = Math.round(pTL * ((Number(values.discountValue) || 0) / 100) * 100) / 100;
+                                } else {
+                                  discTL = Math.min(pTL, Number(values.discountValue) || 0);
+                                }
+                                const finalTL = Math.max(0, Math.round((pTL - discTL) * 100) / 100);
+
+                                return (
+                                  <div
+                                    key={pkg.code}
+                                    className="d-flex align-items-center justify-content-between p-2 px-3 rounded bg-light-subtle border small flex-wrap gap-2"
+                                  >
+                                    <span className="fw-semibold text-dark">{pkg.displayName}</span>
+                                    <div className="d-flex align-items-center gap-2">
+                                      <span className="text-muted text-decoration-line-through">
+                                        {formatMoney(pMinor, 'TRY')}
+                                      </span>
+                                      <ArrowRight size={13} className="text-muted" />
+                                      <span className="fw-bold text-success fs-6">
+                                        {formatMoney(Math.round(finalTL * 100), 'TRY')}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </Card.Body>
+                </Card>
+
+                {/* 2. Bölüm: Kupon Kodu ve Kullanım Limitleri */}
+                <Card className="border shadow-sm">
+                  <Card.Header className="bg-light fw-bold py-2 d-flex align-items-center gap-2">
+                    <span className="badge bg-primary rounded-pill">2</span>
+                    Kupon Kodu ve Kullanım Limitleri
+                  </Card.Header>
+                  <Card.Body className="p-3">
+                    <Form.Group className="mb-3">
+                      <Form.Label className="fw-semibold">
+                        Kupon Kodu <span className="text-danger">*</span>
+                      </Form.Label>
+                      <InputGroup>
+                        <Form.Control
+                          type="text"
+                          name="code"
+                          disabled={isEdit}
+                          value={values.code}
+                          onChange={(e) => setFieldValue('code', e.target.value.toUpperCase())}
+                          isInvalid={touched.code && Boolean(errors.code)}
+                          placeholder="Örn: HARADAN2026"
+                          className="fw-bold fs-5 text-primary text-uppercase font-monospace"
+                        />
+                        {!isEdit && (
+                          <Button
+                            variant="outline-primary"
+                            type="button"
+                            onClick={() => setFieldValue('code', generateRandomCouponCode())}
+                            title="Rastgele Kupon Kodu Üret"
+                            className="d-flex align-items-center gap-1 fw-semibold"
+                          >
+                            <RefreshCw size={15} />
+                            <span>Kod Üret</span>
+                          </Button>
+                        )}
+                      </InputGroup>
+                      <Form.Control.Feedback type="invalid">{errors.code}</Form.Control.Feedback>
+                    </Form.Group>
+
+                    <Row className="g-3 pt-2 border-top">
+                      <Col md={6}>
+                        <Form.Group>
+                          <Form.Label className="small fw-semibold">Toplam Kullanım Limiti</Form.Label>
+                          <Form.Control
+                            type="number"
+                            min={1}
+                            name="maxUses"
+                            value={values.maxUses}
+                            onChange={handleChange}
+                            placeholder="Sınırsız için boş bırakın"
+                          />
+                        </Form.Group>
+                      </Col>
+
+                      <Col md={6}>
+                        <Form.Group>
+                          <Form.Label className="small fw-semibold">Kişi Başı Azami Kullanım</Form.Label>
+                          <Form.Control
+                            type="number"
+                            min={1}
+                            name="maxUsesPerUser"
+                            value={values.maxUsesPerUser}
+                            onChange={handleChange}
+                            placeholder="Varsayılan: 1"
+                            isInvalid={touched.maxUsesPerUser && Boolean(errors.maxUsesPerUser)}
+                          />
+                          <Form.Control.Feedback type="invalid">{errors.maxUsesPerUser}</Form.Control.Feedback>
+                        </Form.Group>
+                      </Col>
+                    </Row>
+                  </Card.Body>
+                </Card>
+
+                {/* 3. Bölüm: Kupon Başlığı, Geçerlilik Tarihi ve Durum */}
+                <Card className="border shadow-sm">
+                  <Card.Header className="bg-light fw-bold py-2 d-flex align-items-center gap-2">
+                    <span className="badge bg-primary rounded-pill">3</span>
+                    Kupon Başlığı, Geçerlilik Süresi & Durum
+                  </Card.Header>
+                  <Card.Body className="p-3">
+                    <Form.Group className="mb-3">
+                      <Form.Label className="fw-semibold">
+                        Kupon Adı / Kampanya Başlığı <span className="text-danger">*</span>
+                      </Form.Label>
                       <Form.Control
                         type="text"
-                        name="code"
-                        disabled={isEdit}
-                        value={values.code}
-                        onChange={(e) => setFieldValue('code', e.target.value.toUpperCase())}
-                        isInvalid={touched.code && Boolean(errors.code)}
-                        placeholder="Örn: HARADAN2026"
-                        className="fw-bold fs-5 text-primary text-uppercase"
+                        name="name"
+                        value={values.name}
+                        onChange={handleChange}
+                        isInvalid={touched.name && Boolean(errors.name)}
+                        placeholder="Örn: Bahar Fırsatına Özel %20 İndirim"
                       />
-                      {!isEdit && (
-                        <Button
-                          variant="outline-secondary"
-                          type="button"
-                          onClick={() => setFieldValue('code', generateRandomCouponCode())}
-                          title="Rastgele Kupon Kodu Üret"
-                          className="d-flex align-items-center gap-1"
-                        >
-                          <RefreshCw size={14} />
-                          <span>Kod Üret</span>
-                        </Button>
-                      )}
-                    </InputGroup>
-                    <Form.Control.Feedback type="invalid">{errors.code}</Form.Control.Feedback>
-                    <Form.Text className="text-muted">
-                      Kullanıcılarınız ödeme sırasında bu kodu girerek indirim kazanacaktır.
-                    </Form.Text>
-                  </Form.Group>
+                      <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
+                    </Form.Group>
 
-                  <Form.Group>
-                    <Form.Label className="fw-semibold">
-                      Kupon Adı / Açıklaması <span className="text-danger">*</span>
-                    </Form.Label>
-                    <Form.Control
-                      type="text"
-                      name="name"
-                      value={values.name}
-                      onChange={handleChange}
-                      isInvalid={touched.name && Boolean(errors.name)}
-                      placeholder="Örn: Yeni Üyelere Özel %20 İndirim"
-                    />
-                    <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
-                  </Form.Group>
-                </Card.Body>
-              </Card>
-
-              {/* İndirim Kriterleri */}
-              <Card className="border shadow-sm">
-                <Card.Header className="bg-light fw-bold py-2 d-flex align-items-center gap-2">
-                  <span className="badge bg-primary rounded-pill">2</span>
-                  İndirim Miktarı & Geçerli Paket
-                </Card.Header>
-                <Card.Body className="p-3">
-                  <Row className="g-3 mb-3">
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label className="fw-semibold">İndirim Türü</Form.Label>
-                        <Form.Select
-                          name="discountType"
-                          value={values.discountType}
-                          onChange={(e) => {
-                            handleChange(e);
-                            if (e.target.value === 'PERCENTAGE' && Number(values.discountValue) > 100) {
-                              setFieldValue('discountValue', 20);
-                            }
-                          }}
-                        >
-                          <option value="PERCENTAGE">Yüzdesel (%) İndirim</option>
-                          <option value="FIXED_AMOUNT">Sabit Tutar (TL) İndirim</option>
-                        </Form.Select>
-                      </Form.Group>
-                    </Col>
-
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label className="fw-semibold">
-                          İndirim Değeri ({values.discountType === 'PERCENTAGE' ? '%' : 'TL'}){' '}
-                          <span className="text-danger">*</span>
-                        </Form.Label>
-                        <InputGroup>
+                    <Row className="g-3">
+                      <Col md={6}>
+                        <Form.Group>
+                          <Form.Label className="small fw-semibold">
+                            Başlangıç Tarihi <span className="text-danger">*</span>
+                          </Form.Label>
                           <Form.Control
-                            type="number"
-                            name="discountValue"
-                            value={values.discountValue}
+                            type="date"
+                            name="startsAt"
+                            value={values.startsAt}
                             onChange={handleChange}
-                            isInvalid={touched.discountValue && Boolean(errors.discountValue)}
-                            className="fw-bold"
+                            isInvalid={touched.startsAt && Boolean(errors.startsAt)}
                           />
-                          <InputGroup.Text>
-                            {values.discountType === 'PERCENTAGE' ? '%' : '₺'}
-                          </InputGroup.Text>
-                        </InputGroup>
-                        <Form.Control.Feedback type="invalid">{errors.discountValue}</Form.Control.Feedback>
-                      </Form.Group>
-                    </Col>
-
-                    <Col md={12}>
-                      <div className="d-flex align-items-center gap-1 flex-wrap">
-                        <span className="small text-muted me-1">Hızlı Seç:</span>
-                        {values.discountType === 'PERCENTAGE' ? (
-                          [10, 20, 25, 30, 50].map((val) => (
-                            <Button
-                              key={val}
-                              size="sm"
-                              variant="outline-secondary"
-                              className="py-0 px-2 small"
-                              onClick={() => setFieldValue('discountValue', val)}
-                            >
-                              %{val}
-                            </Button>
-                          ))
-                        ) : (
-                          [50, 100, 150, 250, 500].map((val) => (
-                            <Button
-                              key={val}
-                              size="sm"
-                              variant="outline-secondary"
-                              className="py-0 px-2 small"
-                              onClick={() => setFieldValue('discountValue', val)}
-                            >
-                              {val} ₺
-                            </Button>
-                          ))
-                        )}
-                      </div>
-                    </Col>
-                  </Row>
-
-                  <Form.Group className="mb-2">
-                    <Form.Label className="fw-semibold">Hangi Pakette Geçerli Olsun?</Form.Label>
-                    <Form.Select
-                      name="applicablePackageCode"
-                      value={values.applicablePackageCode}
-                      onChange={handleChange}
-                    >
-                      <option value="">✨ Tüm Paketlerde Geçerli</option>
-                      {packages.map((pkg) => (
-                        <option key={pkg.code} value={pkg.code}>
-                          {pkg.displayName} (
-                          {pkg.displayPrice?.amountMinor
-                            ? formatMoney(pkg.displayPrice.amountMinor, 'TRY')
-                            : 'Ücretsiz'}
-                          )
-                        </option>
-                      ))}
-                    </Form.Select>
-                    <Form.Text className="text-muted">
-                      Yalnızca belirli bir pakete özel kupon tanımlamak için ilgili paketi seçebilirsiniz.
-                    </Form.Text>
-                  </Form.Group>
-                </Card.Body>
-              </Card>
-
-              {/* Kullanım Limitleri & Tarihler */}
-              <Card className="border shadow-sm">
-                <Card.Header className="bg-light fw-bold py-2 d-flex align-items-center gap-2">
-                  <span className="badge bg-primary rounded-pill">3</span>
-                  Kullanım Limitleri ve Süresi
-                </Card.Header>
-                <Card.Body className="p-3">
-                  <Row className="g-3 mb-3">
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label className="small fw-semibold">Toplam Kullanım Limiti</Form.Label>
-                        <Form.Control
-                          type="number"
-                          name="maxUses"
-                          value={values.maxUses}
-                          onChange={handleChange}
-                          placeholder="Sınırsız için boş bırakın"
-                        />
-                        <Form.Text className="text-muted small">Örn: İlk 100 kişi için 100</Form.Text>
-                      </Form.Group>
-                    </Col>
-
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label className="small fw-semibold">Kişi Başı Limit</Form.Label>
-                        <Form.Control
-                          type="number"
-                          name="maxUsesPerUser"
-                          value={values.maxUsesPerUser}
-                          onChange={handleChange}
-                        />
-                        <Form.Text className="text-muted small">Her üyenin azami kullanım hakkı</Form.Text>
-                      </Form.Group>
-                    </Col>
-
-                    <Col md={12}>
-                      <Form.Group>
-                        <Form.Label className="small fw-semibold">
-                          Minimum Harcama Tutarı (TL)
-                        </Form.Label>
-                        <InputGroup>
-                          <Form.Control
-                            type="number"
-                            name="minSpendAmountMinor"
-                            value={values.minSpendAmountMinor}
-                            onChange={handleChange}
-                            placeholder="Zorunlu sepet tutarı yoksa boş bırakın"
-                          />
-                          <InputGroup.Text>₺</InputGroup.Text>
-                        </InputGroup>
-                      </Form.Group>
-                    </Col>
-
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label className="small fw-semibold">Başlangıç Tarihi</Form.Label>
-                        <Form.Control
-                          type="date"
-                          name="startsAt"
-                          value={values.startsAt}
-                          onChange={handleChange}
-                        />
-                      </Form.Group>
-                    </Col>
-
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label className="small fw-semibold">Bitiş Tarihi</Form.Label>
-                        <Form.Control
-                          type="date"
-                          name="endsAt"
-                          value={values.endsAt}
-                          onChange={handleChange}
-                        />
-                        <Form.Text className="text-muted small">Süresiz ise boş bırakın</Form.Text>
-                      </Form.Group>
-                    </Col>
-
-                    {isEdit && (
-                      <Col md={12}>
-                        <Form.Check
-                          type="switch"
-                          id="coupon-active-switch"
-                          name="isActive"
-                          label="Kupon Aktif"
-                          checked={values.isActive}
-                          onChange={handleChange}
-                          className="fw-semibold text-primary"
-                        />
+                          <Form.Control.Feedback type="invalid">{errors.startsAt}</Form.Control.Feedback>
+                        </Form.Group>
                       </Col>
-                    )}
-                  </Row>
-                </Card.Body>
-              </Card>
 
-              <div className="pt-2 d-flex flex-column gap-2">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={isSubmitting}
-                  className="w-100 py-2 fs-6 fw-bold"
-                >
-                  {isEdit ? 'Değişiklikleri Güncelle' : 'Kuponu Oluştur ve Yayınla'}
-                </Button>
-                {isEdit && (
+                      <Col md={6}>
+                        <Form.Group>
+                          <Form.Label className="small fw-semibold">Bitiş Tarihi</Form.Label>
+                          <Form.Control
+                            type="date"
+                            name="endsAt"
+                            value={values.endsAt}
+                            onChange={handleChange}
+                            isInvalid={touched.endsAt && Boolean(errors.endsAt)}
+                          />
+                          <Form.Control.Feedback type="invalid">{errors.endsAt}</Form.Control.Feedback>
+                          <Form.Text className="text-muted small">Süresiz ise boş bırakabilirsiniz.</Form.Text>
+                        </Form.Group>
+                      </Col>
+
+                      {isEdit && (
+                        <Col md={12}>
+                          <div className="pt-2 border-top">
+                            <Form.Check
+                              type="switch"
+                              id="coupon-active-switch"
+                              name="isActive"
+                              label="Kupon Aktif (Kullanıcılar kuponu kullanabilir)"
+                              checked={values.isActive}
+                              onChange={handleChange}
+                              className="fw-semibold text-primary"
+                            />
+                          </div>
+                        </Col>
+                      )}
+                    </Row>
+                  </Card.Body>
+                </Card>
+
+                {/* Alt Aksiyon Butonları */}
+                <div className="pt-2 d-flex flex-column gap-2">
                   <Button
-                    type="button"
-                    variant="outline-danger"
+                    type="submit"
+                    variant="primary"
                     disabled={isSubmitting}
-                    className="w-100 py-2 d-flex align-items-center justify-content-center gap-2"
-                    onClick={() => setShowDeleteConfirm(true)}
+                    className="w-100 py-2 fs-6 fw-bold"
                   >
-                    <Trash2 size={16} />
-                    <span>Kuponu Sil</span>
+                    {isEdit ? 'Değişiklikleri Güncelle' : 'Kuponu Oluştur ve Yayınla'}
                   </Button>
-                )}
-              </div>
-            </Form>
-          )}
+                  {isEdit && (
+                    <Button
+                      type="button"
+                      variant="outline-danger"
+                      disabled={isSubmitting}
+                      className="w-100 py-2 d-flex align-items-center justify-content-center gap-2"
+                      onClick={() => setShowDeleteConfirm(true)}
+                    >
+                      <Trash2 size={16} />
+                      <span>Kuponu Sil</span>
+                    </Button>
+                  )}
+                </div>
+              </Form>
+            );
+          }}
         </Formik>
+
         {showDeleteConfirm && (
           <DeleteModal
             title="Kuponu Sil"
@@ -462,6 +723,7 @@ export default function CouponsSection() {
   const [searchQuery, setSearchQuery] = useState('');
   const [packages, setPackages] = useState<PackageResponse[]>([]);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
   const handleDeleteCoupon = async (coupon: CouponResponse) => {
     try {
       await couponService.delete(coupon.id);
@@ -506,7 +768,7 @@ export default function CouponsSection() {
 
   const handleCreate = async (payload: CreateCouponPayload | UpdateCouponPayload) => {
     await couponService.create(payload as CreateCouponPayload);
-    toast.success('Kupon başarıyla oluşturuldu. Kullanıcılarınıza verebilirsiniz!');
+    toast.success('Kupon başarıyla oluşturuldu ve yayına alındı.');
     closeModal();
     refetch();
   };
@@ -516,16 +778,6 @@ export default function CouponsSection() {
     toast.success('Kupon başarıyla güncellendi.');
     closeModal();
     refetch();
-  };
-
-  const handleToggleActive = async (coupon: CouponResponse) => {
-    try {
-      await couponService.setActive(coupon.id, coupon.version, !coupon.isActive);
-      toast.success(coupon.isActive ? 'Kupon pasife alındı.' : 'Kupon aktif edildi.');
-      refetch();
-    } catch (err) {
-      toast.error(getErrorMessage(err));
-    }
   };
 
   const copyCouponCode = (code: string) => {
@@ -558,13 +810,6 @@ export default function CouponsSection() {
     );
   };
 
-  const formatDiscount = (c: CouponResponse) => {
-    if (c.discountType === 'PERCENTAGE') {
-      return `%${c.discountValue} İndirim`;
-    }
-    return `${(c.discountValue / 100).toLocaleString('tr-TR')} ₺ İndirim`;
-  };
-
   const allCoupons = data?.content ?? [];
   const totalUsesCount = allCoupons.reduce((sum, c) => sum + (c.usesCount || 0), 0);
   const activeCouponsCount = allCoupons.filter((c) => c.isActive).length;
@@ -576,37 +821,39 @@ export default function CouponsSection() {
     return (
       <tr key={c.id}>
         <td>
-          <div className="d-flex align-items-center gap-2">
-            <span
-              className="fw-bold px-2 py-1 rounded border text-primary"
-              style={{ backgroundColor: '#f0f7ff', letterSpacing: '0.5px' }}
-            >
-              {c.code}
-            </span>
-            <Button
-              size="sm"
-              variant={isCopied ? 'success' : 'outline-secondary'}
-              className="p-1 px-2 d-inline-flex align-items-center gap-1"
-              title="Kodu Kopyala"
-              onClick={() => copyCouponCode(c.code)}
-            >
-              {isCopied ? <Check size={13} /> : <Copy size={13} />}
-              <span className="small">{isCopied ? 'Kopyalandı' : 'Kopyala'}</span>
-            </Button>
+          <div className="d-flex flex-column gap-1">
+            <div className="d-flex align-items-center gap-2">
+              <span
+                className="fw-bold px-2 py-1 rounded border text-primary font-monospace"
+                style={{ backgroundColor: '#f0f7ff', letterSpacing: '0.5px', fontSize: '0.875rem' }}
+              >
+                {c.code}
+              </span>
+              <Button
+                size="sm"
+                variant={isCopied ? 'success' : 'outline-secondary'}
+                className="p-1 px-2 d-inline-flex align-items-center gap-1 border-0"
+                style={{ fontSize: '0.75rem' }}
+                title="Kodu Kopyala"
+                onClick={() => copyCouponCode(c.code)}
+              >
+                {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                <span>{isCopied ? 'Kopyalandı' : 'Kopyala'}</span>
+              </Button>
+            </div>
+            <div className="fw-semibold text-dark fs-6 mt-1">{c.name}</div>
           </div>
         </td>
         <td>
-          <div className="fw-semibold text-dark">{c.name}</div>
-          {c.minSpendAmountMinor && (
-            <div className="small text-muted">
-              Min: {formatMoney(c.minSpendAmountMinor, 'TRY')}
-            </div>
+          {c.discountType === 'PERCENTAGE' ? (
+            <Badge bg="success" className="fw-bold px-2 py-1">
+              %{c.discountValue} İndirim
+            </Badge>
+          ) : (
+            <Badge bg="info" className="fw-bold px-2 py-1">
+              {formatMoney(c.discountValue, 'TRY')} İndirim
+            </Badge>
           )}
-        </td>
-        <td>
-          <Badge bg="info" className="fs-7 py-1 px-2">
-            {formatDiscount(c)}
-          </Badge>
         </td>
         <td>
           {pkg ? (
@@ -616,47 +863,48 @@ export default function CouponsSection() {
           ) : c.applicablePackageCode ? (
             <Badge bg="secondary">{c.applicablePackageCode}</Badge>
           ) : (
-            <Badge bg="light" text="dark" className="border">
-              ✨ Tüm Paketler
-            </Badge>
+            <span className="text-muted small">✨ Tüm Paketler</span>
           )}
         </td>
         <td>
-          <div className="small fw-semibold text-dark">
-            {c.usesCount} / {c.maxUses ? c.maxUses : '∞'}
-          </div>
-          <div className="small text-muted">
-            (Kişi başı maks: {c.maxUsesPerUser})
+          <div className="d-flex flex-column">
+            <div className="d-flex align-items-center gap-1">
+              <Users size={14} className="text-muted flex-shrink-0" />
+              <span className="fw-bold text-dark">
+                {c.usesCount} <span className="text-muted fw-normal">/ {c.maxUses ? c.maxUses : '∞'}</span>
+              </span>
+            </div>
+            <span className="text-muted small" style={{ fontSize: '0.75rem' }}>
+              (Kişi başı maks: {c.maxUsesPerUser})
+            </span>
           </div>
         </td>
         <td>
-          <span className="small text-muted">
-            {formatDateForText(c.startsAt)}
-            {c.endsAt ? ` - ${formatDateForText(c.endsAt)}` : ' (Süresiz)'}
-          </span>
+          <div className="d-flex align-items-center gap-2 text-dark fw-medium" style={{ fontSize: '0.875rem' }}>
+            <Calendar size={15} className="text-primary flex-shrink-0" />
+            <span>
+              {formatDateForText(c.startsAt)}
+              {c.endsAt ? (
+                <> <span className="text-muted">→</span> {formatDateForText(c.endsAt)}</>
+              ) : (
+                <span className="text-muted ms-1 small">(Süresiz)</span>
+              )}
+            </span>
+          </div>
         </td>
         <td>
-          <Badge bg={c.isActive ? 'success' : 'danger'}>
-            {c.isActive ? 'Aktif' : 'Pasif'}
-          </Badge>
+          <StatusBadge status={c.isActive ? 'ACTIVE' : 'INACTIVE'} />
         </td>
-        <td className="text-nowrap text-end">
+        <td className="text-end">
           <Button
             size="sm"
             variant="outline-primary"
-            className="me-2"
-            title="Düzenle"
-            aria-label="Kupon Düzenle"
+            className="d-inline-flex align-items-center gap-1"
             onClick={() => openEditModal(c)}
+            title="Kuponu Düzenle"
           >
             <Edit size={14} />
-          </Button>
-          <Button
-            size="sm"
-            variant={c.isActive ? 'outline-warning' : 'outline-success'}
-            onClick={() => handleToggleActive(c)}
-          >
-            {c.isActive ? 'Pasif Et' : 'Aktif Et'}
+            <span>Düzenle</span>
           </Button>
         </td>
       </tr>
@@ -668,14 +916,14 @@ export default function CouponsSection() {
       <Row className="mb-2">
         <Col lg={12}>
           <PageHeading
-            heading="Kupon Yönetimi"
-            createButtonText="Yeni Kupon Ekle"
+            heading="Kuponlar"
+            createButtonText="Kupon Ekle"
             onCreate={openCreateModal}
           />
         </Col>
       </Row>
 
-      {/* Kupon İstatistik Kartları */}
+      {/* Özet Kartlar */}
       <Row className="g-3 mb-4">
         <Col md={4}>
           <Card className="border-0 shadow-sm">
@@ -687,7 +935,7 @@ export default function CouponsSection() {
                 <Percent size={22} />
               </div>
               <div>
-                <h6 className="text-muted mb-0 small">Tanımlı Kuponlar</h6>
+                <h6 className="text-muted mb-0 small">Toplam Kupon</h6>
                 <h4 className="fw-bold mb-0 text-dark">{allCoupons.length}</h4>
               </div>
             </Card.Body>
@@ -713,7 +961,7 @@ export default function CouponsSection() {
           <Card className="border-0 shadow-sm">
             <Card.Body className="d-flex align-items-center gap-3 py-3">
               <div
-                className="rounded-3 p-3 bg-light-info text-info d-flex align-items-center justify-content-center"
+                className="rounded-3 p-3 bg-light-warning text-warning d-flex align-items-center justify-content-center"
                 style={{ width: '48px', height: '48px' }}
               >
                 <Users size={22} />
@@ -727,7 +975,7 @@ export default function CouponsSection() {
         </Col>
       </Row>
 
-      {/* Sabit Arama Barı */}
+      {/* Arama ve Filtreleme */}
       <Card className="mb-3 border-0 shadow-sm">
         <Card.Body className="p-3">
           <Form onSubmit={handleSearchSubmit}>
@@ -740,7 +988,7 @@ export default function CouponsSection() {
                   <Form.Control
                     type="text"
                     className="border-start-0"
-                    placeholder="Kupon kodu (ör. HARADAN2026) veya kupon adı ile ara..."
+                    placeholder="Kupon kodu (ör. HRD-AB12) veya kupon adı ile ara..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -761,42 +1009,50 @@ export default function CouponsSection() {
 
       {isModalOpen && modalContent}
 
-      <Card className="border-0 shadow-sm">
-        <Card.Body className="p-0">
-          {isLoading && !data && <Loading />}
-          {!isLoading && isError && (
-            <div className="text-danger p-4 text-center">Kuponlar yüklenirken bir hata oluştu.</div>
+      {isLoading && !data && <Loading />}
+
+      {!isLoading && isError && (
+        <Alert variant="danger" className="d-flex justify-content-between align-items-center">
+          <span>Kuponlar yüklenirken bir hata oluştu.</span>
+          <Button size="sm" variant="outline-danger" onClick={() => refetch()}>
+            Tekrar Dene
+          </Button>
+        </Alert>
+      )}
+
+      {!isLoading && !isError && filteredCoupons.length === 0 && (
+        <Alert variant="light" className="border text-center p-5">
+          <Percent size={40} className="text-muted mb-3 d-block mx-auto opacity-50" />
+          <h5 className="fw-bold text-dark">
+            {hasActiveFilters
+              ? 'Arama kriterlerine uygun kupon bulunamadı'
+              : 'Henüz indirim kuponu tanımlanmamış'}
+          </h5>
+          <p className="text-muted mb-3 small">
+            {hasActiveFilters
+              ? 'Farklı bir arama terimi deneyebilir veya filtreyi temizleyebilirsiniz.'
+              : 'Kullanıcılarınıza özel indirim kuponları tanımlayarak avantajlı paket alımları sağlayabilirsiniz.'}
+          </p>
+          {!hasActiveFilters && (
+            <Button variant="primary" onClick={openCreateModal}>
+              İlk Kuponu Oluştur
+            </Button>
           )}
-          {!isLoading && !isError && filteredCoupons.length === 0 && (
-            <div className="p-5 text-center text-muted">
-              <Percent size={40} className="text-muted mb-3 d-block mx-auto opacity-50" />
-              <h5 className="fw-bold text-dark">
-                {hasActiveFilters
-                  ? 'Arama kriterlerine uygun kupon bulunamadı'
-                  : 'Henüz indirim kuponu oluşturulmamış'}
-              </h5>
-              <p className="text-muted mb-3 small">
-                {hasActiveFilters
-                  ? 'Farklı bir filtre deneyebilir veya filtreleri sıfırlayabilirsiniz.'
-                  : 'Yeni kupon oluşturup kodunu kullanıcılarınıza vererek indirim tanımlayabilirsiniz.'}
-              </p>
-              {!hasActiveFilters && (
-                <Button variant="primary" onClick={openCreateModal}>
-                  Yeni Kupon Oluştur
-                </Button>
-              )}
-            </div>
-          )}
-          {!isLoading && !isError && filteredCoupons.length > 0 && (
+        </Alert>
+      )}
+
+      {!isLoading && !isError && filteredCoupons.length > 0 && (
+        <Card className="border-0 shadow-sm">
+          <Card.Body className="p-0">
             <PrepareTable
               headItems={headItems}
               content={content}
               page={data?.page}
               onHandlePageChange={handlePageChange}
             />
-          )}
-        </Card.Body>
-      </Card>
+          </Card.Body>
+        </Card>
+      )}
     </>
   );
 }
