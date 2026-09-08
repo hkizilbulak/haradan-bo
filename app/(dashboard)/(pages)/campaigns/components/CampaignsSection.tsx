@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
-import { Alert, Badge, Button, Card, Col, Form, InputGroup, Offcanvas, Row } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Col, Form, InputGroup, Modal, Offcanvas, Row } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import Loading from '@/components/Loading';
@@ -22,11 +22,10 @@ import { Edit, Tag, Percent, CheckCircle, Calendar, ArrowRight, Trash2 } from 'r
 const headItems = [
   'Kampanya Adı',
   'İndirimli Paket',
-  'Normal Fiyat',
-  'Kampanyalı Fiyat',
   'İndirim',
-  'Durum',
+  'Fiyat',
   'Geçerlilik Tarihi',
+  'Durum',
   '',
 ];
 
@@ -65,6 +64,7 @@ function CampaignModal({
 }) {
   const isNew = !selectedCampaign?.id;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
   const [percentInput, setPercentInput] = useState<string | null>(null);
   const [discountTLInput, setDiscountTLInput] = useState<string | null>(null);
   const [campaignTLInput, setCampaignTLInput] = useState<string | null>(null);
@@ -120,7 +120,7 @@ function CampaignModal({
       </Offcanvas.Header>
       <Offcanvas.Body className="p-4">
         <Formik initialValues={values} validationSchema={schema} onSubmit={onSave}>
-          {({ handleSubmit, handleChange, setFieldValue, values, isValid, isSubmitting, errors, touched }) => {
+          {({ handleSubmit, handleChange, setFieldValue, values, isValid, isSubmitting, errors, touched, dirty }) => {
             const selectedPackage = packages.find((p) => p.code === values.targetPackageCode);
             const originalTL = values.originalAmountMinor ? values.originalAmountMinor / 100 : 0;
             const campaignTL = values.campaignAmountMinor ? values.campaignAmountMinor / 100 : 0;
@@ -454,13 +454,25 @@ function CampaignModal({
 
                 <div className="pt-2 d-flex flex-column gap-2">
                   <Button
-                    disabled={!isValid || isSubmitting}
+                    disabled={(!isNew && !dirty) || !isValid || isSubmitting}
                     variant="primary"
-                    as="input"
-                    type="submit"
+                    type="button"
                     className="w-100 py-2 fs-6 fw-bold"
-                    value={isNew ? 'Kampanyayı Başlat' : 'Değişiklikleri Güncelle'}
-                  />
+                    style={{
+                      opacity: (!isNew && !dirty) || !isValid || isSubmitting ? 0.45 : 1,
+                      transition: 'all 0.2s ease',
+                      cursor: (!isNew && !dirty) || !isValid || isSubmitting ? 'not-allowed' : 'pointer',
+                    }}
+                    onClick={() => {
+                      if (isNew) {
+                        handleSubmit();
+                      } else {
+                        setShowUpdateConfirm(true);
+                      }
+                    }}
+                  >
+                    {isNew ? 'Kampanyayı Başlat' : 'Değişiklikleri Güncelle'}
+                  </Button>
                   {!isNew && (
                     <Button
                       variant="outline-danger"
@@ -474,6 +486,35 @@ function CampaignModal({
                     </Button>
                   )}
                 </div>
+
+                {showUpdateConfirm && (
+                  <Modal show={true} onHide={() => setShowUpdateConfirm(false)} centered size="sm">
+                    <Modal.Header closeButton>
+                      <Modal.Title className="fs-6 fw-bold">Güncelleme Onayı</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                      <p className="mb-0 text-secondary">
+                        Kampanyada yaptığınız değişiklikleri güncellemek istediğinizden emin misiniz?
+                      </p>
+                    </Modal.Body>
+                    <Modal.Footer>
+                      <Button variant="secondary" size="sm" onClick={() => setShowUpdateConfirm(false)}>
+                        Vazgeç
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={isSubmitting}
+                        onClick={() => {
+                          setShowUpdateConfirm(false);
+                          handleSubmit();
+                        }}
+                      >
+                        Evet, Güncelle
+                      </Button>
+                    </Modal.Footer>
+                  </Modal>
+                )}
               </Form>
             );
           }}
@@ -561,8 +602,12 @@ export default function CampaignsSection() {
     );
     const orig = campaign.originalPrice?.amountMinor;
     const camp = campaign.campaignPrice?.amountMinor;
+    const hasCamp = typeof camp === 'number' && !isNaN(camp);
+    const hasOrig = typeof orig === 'number' && !isNaN(orig);
     const discountPercent =
-      orig && camp && camp < orig ? Math.round(((orig - camp) / orig) * 100) : null;
+      hasOrig && hasCamp && orig > 0 && camp < orig
+        ? Math.round(((orig - camp) / orig) * 100)
+        : null;
 
     return (
       <tr key={campaign.id}>
@@ -582,26 +627,8 @@ export default function CampaignsSection() {
           )}
         </td>
         <td>
-          {orig ? (
-            <span className="text-decoration-line-through text-muted small">
-              {formatMoney(orig, campaign.currencyCode || 'TRY')}
-            </span>
-          ) : (
-            '-'
-          )}
-        </td>
-        <td>
-          {camp ? (
-            <span className="fw-bold text-success fs-6">
-              {formatMoney(camp, campaign.currencyCode || 'TRY')}
-            </span>
-          ) : (
-            '-'
-          )}
-        </td>
-        <td>
-          {discountPercent ? (
-            <Badge bg="danger" className="fw-bold">
+          {discountPercent != null ? (
+            <Badge bg="success" className="fw-bold">
               %{discountPercent} İndirim
             </Badge>
           ) : (
@@ -609,14 +636,40 @@ export default function CampaignsSection() {
           )}
         </td>
         <td>
-          <StatusBadge status={campaign.isActive ? 'ACTIVE' : 'INACTIVE'} />
+          {hasCamp ? (
+            <div className="d-flex flex-column">
+              {hasOrig && orig !== camp ? (
+                <span className="text-decoration-line-through text-muted small">
+                  {formatMoney(orig, campaign.currencyCode || 'TRY')}
+                </span>
+              ) : null}
+              <span className="fw-bold text-success fs-6">
+                {formatMoney(camp, campaign.currencyCode || 'TRY')}
+              </span>
+            </div>
+          ) : hasOrig ? (
+            <span className="fw-bold text-dark">
+              {formatMoney(orig, campaign.currencyCode || 'TRY')}
+            </span>
+          ) : (
+            <span className="text-muted">-</span>
+          )}
         </td>
         <td>
-          <span className="small text-muted d-flex align-items-center gap-1">
-            <Calendar size={13} />
-            {formatDateForText(campaign.startsAt)}
-            {campaign.endsAt ? ` - ${formatDateForText(campaign.endsAt)}` : ' (Süresiz)'}
-          </span>
+          <div className="d-flex align-items-center gap-2 text-dark fw-medium" style={{ fontSize: '0.875rem' }}>
+            <Calendar size={15} className="text-primary flex-shrink-0" />
+            <span>
+              {formatDateForText(campaign.startsAt)}
+              {campaign.endsAt ? (
+                <> <span className="text-muted">→</span> {formatDateForText(campaign.endsAt)}</>
+              ) : (
+                <span className="text-muted ms-1 small">(Süresiz)</span>
+              )}
+            </span>
+          </div>
+        </td>
+        <td>
+          <StatusBadge status={campaign.isActive ? 'ACTIVE' : 'INACTIVE'} />
         </td>
         <td className="text-end">
           <Button
