@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal, Button } from 'react-bootstrap';
 import { Save, PauseCircle, PlayCircle, PlusCircle, AlertCircle, Trash2 } from 'react-feather';
 
-export type ConfirmModalType = 'create' | 'update' | 'warning' | 'success' | 'danger';
+export type ConfirmModalType = 'create' | 'update' | 'warning' | 'success' | 'danger' | 'secondary';
 
 interface ConfirmModalProps {
   show: boolean;
@@ -46,10 +46,16 @@ export default function ConfirmModal({
     buttonExtraClass = 'text-white';
     defaultConfirmText = 'Evet, Kaydet';
   } else if (type === 'warning') {
-    icon = <PauseCircle size={26} />;
+    icon = <AlertCircle size={26} />;
     iconBgClass = 'bg-warning-subtle text-warning';
     buttonVariant = 'warning';
     buttonExtraClass = 'text-dark';
+    defaultConfirmText = 'Evet, Onayla';
+  } else if (type === 'secondary') {
+    icon = <PauseCircle size={26} />;
+    iconBgClass = 'bg-secondary-subtle text-secondary';
+    buttonVariant = 'secondary';
+    buttonExtraClass = 'text-white';
     defaultConfirmText = 'Evet, Pasife Al';
   } else if (type === 'success') {
     icon = <PlayCircle size={26} />;

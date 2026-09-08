@@ -661,7 +661,7 @@ function CampaignModal({
                   {!isNew && selectedCampaign && (
                     <Button
                       type="button"
-                      variant={selectedCampaign.isActive ? 'outline-warning' : 'outline-success'}
+                      variant={selectedCampaign.isActive ? 'outline-secondary' : 'outline-success'}
                       disabled={isSubmitting}
                       className="w-100 py-2 d-flex align-items-center justify-content-center gap-2"
                       onClick={() => setShowToggleActiveConfirm(true)}
@@ -728,7 +728,7 @@ function CampaignModal({
                         setIsTogglingActive(false);
                       }
                     }}
-                    type={selectedCampaign.isActive ? 'warning' : 'success'}
+                    type={selectedCampaign.isActive ? 'secondary' : 'success'}
                     title={selectedCampaign.isActive ? 'Kampanyayı Pasife Al' : 'Kampanyayı Aktifleştir'}
                     message={
                       selectedCampaign.isActive ? (

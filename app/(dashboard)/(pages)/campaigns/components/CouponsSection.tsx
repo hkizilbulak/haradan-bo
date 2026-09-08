@@ -697,7 +697,7 @@ function CouponFormModal({
                   {isEdit && coupon && (
                     <Button
                       type="button"
-                      variant={coupon.isActive ? 'outline-warning' : 'outline-success'}
+                      variant={coupon.isActive ? 'outline-secondary' : 'outline-success'}
                       disabled={isSubmitting}
                       className="w-100 py-2 d-flex align-items-center justify-content-center gap-2"
                       onClick={() => setShowToggleActiveConfirm(true)}
@@ -764,7 +764,7 @@ function CouponFormModal({
                         setIsTogglingActive(false);
                       }
                     }}
-                    type={coupon.isActive ? 'warning' : 'success'}
+                    type={coupon.isActive ? 'secondary' : 'success'}
                     title={coupon.isActive ? 'Kuponu Pasife Al' : 'Kuponu Aktifleştir'}
                     message={
                       coupon.isActive ? (
