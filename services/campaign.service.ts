@@ -93,23 +93,30 @@ function moneyPayload(amountMinor: number | undefined, currency: string) {
 }
 
 function sharedFields(request: CampaignRequest) {
+  const isTargetPkg = Boolean(request.targetPackageCode);
   return {
     name: request.name,
     eventType: request.eventType,
-    sourcePackageCode: request.sourcePackageCode || undefined,
-    targetPackageCode: request.targetPackageCode || undefined,
+    sourcePackageCode: request.sourcePackageCode || null,
+    targetPackageCode: isTargetPkg ? request.targetPackageCode : null,
     title: request.title,
-    description: request.description || undefined,
-    emailSubject: request.emailSubject || undefined,
-    emailHeading: request.emailHeading || undefined,
-    emailBody: request.emailBody || undefined,
-    emailProviderTemplateId: request.emailProviderTemplateId || undefined,
-    ctaLabel: request.ctaLabel || undefined,
-    ctaUrl: request.ctaUrl || undefined,
-    badgeText: request.badgeText || undefined,
-    imageAssetId: request.imageAssetId || undefined,
-    originalPrice: moneyPayload(request.originalAmountMinor, request.currencyCode),
-    campaignPrice: moneyPayload(request.campaignAmountMinor, request.currencyCode),
+    description: request.description || null,
+    emailSubject: request.emailSubject || null,
+    emailHeading: request.emailHeading || null,
+    emailBody: request.emailBody || null,
+    emailProviderTemplateId: request.emailProviderTemplateId || null,
+    ctaLabel: request.ctaLabel || null,
+    ctaUrl: request.ctaUrl || null,
+    badgeText: request.badgeText || null,
+    imageAssetId: request.imageAssetId || null,
+    originalPrice:
+      isTargetPkg && request.originalAmountMinor != null
+        ? { amountMinor: Number(request.originalAmountMinor), currency: request.currencyCode || 'TRY' }
+        : null,
+    campaignPrice:
+      isTargetPkg && request.campaignAmountMinor != null
+        ? { amountMinor: Number(request.campaignAmountMinor), currency: request.currencyCode || 'TRY' }
+        : null,
     currencyCode: request.currencyCode,
     startsAt: toApiDateStart(request.startsAt),
     endsAt: toApiDateEnd(request.endsAt),

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from 'react';
-import { Alert, Badge, Button, Card, Col, Form, InputGroup, Offcanvas, Row } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Col, Form, InputGroup, Modal, Offcanvas, Row } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import Loading from '@/components/Loading';
@@ -13,14 +13,15 @@ import useModal from '@/hooks/useModal';
 import { couponService, CouponResponse, CreateCouponPayload, UpdateCouponPayload } from '@/services/coupon.service';
 import { packageService, PackageResponse } from '@/services/package.service';
 import DeleteModal from '@/components/DeleteModal';
+import ConfirmModal from '@/components/ConfirmModal';
 import { PageHeading } from '@/widgets';
 import { toast } from 'react-toastify';
-import { Edit, Copy, Check, Percent, Users, CheckCircle, RefreshCw, Trash2, Calendar, ArrowRight } from 'react-feather';
+import { Edit, Copy, Check, Percent, Users, CheckCircle, RefreshCw, Trash2, Calendar, ArrowRight, PauseCircle, PlayCircle } from 'react-feather';
 
 const headItems = [
   'Kupon Kodu & Adı',
-  'İndirim',
   'Geçerli Paket',
+  'İndirim',
   'Kullanım Durumu',
   'Geçerlilik Tarihi',
   'Durum',
@@ -53,15 +54,21 @@ function CouponFormModal({
   onClose,
   onSave,
   onDelete,
+  onToggleActive,
 }: {
   coupon?: CouponResponse;
   packages: PackageResponse[];
   onClose: () => void;
   onSave: (values: CreateCouponPayload | UpdateCouponPayload) => Promise<void>;
   onDelete?: () => Promise<void> | void;
+  onToggleActive?: (coupon: CouponResponse) => Promise<void>;
 }) {
   const isEdit = Boolean(coupon);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
+  const [showCreateConfirm, setShowCreateConfirm] = useState(false);
+  const [showToggleActiveConfirm, setShowToggleActiveConfirm] = useState(false);
+  const [isTogglingActive, setIsTogglingActive] = useState(false);
 
   const [percentInput, setPercentInput] = useState<string | null>(null);
   const [discountTLInput, setDiscountTLInput] = useState<string | null>(null);
@@ -162,7 +169,7 @@ function CouponFormModal({
             }
           }}
         >
-          {({ handleSubmit, handleChange, setFieldValue, values, errors, touched, isSubmitting }) => {
+          {({ handleSubmit, handleChange, setFieldValue, values, errors, touched, isSubmitting, dirty, validateForm, submitForm }) => {
             const activePackages = packages.filter((p) => p.isActive);
             const selectedPackage = packages.find((p) => p.code === values.applicablePackageCode);
             const isSpecificPackage = Boolean(selectedPackage?.displayPrice?.amountMinor);
@@ -642,35 +649,64 @@ function CouponFormModal({
                         </Form.Group>
                       </Col>
 
-                      {isEdit && (
-                        <Col md={12}>
-                          <div className="pt-2 border-top">
-                            <Form.Check
-                              type="switch"
-                              id="coupon-active-switch"
-                              name="isActive"
-                              label="Kupon Aktif (Kullanıcılar kuponu kullanabilir)"
-                              checked={values.isActive}
-                              onChange={handleChange}
-                              className="fw-semibold text-primary"
-                            />
-                          </div>
-                        </Col>
-                      )}
                     </Row>
                   </Card.Body>
                 </Card>
 
                 {/* Alt Aksiyon Butonları */}
                 <div className="pt-2 d-flex flex-column gap-2">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={isSubmitting}
-                    className="w-100 py-2 fs-6 fw-bold"
-                  >
-                    {isEdit ? 'Değişiklikleri Güncelle' : 'Kuponu Oluştur ve Yayınla'}
-                  </Button>
+                  {isEdit ? (
+                    <Button
+                      type="button"
+                      variant="outline-primary"
+                      disabled={isSubmitting || !dirty}
+                      className="w-100 py-2 d-flex align-items-center justify-content-center gap-2"
+                      style={!dirty ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                      onClick={async () => {
+                        const validationErrors = await validateForm();
+                        if (Object.keys(validationErrors).length > 0) {
+                          handleSubmit();
+                          return;
+                        }
+                        setShowUpdateConfirm(true);
+                      }}
+                    >
+                      <CheckCircle size={16} />
+                      <span>Değişiklikleri Kaydet</span>
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline-primary"
+                      disabled={isSubmitting}
+                      className="w-100 py-2 d-flex align-items-center justify-content-center gap-2"
+                      onClick={async () => {
+                        const validationErrors = await validateForm();
+                        if (Object.keys(validationErrors).length > 0) {
+                          handleSubmit();
+                          return;
+                        }
+                        setShowCreateConfirm(true);
+                      }}
+                    >
+                      <CheckCircle size={16} />
+                      <span>Kuponu Oluştur ve Yayınla</span>
+                    </Button>
+                  )}
+
+                  {isEdit && coupon && (
+                    <Button
+                      type="button"
+                      variant={coupon.isActive ? 'outline-warning' : 'outline-success'}
+                      disabled={isSubmitting}
+                      className="w-100 py-2 d-flex align-items-center justify-content-center gap-2"
+                      onClick={() => setShowToggleActiveConfirm(true)}
+                    >
+                      {coupon.isActive ? <PauseCircle size={16} /> : <PlayCircle size={16} />}
+                      <span>{coupon.isActive ? 'Kuponu Pasife Al' : 'Kuponu Aktifleştir'}</span>
+                    </Button>
+                  )}
+
                   {isEdit && (
                     <Button
                       type="button"
@@ -684,6 +720,67 @@ function CouponFormModal({
                     </Button>
                   )}
                 </div>
+
+                <ConfirmModal
+                  show={showCreateConfirm}
+                  onHide={() => setShowCreateConfirm(false)}
+                  onConfirm={async () => {
+                    setShowCreateConfirm(false);
+                    await submitForm();
+                  }}
+                  type="create"
+                  title="Kuponu Yayınla"
+                  message="Yeni kuponu oluşturup yayına almak istediğinizden emin misiniz?"
+                  confirmText="Evet, Oluştur"
+                  isLoading={isSubmitting}
+                />
+
+                <ConfirmModal
+                  show={showUpdateConfirm}
+                  onHide={() => setShowUpdateConfirm(false)}
+                  onConfirm={async () => {
+                    setShowUpdateConfirm(false);
+                    await submitForm();
+                  }}
+                  type="update"
+                  title="Değişiklikleri Kaydet"
+                  message="Kupon üzerinde yaptığınız değişiklikleri kaydetmek istediğinizden emin misiniz?"
+                  confirmText="Evet, Kaydet"
+                  isLoading={isSubmitting}
+                />
+
+                {coupon && (
+                  <ConfirmModal
+                    show={showToggleActiveConfirm}
+                    onHide={() => setShowToggleActiveConfirm(false)}
+                    onConfirm={async () => {
+                      setIsTogglingActive(true);
+                      try {
+                        if (onToggleActive) {
+                          await onToggleActive(coupon);
+                        }
+                        setShowToggleActiveConfirm(false);
+                      } finally {
+                        setIsTogglingActive(false);
+                      }
+                    }}
+                    type={coupon.isActive ? 'warning' : 'success'}
+                    title={coupon.isActive ? 'Kuponu Pasife Al' : 'Kuponu Aktifleştir'}
+                    message={
+                      coupon.isActive ? (
+                        <span>
+                          <strong className="text-dark">"{coupon.name || coupon.code}"</strong> kuponunu pasife almak istediğinizden emin misiniz? Kullanıcılar bu kupondan yararlanamayacaktır.
+                        </span>
+                      ) : (
+                        <span>
+                          <strong className="text-dark">"{coupon.name || coupon.code}"</strong> kuponunu aktifleştirmek istediğinizden emin misiniz?
+                        </span>
+                      )
+                    }
+                    confirmText={coupon.isActive ? 'Evet, Pasife Al' : 'Evet, Aktifleştir'}
+                    isLoading={isTogglingActive}
+                  />
+                )}
               </Form>
             );
           }}
@@ -720,7 +817,6 @@ export default function CouponsSection() {
   });
 
   const { isModalOpen, openModal, closeModal, modalContent } = useModal();
-  const [searchQuery, setSearchQuery] = useState('');
   const [packages, setPackages] = useState<PackageResponse[]>([]);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
@@ -742,29 +838,7 @@ export default function CouponsSection() {
       .catch((err) => toast.error(getErrorMessage(err)));
   }, []);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    handleFilter(searchQuery.trim());
-  };
-
-  const handleClearSearch = () => {
-    setSearchQuery('');
-    handleFilter('');
-  };
-
-  const hasActiveFilters = Boolean(searchQuery.trim());
-
-  const filteredCoupons = useMemo(() => {
-    const raw = data?.content ?? [];
-    if (!searchQuery.trim()) return raw;
-    const q = searchQuery.trim().toLowerCase();
-    return raw.filter(
-      (c) =>
-        c.code.toLowerCase().includes(q) ||
-        c.name.toLowerCase().includes(q) ||
-        (c.applicablePackageCode && c.applicablePackageCode.toLowerCase().includes(q))
-    );
-  }, [data, searchQuery]);
+  const filteredCoupons = data?.content ?? [];
 
   const handleCreate = async (payload: CreateCouponPayload | UpdateCouponPayload) => {
     await couponService.create(payload as CreateCouponPayload);
@@ -798,6 +872,17 @@ export default function CouponsSection() {
     );
   };
 
+  const handleToggleActive = async (coupon: CouponResponse) => {
+    try {
+      await couponService.setActive(coupon.id, coupon.version, !coupon.isActive);
+      toast.success(coupon.isActive ? 'Kupon pasife alındı.' : 'Kupon başarıyla aktifleştirildi.');
+      closeModal();
+      refetch();
+    } catch (err) {
+      toast.error(getErrorMessage(err) || 'Kupon durumu güncellenirken bir hata oluştu.');
+    }
+  };
+
   const openEditModal = (coupon: CouponResponse) => {
     openModal(
       <CouponFormModal
@@ -806,6 +891,7 @@ export default function CouponsSection() {
         onClose={closeModal}
         onSave={(payload) => handleUpdate(coupon.id, payload as UpdateCouponPayload)}
         onDelete={() => handleDeleteCoupon(coupon)}
+        onToggleActive={handleToggleActive}
       />
     );
   };
@@ -822,7 +908,7 @@ export default function CouponsSection() {
       <tr key={c.id}>
         <td>
           <div className="d-flex flex-column gap-1">
-            <div className="d-flex align-items-center gap-2">
+            <div className="d-flex align-items-center gap-1">
               <span
                 className="fw-bold px-2 py-1 rounded border text-primary font-monospace"
                 style={{ backgroundColor: '#f0f7ff', letterSpacing: '0.5px', fontSize: '0.875rem' }}
@@ -831,18 +917,34 @@ export default function CouponsSection() {
               </span>
               <Button
                 size="sm"
-                variant={isCopied ? 'success' : 'outline-secondary'}
-                className="p-1 px-2 d-inline-flex align-items-center gap-1 border-0"
-                style={{ fontSize: '0.75rem' }}
-                title="Kodu Kopyala"
+                variant="link"
+                className={`p-1 text-decoration-none d-inline-flex align-items-center ${
+                  isCopied ? 'text-success' : 'text-muted'
+                }`}
+                style={{ lineHeight: 1 }}
+                title={isCopied ? 'Kopyalandı' : 'Kodu Kopyala'}
                 onClick={() => copyCouponCode(c.code)}
               >
-                {isCopied ? <Check size={12} /> : <Copy size={12} />}
-                <span>{isCopied ? 'Kopyalandı' : 'Kopyala'}</span>
+                {isCopied ? <Check size={15} /> : <Copy size={15} />}
               </Button>
             </div>
             <div className="fw-semibold text-dark fs-6 mt-1">{c.name}</div>
           </div>
+        </td>
+        <td>
+          {pkg ? (
+            <Badge bg="primary" className="fw-semibold px-2 py-1">
+              {pkg.displayName}
+            </Badge>
+          ) : c.applicablePackageCode ? (
+            <Badge bg="secondary" className="fw-semibold px-2 py-1">
+              {c.applicablePackageCode}
+            </Badge>
+          ) : (
+            <Badge bg="light" text="dark" className="border fw-semibold px-2 py-1">
+              Tüm Paketler
+            </Badge>
+          )}
         </td>
         <td>
           {c.discountType === 'PERCENTAGE' ? (
@@ -853,17 +955,6 @@ export default function CouponsSection() {
             <Badge bg="info" className="fw-bold px-2 py-1">
               {formatMoney(c.discountValue, 'TRY')} İndirim
             </Badge>
-          )}
-        </td>
-        <td>
-          {pkg ? (
-            <Badge bg="primary" className="fw-semibold">
-              {pkg.displayName}
-            </Badge>
-          ) : c.applicablePackageCode ? (
-            <Badge bg="secondary">{c.applicablePackageCode}</Badge>
-          ) : (
-            <span className="text-muted small">✨ Tüm Paketler</span>
           )}
         </td>
         <td>
@@ -975,38 +1066,6 @@ export default function CouponsSection() {
         </Col>
       </Row>
 
-      {/* Arama ve Filtreleme */}
-      <Card className="mb-3 border-0 shadow-sm">
-        <Card.Body className="p-3">
-          <Form onSubmit={handleSearchSubmit}>
-            <Row className="align-items-center g-2">
-              <Col md={12}>
-                <InputGroup>
-                  <InputGroup.Text className="bg-light border-end-0">
-                    <i className="fe fe-search text-muted"></i>
-                  </InputGroup.Text>
-                  <Form.Control
-                    type="text"
-                    className="border-start-0"
-                    placeholder="Kupon kodu (ör. HRD-AB12) veya kupon adı ile ara..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                  <Button type="submit" variant="primary">
-                    Ara
-                  </Button>
-                  {searchQuery && (
-                    <Button variant="outline-secondary" onClick={handleClearSearch}>
-                      Aramayı Temizle
-                    </Button>
-                  )}
-                </InputGroup>
-              </Col>
-            </Row>
-          </Form>
-        </Card.Body>
-      </Card>
-
       {isModalOpen && modalContent}
 
       {isLoading && !data && <Loading />}
@@ -1023,21 +1082,13 @@ export default function CouponsSection() {
       {!isLoading && !isError && filteredCoupons.length === 0 && (
         <Alert variant="light" className="border text-center p-5">
           <Percent size={40} className="text-muted mb-3 d-block mx-auto opacity-50" />
-          <h5 className="fw-bold text-dark">
-            {hasActiveFilters
-              ? 'Arama kriterlerine uygun kupon bulunamadı'
-              : 'Henüz indirim kuponu tanımlanmamış'}
-          </h5>
+          <h5 className="fw-bold text-dark">Henüz indirim kuponu tanımlanmamış</h5>
           <p className="text-muted mb-3 small">
-            {hasActiveFilters
-              ? 'Farklı bir arama terimi deneyebilir veya filtreyi temizleyebilirsiniz.'
-              : 'Kullanıcılarınıza özel indirim kuponları tanımlayarak avantajlı paket alımları sağlayabilirsiniz.'}
+            Kullanıcılarınıza özel indirim kuponları tanımlayarak avantajlı paket alımları sağlayabilirsiniz.
           </p>
-          {!hasActiveFilters && (
-            <Button variant="primary" onClick={openCreateModal}>
-              İlk Kuponu Oluştur
-            </Button>
-          )}
+          <Button variant="primary" onClick={openCreateModal}>
+            İlk Kuponu Oluştur
+          </Button>
         </Alert>
       )}
 
