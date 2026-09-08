@@ -1,5 +1,5 @@
 import axiosInstance from '@/helpers/api/axiosInstance';
-import { toApiDateTime } from '@/helpers/DateUtils';
+import { toApiDateStart, toApiDateEnd, toApiDateTime } from '@/helpers/DateUtils';
 import { API_URL } from '@/contants/urls';
 import { BaseResponse, PagedResponse, SearchParams } from '@/models/common';
 
@@ -111,8 +111,8 @@ function sharedFields(request: CampaignRequest) {
     originalPrice: moneyPayload(request.originalAmountMinor, request.currencyCode),
     campaignPrice: moneyPayload(request.campaignAmountMinor, request.currencyCode),
     currencyCode: request.currencyCode,
-    startsAt: toApiDateTime(request.startsAt),
-    endsAt: toApiDateTime(request.endsAt),
+    startsAt: toApiDateStart(request.startsAt),
+    endsAt: toApiDateEnd(request.endsAt),
     isActive: request.isActive,
   };
 }

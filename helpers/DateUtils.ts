@@ -93,3 +93,77 @@ export function toDateTimeLocalValue(iso?: string | null): string {
         pad(parsed.getMinutes()),
     ].join('');
 }
+
+/**
+ * Convert an ISO timestamp or date string to YYYY-MM-DD for <input type="date">
+ * in the browser's local timezone.
+ */
+export function toDateInputValue(iso?: string | null): string {
+    if (iso == null || iso === '') {
+        return '';
+    }
+
+    const parsed = new Date(iso);
+    if (Number.isNaN(parsed.getTime())) {
+        return '';
+    }
+
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return [
+        parsed.getFullYear(),
+        '-',
+        pad(parsed.getMonth() + 1),
+        '-',
+        pad(parsed.getDate()),
+    ].join('');
+}
+
+/**
+ * Convert a date string (YYYY-MM-DD or ISO) to the start of that day (00:00:00 local time)
+ * in UTC RFC3339 format for API payloads.
+ */
+export function toApiDateStart(dateValue?: string | null): string | undefined {
+    if (dateValue == null) return undefined;
+    const trimmed = dateValue.trim();
+    if (!trimmed) return undefined;
+
+    if (trimmed.includes('T')) {
+        const parsed = new Date(trimmed);
+        return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+    }
+
+    const parts = trimmed.split('-').map(Number);
+    if (parts.length >= 3 && !parts.some(isNaN)) {
+        const [year, month, day] = parts;
+        const d = new Date(year, month - 1, day, 0, 0, 0, 0);
+        return d.toISOString();
+    }
+
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+/**
+ * Convert a date string (YYYY-MM-DD or ISO) to the end of that day (23:59:59.999 local time)
+ * in UTC RFC3339 format for API payloads.
+ */
+export function toApiDateEnd(dateValue?: string | null): string | undefined {
+    if (dateValue == null) return undefined;
+    const trimmed = dateValue.trim();
+    if (!trimmed) return undefined;
+
+    if (trimmed.includes('T')) {
+        const parsed = new Date(trimmed);
+        return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+    }
+
+    const parts = trimmed.split('-').map(Number);
+    if (parts.length >= 3 && !parts.some(isNaN)) {
+        const [year, month, day] = parts;
+        const d = new Date(year, month - 1, day, 23, 59, 59, 999);
+        return d.toISOString();
+    }
+
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}

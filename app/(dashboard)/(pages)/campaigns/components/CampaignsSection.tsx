@@ -9,7 +9,7 @@ import RichTextEditor from '@/components/RichTextEditor';
 import SafeRichText from '@/components/SafeRichText';
 import PrepareTable from '@/components/PrepareTable';
 import StatusBadge from '@/components/StatusBadge';
-import { formatDateTimeForText, toDateTimeLocalValue } from '@/helpers/DateUtils';
+import { formatDateForText, toDateInputValue } from '@/helpers/DateUtils';
 import { formatMoney, getErrorMessage } from '@/helpers/HelperUtils';
 import { sanitizeRichHtml } from '@/helpers/sanitizeHtml';
 import useCursorApi from '@/hooks/useCursorApi';
@@ -45,7 +45,7 @@ const initialValues: CampaignRequest = {
   originalAmountMinor: undefined,
   campaignAmountMinor: undefined,
   currencyCode: 'TRY',
-  startsAt: new Date().toISOString().slice(0, 16),
+  startsAt: toDateInputValue(new Date().toISOString()),
   endsAt: '',
   isActive: true,
   emailSubject: '',
@@ -77,6 +77,7 @@ function CampaignModal({
   providerUnavailable,
   onClose,
   onSave,
+  onDelete,
 }: {
   selectedCampaign?: CampaignResponse;
   packages: PackageResponse[];
@@ -85,8 +86,10 @@ function CampaignModal({
   providerUnavailable: boolean;
   onClose: () => void;
   onSave: (value: CampaignRequest) => void;
+  onDelete?: () => void;
 }) {
   const isNew = !selectedCampaign?.id;
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const values: CampaignRequest = selectedCampaign
     ? {
@@ -110,8 +113,8 @@ function CampaignModal({
       originalAmountMinor: selectedCampaign.originalPrice?.amountMinor,
       campaignAmountMinor: selectedCampaign.campaignPrice?.amountMinor,
       currencyCode: selectedCampaign.currencyCode || 'TRY',
-      startsAt: toDateTimeLocalValue(selectedCampaign.startsAt),
-      endsAt: toDateTimeLocalValue(selectedCampaign.endsAt),
+      startsAt: toDateInputValue(selectedCampaign.startsAt),
+      endsAt: toDateInputValue(selectedCampaign.endsAt),
       isActive: selectedCampaign.isActive,
     }
     : initialValues;
@@ -120,12 +123,12 @@ function CampaignModal({
     name: Yup.string().required('Kampanya adı zorunludur'),
     title: Yup.string().required('Görsel başlık zorunludur'),
     startsAt: Yup.string().required('Başlangıç tarihi zorunludur'),
-    endsAt: Yup.string().test('end-after-start', 'Bitiş başlangıçtan sonra olmalı', function (end) {
+    endsAt: Yup.string().test('end-after-start', 'Bitiş başlangıçtan sonra veya aynı gün olmalı', function (end) {
       const { startsAt } = this.parent as { startsAt?: string };
       if (!end || !startsAt) {
         return true;
       }
-      return end > startsAt;
+      return end >= startsAt;
     }),
   });
 
@@ -328,7 +331,7 @@ function CampaignModal({
                             Başlangıç Tarihi <span className="text-danger">*</span>
                           </Form.Label>
                           <Form.Control
-                            type="datetime-local"
+                            type="date"
                             name="startsAt"
                             value={values.startsAt}
                             onChange={handleChange}
@@ -342,7 +345,7 @@ function CampaignModal({
                         <Form.Group>
                           <Form.Label className="fw-semibold">Bitiş Tarihi</Form.Label>
                           <Form.Control
-                            type="datetime-local"
+                            type="date"
                             name="endsAt"
                             value={values.endsAt ?? ''}
                             onChange={handleChange}
@@ -468,7 +471,7 @@ function CampaignModal({
                   </Accordion.Item>
                 </Accordion>
 
-                <div className="pt-2">
+                <div className="pt-2 d-flex flex-column gap-2">
                   <Button
                     disabled={!isValid || isSubmitting}
                     variant="primary"
@@ -477,11 +480,34 @@ function CampaignModal({
                     className="w-100 py-2 fs-6 fw-bold"
                     value={isNew ? 'Kampanyayı Başlat' : 'Değişiklikleri Güncelle'}
                   />
+                  {!isNew && (
+                    <Button
+                      variant="outline-danger"
+                      type="button"
+                      disabled={isSubmitting}
+                      className="w-100 py-2 d-flex align-items-center justify-content-center gap-2"
+                      onClick={() => setShowDeleteConfirm(true)}
+                    >
+                      <Trash2 size={16} />
+                      <span>Kampanyayı Sil</span>
+                    </Button>
+                  )}
                 </div>
               </Form>
             );
           }}
         </Formik>
+        {showDeleteConfirm && (
+          <DeleteModal
+            title="Kampanyayı Sil"
+            message={`"${selectedCampaign?.name}" adlı kampanyayı silmek istediğinizden emin misiniz?`}
+            onClose={() => setShowDeleteConfirm(false)}
+            onHandleDelete={() => {
+              setShowDeleteConfirm(false);
+              onDelete?.();
+            }}
+          />
+        )}
       </Offcanvas.Body>
     </Offcanvas>
   );
@@ -498,14 +524,11 @@ export default function CampaignsSection() {
   const [providerTemplates, setProviderTemplates] = useState<ProviderEmailTemplateSummary[]>([]);
   const [providerLoading, setProviderLoading] = useState(true);
   const [providerUnavailable, setProviderUnavailable] = useState(false);
-  const [deleteCampaignTarget, setDeleteCampaignTarget] = useState<CampaignResponse | null>(null);
-
-  const handleConfirmDelete = async () => {
-    if (!deleteCampaignTarget) return;
+  const handleDeleteCampaign = async (campaign: CampaignResponse) => {
     try {
-      await campaignService.delete(deleteCampaignTarget.id);
+      await campaignService.delete(campaign.id);
       toast.success('Kampanya başarıyla silindi.');
-      setDeleteCampaignTarget(null);
+      closeModal();
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error) || 'Kampanya silinirken bir hata oluştu.');
@@ -553,6 +576,7 @@ export default function CampaignsSection() {
         providerUnavailable={providerUnavailable}
         onClose={closeModal}
         onSave={handleSave}
+        onDelete={campaign ? () => handleDeleteCampaign(campaign) : undefined}
       />
     );
   };
@@ -639,32 +663,21 @@ export default function CampaignsSection() {
         <td>
           <span className="small text-muted d-flex align-items-center gap-1">
             <Calendar size={13} />
-            {formatDateTimeForText(campaign.startsAt)}
-            {campaign.endsAt ? ` - ${formatDateTimeForText(campaign.endsAt)}` : ' (Süresiz)'}
+            {formatDateForText(campaign.startsAt)}
+            {campaign.endsAt ? ` - ${formatDateForText(campaign.endsAt)}` : ' (Süresiz)'}
           </span>
         </td>
         <td className="text-end">
-          <div className="d-inline-flex align-items-center gap-1">
-            <Button
-              size="sm"
-              variant="outline-primary"
-              className="d-inline-flex align-items-center gap-1"
-              onClick={() => openCampaignModal(campaign)}
-              title="Kampanyayı Düzenle"
-            >
-              <Edit size={14} />
-              <span>Düzenle</span>
-            </Button>
-            <Button
-              size="sm"
-              variant="outline-danger"
-              className="d-inline-flex align-items-center"
-              onClick={() => setDeleteCampaignTarget(campaign)}
-              title="Kampanyayı Sil"
-            >
-              <Trash2 size={14} />
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            variant="outline-primary"
+            className="d-inline-flex align-items-center gap-1"
+            onClick={() => openCampaignModal(campaign)}
+            title="Kampanyayı Düzenle"
+          >
+            <Edit size={14} />
+            <span>Düzenle</span>
+          </Button>
         </td>
       </tr>
     );
@@ -737,14 +750,6 @@ export default function CampaignsSection() {
       </Row>
 
       {isModalOpen && modalContent}
-      {deleteCampaignTarget && (
-        <DeleteModal
-          title="Kampanyayı Sil"
-          message={`"${deleteCampaignTarget.name}" adlı kampanyayı silmek istediğinizden emin misiniz?`}
-          onClose={() => setDeleteCampaignTarget(null)}
-          onHandleDelete={handleConfirmDelete}
-        />
-      )}
       {isLoading && <Loading />}
       {!isLoading && isError && (
         <Alert variant="danger" className="d-flex justify-content-between align-items-center">

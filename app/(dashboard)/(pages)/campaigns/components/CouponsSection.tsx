@@ -5,7 +5,7 @@ import { Formik } from 'formik';
 import * as Yup from 'yup';
 import Loading from '@/components/Loading';
 import PrepareTable from '@/components/PrepareTable';
-import { formatDateTimeForText } from '@/helpers/DateUtils';
+import { formatDateForText, toDateInputValue, toApiDateStart, toApiDateEnd } from '@/helpers/DateUtils';
 import { formatMoney, getErrorMessage } from '@/helpers/HelperUtils';
 import useApi from '@/hooks/useApi';
 import useModal from '@/hooks/useModal';
@@ -39,13 +39,16 @@ function CouponFormModal({
   packages,
   onClose,
   onSave,
+  onDelete,
 }: {
   coupon?: CouponResponse;
   packages: PackageResponse[];
   onClose: () => void;
   onSave: (values: CreateCouponPayload | UpdateCouponPayload) => Promise<void>;
+  onDelete?: () => Promise<void> | void;
 }) {
   const isEdit = Boolean(coupon);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const initialValues = {
     code: coupon?.code ?? '',
@@ -61,9 +64,9 @@ function CouponFormModal({
     minSpendAmountMinor: coupon?.minSpendAmountMinor ? coupon.minSpendAmountMinor / 100 : '',
     applicablePackageCode: coupon?.applicablePackageCode ?? '',
     startsAt: coupon?.startsAt
-      ? new Date(coupon.startsAt).toISOString().slice(0, 16)
-      : new Date().toISOString().slice(0, 16),
-    endsAt: coupon?.endsAt ? new Date(coupon.endsAt).toISOString().slice(0, 16) : '',
+      ? toDateInputValue(coupon.startsAt)
+      : toDateInputValue(new Date().toISOString()),
+    endsAt: coupon?.endsAt ? toDateInputValue(coupon.endsAt) : '',
     isActive: coupon?.isActive ?? true,
   };
 
@@ -75,6 +78,14 @@ function CouponFormModal({
       .positive("İndirim değeri 0'dan büyük olmalıdır.")
       .required('İndirim değeri zorunludur.'),
     maxUsesPerUser: Yup.number().positive('Kullanıcı başı limit 1 veya üzeri olmalıdır.').required(),
+    startsAt: Yup.string().required('Başlangıç tarihi zorunludur.'),
+    endsAt: Yup.string().test('end-after-start', 'Bitiş başlangıçtan sonra veya aynı gün olmalıdır.', function (end) {
+      const { startsAt } = this.parent as { startsAt?: string };
+      if (!end || !startsAt) {
+        return true;
+      }
+      return end >= startsAt;
+    }),
   });
 
   return (
@@ -91,8 +102,8 @@ function CouponFormModal({
           validationSchema={schema}
           onSubmit={async (values, { setSubmitting }) => {
             try {
-              const startsAtIso = new Date(values.startsAt).toISOString();
-              const endsAtIso = values.endsAt ? new Date(values.endsAt).toISOString() : null;
+              const startsAtIso = toApiDateStart(values.startsAt) || new Date().toISOString();
+              const endsAtIso = values.endsAt ? toApiDateEnd(values.endsAt) ?? null : null;
 
               const payloadBase = {
                 name: values.name,
@@ -354,7 +365,7 @@ function CouponFormModal({
                       <Form.Group>
                         <Form.Label className="small fw-semibold">Başlangıç Tarihi</Form.Label>
                         <Form.Control
-                          type="datetime-local"
+                          type="date"
                           name="startsAt"
                           value={values.startsAt}
                           onChange={handleChange}
@@ -366,7 +377,7 @@ function CouponFormModal({
                       <Form.Group>
                         <Form.Label className="small fw-semibold">Bitiş Tarihi</Form.Label>
                         <Form.Control
-                          type="datetime-local"
+                          type="date"
                           name="endsAt"
                           value={values.endsAt}
                           onChange={handleChange}
@@ -392,7 +403,7 @@ function CouponFormModal({
                 </Card.Body>
               </Card>
 
-              <div className="pt-2">
+              <div className="pt-2 d-flex flex-column gap-2">
                 <Button
                   type="submit"
                   variant="primary"
@@ -401,10 +412,35 @@ function CouponFormModal({
                 >
                   {isEdit ? 'Değişiklikleri Güncelle' : 'Kuponu Oluştur ve Yayınla'}
                 </Button>
+                {isEdit && (
+                  <Button
+                    type="button"
+                    variant="outline-danger"
+                    disabled={isSubmitting}
+                    className="w-100 py-2 d-flex align-items-center justify-content-center gap-2"
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    <Trash2 size={16} />
+                    <span>Kuponu Sil</span>
+                  </Button>
+                )}
               </div>
             </Form>
           )}
         </Formik>
+        {showDeleteConfirm && (
+          <DeleteModal
+            title="Kuponu Sil"
+            message={`"${coupon?.name || coupon?.code}" adlı kuponu silmek istediğinizden emin misiniz?`}
+            onClose={() => setShowDeleteConfirm(false)}
+            onHandleDelete={async () => {
+              setShowDeleteConfirm(false);
+              if (onDelete) {
+                await onDelete();
+              }
+            }}
+          />
+        )}
       </Offcanvas.Body>
     </Offcanvas>
   );
@@ -426,14 +462,11 @@ export default function CouponsSection() {
   const [searchQuery, setSearchQuery] = useState('');
   const [packages, setPackages] = useState<PackageResponse[]>([]);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
-  const [deleteCouponTarget, setDeleteCouponTarget] = useState<CouponResponse | null>(null);
-
-  const handleConfirmDelete = async () => {
-    if (!deleteCouponTarget) return;
+  const handleDeleteCoupon = async (coupon: CouponResponse) => {
     try {
-      await couponService.delete(deleteCouponTarget.id);
+      await couponService.delete(coupon.id);
       toast.success('Kupon başarıyla silindi.');
-      setDeleteCouponTarget(null);
+      closeModal();
       refetch();
     } catch (err) {
       toast.error(getErrorMessage(err) || 'Kupon silinirken bir hata oluştu.');
@@ -520,6 +553,7 @@ export default function CouponsSection() {
         packages={packages}
         onClose={closeModal}
         onSave={(payload) => handleUpdate(coupon.id, payload as UpdateCouponPayload)}
+        onDelete={() => handleDeleteCoupon(coupon)}
       />
     );
   };
@@ -597,8 +631,8 @@ export default function CouponsSection() {
         </td>
         <td>
           <span className="small text-muted">
-            {formatDateTimeForText(c.startsAt)}
-            {c.endsAt ? ` - ${formatDateTimeForText(c.endsAt)}` : ' (Süresiz)'}
+            {formatDateForText(c.startsAt)}
+            {c.endsAt ? ` - ${formatDateForText(c.endsAt)}` : ' (Süresiz)'}
           </span>
         </td>
         <td>
@@ -620,19 +654,9 @@ export default function CouponsSection() {
           <Button
             size="sm"
             variant={c.isActive ? 'outline-warning' : 'outline-success'}
-            className="me-2"
             onClick={() => handleToggleActive(c)}
           >
             {c.isActive ? 'Pasif Et' : 'Aktif Et'}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline-danger"
-            title="Kuponu Sil"
-            aria-label="Kupon Sil"
-            onClick={() => setDeleteCouponTarget(c)}
-          >
-            <Trash2 size={14} />
           </Button>
         </td>
       </tr>
@@ -736,14 +760,6 @@ export default function CouponsSection() {
       </Card>
 
       {isModalOpen && modalContent}
-      {deleteCouponTarget && (
-        <DeleteModal
-          title="Kuponu Sil"
-          message={`"${deleteCouponTarget.name}" (${deleteCouponTarget.code}) adlı kuponu silmek istediğinizden emin misiniz?`}
-          onClose={() => setDeleteCouponTarget(null)}
-          onHandleDelete={handleConfirmDelete}
-        />
-      )}
 
       <Card className="border-0 shadow-sm">
         <Card.Body className="p-0">
