@@ -4,7 +4,7 @@ import { Info } from 'react-feather';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { toast } from 'react-toastify';
-import { UserResponse, UserRequest, UserRole } from '@/models';
+import { UserResponse, UserRequest, UserRole, UserConsentLog } from '@/models';
 import { userService, SecurityEvent } from '@/services/user.service';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
 import { formatPhoneDisplayTR, isValidOptionalPhoneTR, PHONE_INVALID_MESSAGE, toCanonicalPhoneTR } from '@/helpers/phone';
@@ -76,6 +76,10 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
   const [eventsError, setEventsError] = useState(false);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
 
+  const [consentLogs, setConsentLogs] = useState<UserConsentLog[]>([]);
+  const [consentLogsLoading, setConsentLogsLoading] = useState(true);
+  const [consentLogsError, setConsentLogsError] = useState(false);
+
   const fetchDetail = async () => {
     setLoading(true);
     try {
@@ -101,9 +105,23 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
     }
   };
 
+  const fetchConsentLogs = async () => {
+    setConsentLogsLoading(true);
+    setConsentLogsError(false);
+    try {
+      const data = await userService.getConsentLogs(userId);
+      setConsentLogs(data);
+    } catch {
+      setConsentLogsError(true);
+    } finally {
+      setConsentLogsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchDetail();
     fetchEvents();
+    fetchConsentLogs();
   }, [userId]);
 
   const validationSchema = Yup.object().shape({
@@ -141,6 +159,9 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                 newRole: detail.role,
                 expectedCurrentStatus: detail.status,
                 newStatus: detail.status,
+                allowEmail: detail.allowEmail ?? false,
+                allowSms: detail.allowSms ?? false,
+                allowWhatsapp: detail.allowWhatsapp ?? false,
               }}
               enableReinitialize
               validationSchema={validationSchema}
@@ -184,6 +205,9 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                     firstName: values.firstName.trim(),
                     lastName: values.lastName.trim(),
                     phone: cleanPhone,
+                    allowEmail: values.allowEmail,
+                    allowSms: values.allowSms,
+                    allowWhatsapp: values.allowWhatsapp,
                   });
 
                   // Update Email if changed
@@ -210,7 +234,7 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                   }
 
                   toast.success('Kullanıcı bilgileri başarıyla güncellendi.');
-                  await Promise.all([fetchDetail(), fetchEvents()]);
+                  await Promise.all([fetchDetail(), fetchEvents(), fetchConsentLogs()]);
                   onUpdated();
                 } catch (error) {
                   toast.error(getErrorMessage(error));
@@ -297,6 +321,40 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                       </Form.Select>
                     </Form.Group>
 
+                    <hr className="my-3" />
+                    <h6 className="fw-bold mb-3 text-primary">İletişim Tercihleri</h6>
+                    
+                    <Form.Group className="mb-2">
+                      <Form.Check
+                        type="switch"
+                        id="allowEmail-switch"
+                        name="allowEmail"
+                        label="E-Posta İzni"
+                        checked={values.allowEmail}
+                        onChange={handleChange}
+                      />
+                    </Form.Group>
+                    <Form.Group className="mb-2">
+                      <Form.Check
+                        type="switch"
+                        id="allowSms-switch"
+                        name="allowSms"
+                        label="SMS İzni"
+                        checked={values.allowSms}
+                        onChange={handleChange}
+                      />
+                    </Form.Group>
+                    <Form.Group className="mb-3">
+                      <Form.Check
+                        type="switch"
+                        id="allowWhatsapp-switch"
+                        name="allowWhatsapp"
+                        label="WhatsApp İzni"
+                        checked={values.allowWhatsapp}
+                        onChange={handleChange}
+                      />
+                    </Form.Group>
+
                     <div className="row g-2 mt-2 pt-2 border-top">
                       <div className="col-6">
                         <span className="small text-muted d-block">Kayıt Tarihi:</span>
@@ -317,6 +375,56 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                 </Form>
               )}
             </Formik>
+
+            <hr />
+
+            <div className="mt-4">
+              <h6 className="fw-bold mb-3 text-secondary">Yasal Onay Geçmişi</h6>
+              {consentLogsLoading && (
+                <div className="text-center py-3">
+                  <Spinner animation="border" size="sm" variant="secondary" />
+                </div>
+              )}
+              {!consentLogsLoading && consentLogsError && (
+                <Alert variant="danger" className="py-2 small">
+                  Yasal onay geçmişi yüklenemedi.
+                </Alert>
+              )}
+              {!consentLogsLoading && !consentLogsError && consentLogs.length === 0 && (
+                <p className="text-muted small">Herhangi bir yasal onay kaydı bulunamadı.</p>
+              )}
+              {!consentLogsLoading && !consentLogsError && consentLogs.length > 0 && (
+                <Table striped bordered hover size="sm" responsive className="small">
+                  <thead>
+                    <tr>
+                      <th>Sözleşme / İzin Tipi</th>
+                      <th>Durum</th>
+                      <th>Kanal</th>
+                      <th>Tarih</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {consentLogs.map((log) => (
+                      <tr key={log.id}>
+                        <td>
+                          {log.agreementType}
+                          {log.version && <span className="ms-1 text-muted">({log.version})</span>}
+                        </td>
+                        <td>
+                          {log.isGranted ? (
+                            <Badge bg="success">Onaylandı</Badge>
+                          ) : (
+                            <Badge bg="danger">İptal Edildi</Badge>
+                          )}
+                        </td>
+                        <td>{log.channel}</td>
+                        <td className="text-nowrap">{formatDateTimeForText(log.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              )}
+            </div>
 
             <hr />
 

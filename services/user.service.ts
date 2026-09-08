@@ -3,7 +3,7 @@ import { withIdentifiers } from '@/helpers/api/mapIdentifier';
 import { API_URL } from '@/contants/urls';
 import { PagedResponse, SearchParams } from '@/models/common';
 import { UserRequest } from '@/models/request/user-request.model';
-import { UserResponse } from '@/models/response/user-response.model';
+import { UserResponse, UserConsentLog } from '@/models/response/user-response.model';
 import { UserRole } from '@/models/response/session-response.model';
 import { toCanonicalPhoneTR } from '@/helpers/phone';
 
@@ -251,12 +251,18 @@ export class UserService {
     firstName: string;
     lastName: string;
     phone?: string | null;
+    allowEmail?: boolean;
+    allowSms?: boolean;
+    allowWhatsapp?: boolean;
   }): Promise<UserResponse> => {
     const response = await axiosInstance.patch(`${baseUrl}/${userId}`, {
       expectedUpdatedAt: request.expectedUpdatedAt,
       firstName: request.firstName,
       lastName: request.lastName,
       phone: request.phone ?? null,
+      allowEmail: request.allowEmail,
+      allowSms: request.allowSms,
+      allowWhatsapp: request.allowWhatsapp,
     });
     const data = response.data as AdminUserListItem & {
       phone?: string | null;
@@ -309,6 +315,11 @@ export class UserService {
       }
       cursor = data.nextCursor;
     }
+  };
+
+  getConsentLogs = async (userId: string): Promise<UserConsentLog[]> => {
+    const response = await axiosInstance.get(`${baseUrl}/${userId}/consent-logs`);
+    return (response.data?.items ?? response.data ?? []) as UserConsentLog[];
   };
 }
 
