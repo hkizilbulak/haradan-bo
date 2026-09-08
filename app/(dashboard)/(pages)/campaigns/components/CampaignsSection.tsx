@@ -733,11 +733,11 @@ function CampaignModal({
                     message={
                       selectedCampaign.isActive ? (
                         <span>
-                          <strong className="text-dark">"{selectedCampaign.name}"</strong> kampanyasını pasife almak istediğinizden emin misiniz? Kullanıcılar bu kampanyadan yararlanamayacaktır.
+                          <strong className="text-dark">&quot;{selectedCampaign.name}&quot;</strong> kampanyasını pasife almak istediğinizden emin misiniz? Kullanıcılar bu kampanyadan yararlanamayacaktır.
                         </span>
                       ) : (
                         <span>
-                          <strong className="text-dark">"{selectedCampaign.name}"</strong> kampanyasını aktifleştirmek istediğinizden emin misiniz?
+                          <strong className="text-dark">&quot;{selectedCampaign.name}&quot;</strong> kampanyasını aktifleştirmek istediğinizden emin misiniz?
                         </span>
                       )
                     }

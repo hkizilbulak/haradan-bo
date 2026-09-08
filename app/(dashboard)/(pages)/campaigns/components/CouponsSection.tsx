@@ -769,11 +769,11 @@ function CouponFormModal({
                     message={
                       coupon.isActive ? (
                         <span>
-                          <strong className="text-dark">"{coupon.name || coupon.code}"</strong> kuponunu pasife almak istediğinizden emin misiniz? Kullanıcılar bu kupondan yararlanamayacaktır.
+                          <strong className="text-dark">&quot;{coupon.name || coupon.code}&quot;</strong> kuponunu pasife almak istediğinizden emin misiniz? Kullanıcılar bu kupondan yararlanamayacaktır.
                         </span>
                       ) : (
                         <span>
-                          <strong className="text-dark">"{coupon.name || coupon.code}"</strong> kuponunu aktifleştirmek istediğinizden emin misiniz?
+                          <strong className="text-dark">&quot;{coupon.name || coupon.code}&quot;</strong> kuponunu aktifleştirmek istediğinizden emin misiniz?
                         </span>
                       )
                     }
