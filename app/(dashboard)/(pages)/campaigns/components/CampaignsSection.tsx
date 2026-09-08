@@ -1,12 +1,9 @@
 "use client";
 import React, { useEffect, useState } from 'react';
-import { Accordion, Alert, Badge, Button, Card, Col, Form, InputGroup, Offcanvas, Row } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Col, Form, InputGroup, Offcanvas, Row } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import axios from 'axios';
 import Loading from '@/components/Loading';
-import RichTextEditor from '@/components/RichTextEditor';
-import SafeRichText from '@/components/SafeRichText';
 import PrepareTable from '@/components/PrepareTable';
 import StatusBadge from '@/components/StatusBadge';
 import { formatDateForText, toDateInputValue } from '@/helpers/DateUtils';
@@ -16,7 +13,6 @@ import useCursorApi from '@/hooks/useCursorApi';
 import useModal from '@/hooks/useModal';
 import { campaignService, CampaignRequest, CampaignResponse } from '@/services/campaign.service';
 import { packageService, PackageResponse } from '@/services/package.service';
-import { providerEmailTemplateService, ProviderEmailTemplateSummary } from '@/services/provider-email-template.service';
 import { PageHeading } from '@/widgets';
 import CursorPagination from '@/components/CursorPagination';
 import DeleteModal from '@/components/DeleteModal';
@@ -54,42 +50,24 @@ const initialValues: CampaignRequest = {
   emailProviderTemplateId: '',
 };
 
-function FallbackEmailPreview({ value }: { value: CampaignRequest }) {
-  return (
-    <Card className="border-primary-subtle shadow-sm mb-4">
-      <Card.Header className="small text-muted">Güvenli Yedek E-posta Önizlemesi</Card.Header>
-      <Card.Body>
-        <div className="small text-muted mb-1">Konu</div>
-        <div className="fw-semibold mb-3">{value.emailSubject?.trim() || 'E-posta konusu'}</div>
-        <h4>{value.emailHeading?.trim() || 'E-posta başlığı'}</h4>
-        <SafeRichText value={value.emailBody} className="text-muted" />
-        {!value.emailBody?.trim() && <p className="text-muted mb-0">Yedek e-posta içeriği burada görünür.</p>}
-      </Card.Body>
-    </Card>
-  );
-}
-
 function CampaignModal({
   selectedCampaign,
   packages,
-  providerTemplates,
-  providerLoading,
-  providerUnavailable,
   onClose,
   onSave,
   onDelete,
 }: {
   selectedCampaign?: CampaignResponse;
   packages: PackageResponse[];
-  providerTemplates: ProviderEmailTemplateSummary[];
-  providerLoading: boolean;
-  providerUnavailable: boolean;
   onClose: () => void;
   onSave: (value: CampaignRequest) => void;
   onDelete?: () => void;
 }) {
   const isNew = !selectedCampaign?.id;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [percentInput, setPercentInput] = useState<string | null>(null);
+  const [discountTLInput, setDiscountTLInput] = useState<string | null>(null);
+  const [campaignTLInput, setCampaignTLInput] = useState<string | null>(null);
 
   const values: CampaignRequest = selectedCampaign
     ? {
@@ -146,16 +124,21 @@ function CampaignModal({
             const selectedPackage = packages.find((p) => p.code === values.targetPackageCode);
             const originalTL = values.originalAmountMinor ? values.originalAmountMinor / 100 : 0;
             const campaignTL = values.campaignAmountMinor ? values.campaignAmountMinor / 100 : 0;
+            const discountTL =
+              originalTL > 0 && campaignTL >= 0 && campaignTL <= originalTL
+                ? Math.round((originalTL - campaignTL) * 100) / 100
+                : 0;
             const discountPercent =
-              originalTL > 0 && campaignTL > 0 && campaignTL < originalTL
+              originalTL > 0 && campaignTL >= 0 && campaignTL <= originalTL
                 ? Math.round(((originalTL - campaignTL) / originalTL) * 100)
-                : null;
+                : 0;
 
             const handlePackageSelect = (pkgCode: string) => {
               setFieldValue('targetPackageCode', pkgCode);
               const pkg = packages.find((p) => p.code === pkgCode);
               if (pkg && pkg.displayPrice?.amountMinor) {
-                setFieldValue('originalAmountMinor', pkg.displayPrice.amountMinor);
+                const origMinor = pkg.displayPrice.amountMinor;
+                setFieldValue('originalAmountMinor', origMinor);
                 // If title/name empty, suggest intuitive defaults
                 if (!values.name) {
                   setFieldValue('name', `${pkg.displayName} İndirimi`);
@@ -163,13 +146,34 @@ function CampaignModal({
                 if (!values.title) {
                   setFieldValue('title', `${pkg.displayName} Özel Fırsatı`);
                 }
+                const orig = origMinor / 100;
+                const pct = discountPercent && discountPercent > 0 ? discountPercent : 20;
+                setFieldValue('campaignAmountMinor', Math.max(0, Math.round(orig * (1 - pct / 100) * 100)));
               }
             };
 
             const applyDiscountPercent = (percent: number) => {
               if (originalTL > 0) {
-                const discounted = Math.round(originalTL * (1 - percent / 100) * 100);
+                const clamped = Math.min(100, Math.max(0, percent));
+                const discounted = Math.max(0, Math.round(originalTL * (1 - clamped / 100) * 100));
                 setFieldValue('campaignAmountMinor', discounted);
+              }
+            };
+
+            const applyDiscountTL = (disc: number) => {
+              if (originalTL > 0) {
+                const clamped = Math.min(originalTL, Math.max(0, disc));
+                const discounted = Math.max(0, Math.round((originalTL - clamped) * 100));
+                setFieldValue('campaignAmountMinor', discounted);
+              }
+            };
+
+            const applyCampaignPriceTL = (camp: number) => {
+              if (originalTL > 0) {
+                const clamped = Math.min(originalTL, Math.max(0, camp));
+                setFieldValue('campaignAmountMinor', Math.max(0, Math.round(clamped * 100)));
+              } else {
+                setFieldValue('campaignAmountMinor', Math.max(0, Math.round(camp * 100)));
               }
             };
 
@@ -193,94 +197,170 @@ function CampaignModal({
                         className="form-select-lg fs-6"
                       >
                         <option value="">-- Lütfen bir paket seçin --</option>
-                        {packages.map((pkg) => (
-                          <option key={pkg.code} value={pkg.code}>
-                            {pkg.displayName} — Normal Fiyat:{' '}
-                            {pkg.displayPrice?.amountMinor
-                              ? formatMoney(pkg.displayPrice.amountMinor, 'TRY')
-                              : 'Fiyat Belirtilmemiş'}
-                            {pkg.isActive ? '' : ' (Pasif)'}
-                          </option>
-                        ))}
+                        {packages
+                          .filter((pkg) => pkg.isActive || pkg.code === values.targetPackageCode)
+                          .map((pkg) => (
+                            <option key={pkg.code} value={pkg.code}>
+                              {pkg.displayName} — Normal Fiyat:{' '}
+                              {pkg.displayPrice?.amountMinor
+                                ? formatMoney(pkg.displayPrice.amountMinor, 'TRY')
+                                : 'Fiyat Belirtilmemiş'}
+                            </option>
+                          ))}
                       </Form.Select>
-                      <Form.Text className="text-muted">
-                        Seçilen paketin mevcut satış fiyatı herkes için aşağıdaki indirimli kampanya fiyatına düşecektir.
-                      </Form.Text>
                     </Form.Group>
 
                     {values.targetPackageCode && (
-                      <Row className="g-3 align-items-end">
-                        <Col md={5}>
-                          <Form.Group>
-                            <Form.Label className="small fw-semibold text-muted">Normal Satış Fiyatı (TL)</Form.Label>
-                            <InputGroup>
-                              <Form.Control
-                                type="number"
-                                name="originalAmountTL"
-                                value={originalTL || ''}
-                                onChange={(e) =>
-                                  setFieldValue(
-                                    'originalAmountMinor',
-                                    e.target.value ? Math.round(Number(e.target.value) * 100) : undefined
-                                  )
-                                }
-                                placeholder="Örn: 250"
-                              />
-                              <InputGroup.Text>₺</InputGroup.Text>
-                            </InputGroup>
-                          </Form.Group>
-                        </Col>
-
-                        <Col md={7}>
-                          <Form.Group>
-                            <div className="d-flex justify-content-between align-items-center">
-                              <Form.Label className="small fw-bold text-success">
-                                İndirimli Kampanya Fiyatı (TL) <span className="text-danger">*</span>
+                      <div className="mt-3 p-3 rounded-3 border bg-light-subtle">
+                        {/* 3 Giriş Alanı: Yüzde, İndirim Tutarı, Kampanyalı Fiyat */}
+                        <Row className="g-3">
+                          {/* 1. İndirim Oranı (%) */}
+                          <Col md={4}>
+                            <div className="bg-white p-3 rounded-3 border shadow-xs">
+                              <Form.Label className="small fw-bold text-primary mb-1">
+                                İndirim Oranı (%) <span className="text-danger">*</span>
                               </Form.Label>
-                              {discountPercent && (
-                                <Badge bg="success" className="mb-1">
-                                  %{discountPercent} İndirim
-                                </Badge>
-                              )}
-                            </div>
-                            <InputGroup>
-                              <Form.Control
-                                type="number"
-                                className="border-success fw-bold text-success"
-                                name="campaignAmountTL"
-                                value={campaignTL || ''}
-                                onChange={(e) =>
-                                  setFieldValue(
-                                    'campaignAmountMinor',
-                                    e.target.value ? Math.round(Number(e.target.value) * 100) : undefined
-                                  )
-                                }
-                                placeholder="Örn: 150"
-                              />
-                              <InputGroup.Text className="bg-success text-white">₺</InputGroup.Text>
-                            </InputGroup>
-                          </Form.Group>
-                        </Col>
-
-                        {originalTL > 0 && (
-                          <Col md={12}>
-                            <div className="d-flex align-items-center gap-2 flex-wrap pt-1">
-                              <span className="small text-muted">Hızlı Oran Seç:</span>
-                              {[10, 20, 30, 40, 50].map((pct) => (
-                                <Button
-                                  key={pct}
-                                  size="sm"
-                                  variant="outline-secondary"
-                                  className="py-0 px-2"
-                                  onClick={() => applyDiscountPercent(pct)}
-                                >
-                                  %{pct} İndirim
-                                </Button>
-                              ))}
+                              <InputGroup>
+                                <Form.Control
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  step="any"
+                                  value={percentInput !== null ? percentInput : (discountPercent !== null ? discountPercent : '')}
+                                  onFocus={() => setPercentInput(discountPercent !== null ? String(discountPercent) : '')}
+                                  onBlur={() => setPercentInput(null)}
+                                  onChange={(e) => {
+                                    let val = e.target.value;
+                                    if (val === '') {
+                                      setPercentInput('');
+                                      applyDiscountPercent(0);
+                                      return;
+                                    }
+                                    const num = parseFloat(val);
+                                    if (!isNaN(num)) {
+                                      if (num >= 100 || val.length >= 3) {
+                                        val = '100';
+                                        setPercentInput('100');
+                                        applyDiscountPercent(100);
+                                      } else {
+                                        setPercentInput(val);
+                                        applyDiscountPercent(num);
+                                      }
+                                    }
+                                  }}
+                                  placeholder="0"
+                                  className="fw-bold fs-5 text-primary border-primary-subtle"
+                                />
+                                <InputGroup.Text className="bg-primary text-white fw-bold">%</InputGroup.Text>
+                              </InputGroup>
                             </div>
                           </Col>
+
+                          {/* 2. İndirim Tutarı (TL) */}
+                          <Col md={4}>
+                            <div className="bg-white p-3 rounded-3 border shadow-xs">
+                              <Form.Label className="small fw-bold text-primary mb-1">
+                                İndirim Tutarı (TL) <span className="text-danger">*</span>
+                              </Form.Label>
+                              <InputGroup>
+                                <Form.Control
+                                  type="number"
+                                  min={0}
+                                  max={originalTL > 0 ? originalTL : undefined}
+                                  step="any"
+                                  value={discountTLInput !== null ? discountTLInput : (discountTL !== null && discountTL >= 0 ? discountTL : '')}
+                                  onFocus={() => setDiscountTLInput(discountTL > 0 ? String(discountTL) : (originalTL > 0 ? '0' : ''))}
+                                  onBlur={() => setDiscountTLInput(null)}
+                                  onChange={(e) => {
+                                    let val = e.target.value;
+                                    if (val === '') {
+                                      setDiscountTLInput('');
+                                      applyDiscountTL(0);
+                                      return;
+                                    }
+                                    let num = parseFloat(val);
+                                    if (!isNaN(num)) {
+                                      if (originalTL > 0 && num > originalTL) {
+                                        num = originalTL;
+                                        val = String(originalTL);
+                                      } else if (num < 0) {
+                                        num = 0;
+                                        val = '0';
+                                      }
+                                      setDiscountTLInput(val);
+                                      applyDiscountTL(num);
+                                    }
+                                  }}
+                                  placeholder="0"
+                                  className="fw-bold fs-5 text-primary border-primary-subtle"
+                                />
+                                <InputGroup.Text className="bg-primary text-white fw-bold">₺</InputGroup.Text>
+                              </InputGroup>
+                            </div>
+                          </Col>
+
+                          {/* 3. Kampanyalı Satış Fiyatı (TL) */}
+                          <Col md={4}>
+                            <div className="bg-white p-3 rounded-3 border border-success-subtle shadow-xs">
+                              <Form.Label className="small fw-bold text-success mb-1">
+                                Kampanyalı Fiyat (TL) <span className="text-danger">*</span>
+                              </Form.Label>
+                              <InputGroup>
+                                <Form.Control
+                                  type="number"
+                                  min={0}
+                                  max={originalTL > 0 ? originalTL : undefined}
+                                  step="any"
+                                  value={campaignTLInput !== null ? campaignTLInput : (originalTL > 0 ? campaignTL : '')}
+                                  onFocus={() => setCampaignTLInput(originalTL > 0 ? String(campaignTL) : '')}
+                                  onBlur={() => setCampaignTLInput(null)}
+                                  onChange={(e) => {
+                                    let val = e.target.value;
+                                    if (val === '') {
+                                      setCampaignTLInput('');
+                                      applyCampaignPriceTL(0);
+                                      return;
+                                    }
+                                    let num = parseFloat(val);
+                                    if (!isNaN(num)) {
+                                      if (originalTL > 0 && num > originalTL) {
+                                        num = originalTL;
+                                        val = String(originalTL);
+                                      } else if (num < 0) {
+                                        num = 0;
+                                        val = '0';
+                                      }
+                                      setCampaignTLInput(val);
+                                      applyCampaignPriceTL(num);
+                                    }
+                                  }}
+                                  placeholder="Örn: 200"
+                                  className="fw-bold fs-5 text-success border-success"
+                                />
+                                <InputGroup.Text className="bg-success text-white fw-bold">₺</InputGroup.Text>
+                              </InputGroup>
+                            </div>
+                          </Col>
+                        </Row>
+
+                        {/* Canlı Özet Bilgi Şeridi */}
+                        {originalTL > 0 && campaignTL >= 0 && (
+                          <div className="mt-3 p-2 px-3 rounded-3 bg-white border border-success-subtle d-flex align-items-center gap-2 shadow-xs">
+                            <span className="small text-muted fw-semibold">Müşteri Görünümü:</span>
+                            {campaignTL < originalTL && (
+                              <>
+                                <span className="text-muted text-decoration-line-through small">
+                                  {formatMoney(values.originalAmountMinor || 0, values.currencyCode || 'TRY')}
+                                </span>
+                                <ArrowRight size={14} className="text-muted" />
+                              </>
+                            )}
+                            <span className="fs-5 fw-bolder text-success">
+                              {formatMoney(values.campaignAmountMinor || 0, values.currencyCode || 'TRY')}
+                            </span>
+                          </div>
                         )}
-                      </Row>
+                      </div>
                     )}
                   </Card.Body>
                 </Card>
@@ -368,108 +448,9 @@ function CampaignModal({
                           />
                         </Form.Group>
                       </Col>
-
-                      <Col md={12}>
-                        <Form.Check
-                          type="switch"
-                          id="campaign-active-switch"
-                          name="isActive"
-                          label="Kampanya Hemen Aktif Olsun"
-                          checked={values.isActive}
-                          onChange={handleChange}
-                          className="fw-semibold text-primary"
-                        />
-                      </Col>
                     </Row>
                   </Card.Body>
                 </Card>
-
-                {/* 3. Bölüm: İsteğe Bağlı Bildirim & E-posta Tasarımı (Akordiyon) */}
-                <Accordion defaultActiveKey="" className="border-0">
-                  <Accordion.Item eventKey="0" className="border shadow-sm">
-                    <Accordion.Header>
-                      <span className="fw-semibold text-secondary small">
-                        ✉️ İsteğe Bağlı Bildirim & E-posta Tasarım Ayarları (Gelişmiş)
-                      </span>
-                    </Accordion.Header>
-                    <Accordion.Body className="p-3">
-                      <Form.Group className="mb-3 d-none">
-                        {/* Event type kept for backward compatibility and e2e */}
-                        <Form.Select name="eventType" value={values.eventType} onChange={handleChange}>
-                          <option value="PACKAGE_UPGRADE">Paket Yükseltme / İndirimi</option>
-                          <option value="PACKAGE_EXPIRY_1_DAY">Paket Bitiş 1 Gün</option>
-                          <option value="PACKAGE_EXPIRY_5_DAYS">Paket Bitiş 5 Gün</option>
-                          <option value="PACKAGE_RENEWAL">Paket Yenileme</option>
-                        </Form.Select>
-                      </Form.Group>
-
-                      {providerLoading ? (
-                        <Alert variant="light" className="border">
-                          E-posta tasarım şablonları yükleniyor.
-                        </Alert>
-                      ) : providerUnavailable ? (
-                        <Alert variant="warning" className="small">
-                          E-posta tasarım şablonları şu anda kullanılamıyor. Yedek e-posta alanlarını düzenleyip
-                          kaydedebilirsiniz.
-                        </Alert>
-                      ) : providerTemplates.length === 0 ? (
-                        <Alert variant="info" className="small">
-                          Kullanılabilir e-posta tasarım şablonu bulunmuyor. Yedek e-posta alanlarını kullanabilirsiniz.
-                        </Alert>
-                      ) : (
-                        <Form.Group className="mb-3">
-                          <Form.Label className="small fw-semibold">E-posta Tasarım Şablonu</Form.Label>
-                          <Form.Select
-                            name="emailProviderTemplateId"
-                            value={values.emailProviderTemplateId ?? ''}
-                            onChange={handleChange}
-                          >
-                            <option value="">Şablon seçilmedi</option>
-                            {values.emailProviderTemplateId &&
-                              !providerTemplates.some((item) => item.id === values.emailProviderTemplateId) && (
-                                <option value={values.emailProviderTemplateId}>Mevcut şablon (listede bulunamadı)</option>
-                              )}
-                            {providerTemplates.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </Form.Select>
-                        </Form.Group>
-                      )}
-
-                      <Form.Group className="mb-3">
-                        <Form.Label className="small fw-semibold">E-posta Konu (Yedek)</Form.Label>
-                        <Form.Control
-                          name="emailSubject"
-                          value={values.emailSubject ?? ''}
-                          onChange={handleChange}
-                          placeholder="Örn: Size Özel İndirim Fırsatı"
-                        />
-                      </Form.Group>
-
-                      <Form.Group className="mb-3">
-                        <Form.Label className="small fw-semibold">E-posta Başlık (Yedek)</Form.Label>
-                        <Form.Control
-                          name="emailHeading"
-                          value={values.emailHeading ?? ''}
-                          onChange={handleChange}
-                          placeholder="Örn: Paketinizi Avantajla Yükseltin"
-                        />
-                      </Form.Group>
-
-                      <Form.Group className="mb-3">
-                        <Form.Label className="small fw-semibold">E-posta İçerik (Yedek)</Form.Label>
-                        <RichTextEditor
-                          value={values.emailBody ?? ''}
-                          onChange={(next) => void setFieldValue('emailBody', next)}
-                        />
-                      </Form.Group>
-
-                      <FallbackEmailPreview value={values} />
-                    </Accordion.Body>
-                  </Accordion.Item>
-                </Accordion>
 
                 <div className="pt-2 d-flex flex-column gap-2">
                   <Button
@@ -521,9 +502,6 @@ export default function CampaignsSection() {
     });
   const { isModalOpen, openModal, closeModal, modalContent } = useModal();
   const [packages, setPackages] = useState<PackageResponse[]>([]);
-  const [providerTemplates, setProviderTemplates] = useState<ProviderEmailTemplateSummary[]>([]);
-  const [providerLoading, setProviderLoading] = useState(true);
-  const [providerUnavailable, setProviderUnavailable] = useState(false);
   const handleDeleteCampaign = async (campaign: CampaignResponse) => {
     try {
       await campaignService.delete(campaign.id);
@@ -542,38 +520,11 @@ export default function CampaignsSection() {
       .catch((error) => toast.error(getErrorMessage(error)));
   }, []);
 
-  useEffect(() => {
-    providerEmailTemplateService
-      .list()
-      .then((items) => {
-        setProviderTemplates(items);
-        setProviderUnavailable(false);
-        setProviderLoading(false);
-      })
-      .catch((error) => {
-        setProviderTemplates([]);
-        setProviderLoading(false);
-        const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-        const code = axios.isAxiosError(error)
-          ? (error.response?.data as { code?: string } | undefined)?.code
-          : undefined;
-        if (status === 503 || code === 'DEPENDENCY_UNAVAILABLE') {
-          setProviderUnavailable(true);
-          return;
-        }
-        setProviderUnavailable(true);
-        toast.error(getErrorMessage(error));
-      });
-  }, []);
-
   const openCampaignModal = (campaign?: CampaignResponse) => {
     openModal(
       <CampaignModal
         selectedCampaign={campaign}
         packages={packages}
-        providerTemplates={providerTemplates}
-        providerLoading={providerLoading}
-        providerUnavailable={providerUnavailable}
         onClose={closeModal}
         onSave={handleSave}
         onDelete={campaign ? () => handleDeleteCampaign(campaign) : undefined}
