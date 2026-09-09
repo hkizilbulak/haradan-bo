@@ -63,10 +63,10 @@ export const studFarmService = {
     createStudFarm: async (data: Partial<StudFarm>): Promise<StudFarm> => {
         const payload = {
             first_name: data.firstName,
-            last_name: data.lastName,
-            email: data.email,
-            phone: data.phone,
-            location: data.location,
+            last_name: data.lastName ?? '',
+            email: data.email ?? '',
+            phone: data.phone || null,
+            location: data.location || null,
         };
         const response = await axiosInstance.post(baseUrl, payload);
         const item = response.data;
@@ -90,10 +90,10 @@ export const studFarmService = {
     updateStudFarm: async (id: string, data: Partial<StudFarm>): Promise<void> => {
         const payload = {
             first_name: data.firstName,
-            last_name: data.lastName,
-            email: data.email,
-            phone: data.phone,
-            location: data.location,
+            last_name: data.lastName ?? '',
+            email: data.email ?? '',
+            phone: data.phone || null,
+            location: data.location || null,
         };
         await axiosInstance.put(`${baseUrl}/${id}`, payload);
     },

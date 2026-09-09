@@ -1,8 +1,8 @@
 export interface StudFarm {
     id: string;
     firstName: string;
-    lastName: string;
-    email: string;
+    lastName?: string;
+    email?: string;
     phone: string;
     location: string;
     interviewCount: number;
@@ -28,8 +28,8 @@ export interface StudFarmResponse {
 
 export interface CreateStudFarmRequest {
     firstName: string;
-    lastName: string;
-    email: string;
+    lastName?: string;
+    email?: string;
     phone?: string;
     location?: string;
 }

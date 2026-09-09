@@ -167,9 +167,9 @@ export default function StudFarms() {
                                                                 {capitalizeSentence(item.firstName)}
                                                             </td>
                                                             <td className="fw-medium text-dark">
-                                                                {capitalizeSentence(item.lastName)}
+                                                                {item.lastName ? capitalizeSentence(item.lastName) : '-'}
                                                             </td>
-                                                            <td>{item.email}</td>
+                                                            <td>{item.email || '-'}</td>
                                                             <td>{item.phone || '-'}</td>
                                                             <td style={{ maxWidth: '37ch', whiteSpace: 'normal', wordWrap: 'break-word' }}>{item.location || '-'}</td>
                                                             <td>{item.interviewCount || 0}</td>

@@ -44,11 +44,15 @@ export default function AddStudFarmModal({ show, onHide, onSuccess, existingStud
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        if (!formData.firstName || !formData.lastName || !formData.email) {
-            toast.error("Hara Adı, Hara Sorumlusu Ad Soyadı ve E-posta alanları zorunludur.");
+        if (!formData.firstName.trim()) {
+            toast.error("Hara Adı alanı zorunludur.");
             return;
         }
 
+        if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+            toast.error("Lütfen geçerli bir e-posta adresi giriniz.");
+            return;
+        }
 
         try {
             setLoading(true);
@@ -103,26 +107,24 @@ export default function AddStudFarmModal({ show, onHide, onSuccess, existingStud
                         </Form.Group>
                         
                         <Form.Group className="mb-3">
-                            <Form.Label>Hara Sorumlusu Ad Soyadı <span className="text-danger">*</span></Form.Label>
+                            <Form.Label>Hara Sorumlusu Ad Soyadı</Form.Label>
                             <Form.Control
                                 type="text"
                                 name="lastName"
-                                placeholder="Ad Soyad giriniz"
+                                placeholder="Ad Soyad giriniz (Opsiyonel)"
                                 value={formData.lastName}
                                 onChange={handleChange}
-                                required
                             />
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>E-posta <span className="text-danger">*</span></Form.Label>
+                            <Form.Label>E-posta</Form.Label>
                             <Form.Control
                                 type="email"
                                 name="email"
-                                placeholder="E-posta adresi giriniz"
+                                placeholder="E-posta adresi giriniz (Opsiyonel)"
                                 value={formData.email}
                                 onChange={handleChange}
-                                required
                             />
                         </Form.Group>
 
