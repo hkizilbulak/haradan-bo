@@ -324,7 +324,7 @@ class CategoryService {
             },
             {
                 code: 'DESCRIPTION',
-                title: 'İlan Açıklaması',
+                title: 'Açıklama',
                 helpText: 'İlanın detaylı açıklama metni',
                 dataType: 'TEXT',
                 isRequired: false,
@@ -336,7 +336,7 @@ class CategoryService {
             },
             {
                 code: 'PRICE',
-                title: 'İlan Fiyatı',
+                title: 'Fiyat',
                 helpText: 'İlan için talep edilen bedel (TL)',
                 dataType: 'DECIMAL',
                 isRequired: true,
