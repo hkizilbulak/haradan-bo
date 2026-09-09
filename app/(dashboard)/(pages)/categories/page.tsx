@@ -576,7 +576,7 @@ export default function Categories() {
               }}
             >
               <i className="fe fe-sliders"></i>
-              Ortak Alanları Yönet (Açık Adres vb.)
+              Ortak Alanları Yönet
             </Button>
           </div>
         </Card.Body>
