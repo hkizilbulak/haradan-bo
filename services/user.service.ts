@@ -251,18 +251,12 @@ export class UserService {
     firstName: string;
     lastName: string;
     phone?: string | null;
-    allowEmail?: boolean;
-    allowSms?: boolean;
-    allowWhatsapp?: boolean;
   }): Promise<UserResponse> => {
     const response = await axiosInstance.patch(`${baseUrl}/${userId}`, {
       expectedUpdatedAt: request.expectedUpdatedAt,
       firstName: request.firstName,
       lastName: request.lastName,
       phone: request.phone ?? null,
-      allowEmail: request.allowEmail,
-      allowSms: request.allowSms,
-      allowWhatsapp: request.allowWhatsapp,
     });
     const data = response.data as AdminUserListItem & {
       phone?: string | null;

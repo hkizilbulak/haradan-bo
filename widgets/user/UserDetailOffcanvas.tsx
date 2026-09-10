@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Offcanvas, Form, Button, Table, Badge, Alert, Spinner, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { Offcanvas, Form, Button, Table, Badge, Alert, Spinner, OverlayTrigger, Tooltip, Row, Col } from 'react-bootstrap';
 import { Info } from 'react-feather';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -34,6 +34,16 @@ const eventTypeText = (type: string) => {
     BO_CONTEXT_REJECTED: 'BO Bağlamı Reddedildi',
   };
   return map[type] ?? 'Diğer Güvenlik Olayı';
+};
+
+const consentLogTypeText = (type: string) => {
+  const map: Record<string, string> = {
+    MEMBERSHIP_AGREEMENT: 'Üyelik Sözleşmesi',
+    KVKK_EXPLICIT_CONSENT: 'KVKK Açık Rıza Metni',
+    COMMUNICATION_EMAIL: 'E-Posta İletişim İzni',
+    COMMUNICATION_SMS: 'SMS İletişim İzni',
+  };
+  return map[type] ?? type;
 };
 
 const getEventDetails = (event: SecurityEvent): string | null => {
@@ -159,9 +169,6 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                 newRole: detail.role,
                 expectedCurrentStatus: detail.status,
                 newStatus: detail.status,
-                allowEmail: detail.allowEmail ?? false,
-                allowSms: detail.allowSms ?? false,
-                allowWhatsapp: detail.allowWhatsapp ?? false,
               }}
               enableReinitialize
               validationSchema={validationSchema}
@@ -205,9 +212,6 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                     firstName: values.firstName.trim(),
                     lastName: values.lastName.trim(),
                     phone: cleanPhone,
-                    allowEmail: values.allowEmail,
-                    allowSms: values.allowSms,
-                    allowWhatsapp: values.allowWhatsapp,
                   });
 
                   // Update Email if changed
@@ -250,110 +254,90 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                   <div className="bg-light p-3 rounded mb-3 border">
                     <h6 className="fw-bold mb-3 text-primary">Kullanıcı Bilgileri</h6>
 
-                    <Form.Group className="mb-3">
-                      <Form.Label className="small fw-semibold">Ad</Form.Label>
-                      <Form.Control
-                        name="firstName"
-                        value={values.firstName}
-                        onChange={handleChange}
-                        isInvalid={touched.firstName && !!errors.firstName}
-                      />
-                      <Form.Control.Feedback type="invalid">{errors.firstName}</Form.Control.Feedback>
+                    <Form.Group as={Row} className="mb-3 align-items-center">
+                      <Form.Label column sm={3} className="small fw-semibold">Ad</Form.Label>
+                      <Col sm={9}>
+                        <Form.Control
+                          name="firstName"
+                          value={values.firstName}
+                          onChange={handleChange}
+                          isInvalid={touched.firstName && !!errors.firstName}
+                        />
+                        <Form.Control.Feedback type="invalid">{errors.firstName}</Form.Control.Feedback>
+                      </Col>
                     </Form.Group>
 
-                    <Form.Group className="mb-3">
-                      <Form.Label className="small fw-semibold">Soyad</Form.Label>
-                      <Form.Control
-                        name="lastName"
-                        value={values.lastName}
-                        onChange={handleChange}
-                        isInvalid={touched.lastName && !!errors.lastName}
-                      />
-                      <Form.Control.Feedback type="invalid">{errors.lastName}</Form.Control.Feedback>
+                    <Form.Group as={Row} className="mb-3 align-items-center">
+                      <Form.Label column sm={3} className="small fw-semibold">Soyad</Form.Label>
+                      <Col sm={9}>
+                        <Form.Control
+                          name="lastName"
+                          value={values.lastName}
+                          onChange={handleChange}
+                          isInvalid={touched.lastName && !!errors.lastName}
+                        />
+                        <Form.Control.Feedback type="invalid">{errors.lastName}</Form.Control.Feedback>
+                      </Col>
                     </Form.Group>
 
-                    <Form.Group className="mb-3">
-                      <Form.Label className="small fw-semibold">E-posta</Form.Label>
-                      <Form.Control
-                        type="email"
-                        name="email"
-                        value={values.email}
-                        onChange={(e) => {
-                          setDuplicateError(null);
-                          handleChange(e);
-                        }}
-                        isInvalid={touched.email && !!errors.email}
-                      />
-                      <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
+                    <Form.Group as={Row} className="mb-3 align-items-center">
+                      <Form.Label column sm={3} className="small fw-semibold">E-posta</Form.Label>
+                      <Col sm={9}>
+                        <Form.Control
+                          type="email"
+                          name="email"
+                          value={values.email}
+                          onChange={(e) => {
+                            setDuplicateError(null);
+                            handleChange(e);
+                          }}
+                          isInvalid={touched.email && !!errors.email}
+                        />
+                        <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
+                      </Col>
                     </Form.Group>
 
-                    <Form.Group className="mb-3">
-                      <Form.Label className="small fw-semibold">Telefon</Form.Label>
-                      <Form.Control
-                        type="tel"
-                        name="phone"
-                        value={values.phone}
-                        placeholder="532 123 45 67"
-                        onChange={(e) => {
-                          setDuplicateError(null);
-                          setFieldValue('phone', formatPhoneDisplayTR(e.target.value));
-                        }}
-                        isInvalid={touched.phone && !!errors.phone}
-                      />
-                      <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
+                    <Form.Group as={Row} className="mb-3 align-items-center">
+                      <Form.Label column sm={3} className="small fw-semibold">Telefon</Form.Label>
+                      <Col sm={9}>
+                        <Form.Control
+                          type="tel"
+                          name="phone"
+                          value={values.phone}
+                          placeholder="532 123 45 67"
+                          onChange={(e) => {
+                            setDuplicateError(null);
+                            setFieldValue('phone', formatPhoneDisplayTR(e.target.value));
+                          }}
+                          isInvalid={touched.phone && !!errors.phone}
+                        />
+                        <Form.Control.Feedback type="invalid">{errors.phone}</Form.Control.Feedback>
+                      </Col>
                     </Form.Group>
 
-                    <Form.Group className="mb-3">
-                      <Form.Label className="small fw-semibold">Rol</Form.Label>
-                      <Form.Select name="newRole" value={values.newRole} onChange={handleChange}>
-                        <option value="user">Kullanıcı</option>
-                        <option value="admin">Yönetici</option>
-                        <option value="CALL_CENTER">Call Center</option>
-                      </Form.Select>
+                    <Form.Group as={Row} className="mb-3 align-items-center">
+                      <Form.Label column sm={3} className="small fw-semibold">Rol</Form.Label>
+                      <Col sm={9}>
+                        <Form.Select name="newRole" value={values.newRole} onChange={handleChange}>
+                          <option value="user">Kullanıcı</option>
+                          <option value="admin">Yönetici</option>
+                          <option value="CALL_CENTER">Call Center</option>
+                        </Form.Select>
+                      </Col>
                     </Form.Group>
 
-                    <Form.Group className="mb-3">
-                      <Form.Label className="small fw-semibold">Durum</Form.Label>
-                      <Form.Select name="newStatus" value={values.newStatus} onChange={handleChange}>
-                        <option value="ACTIVE">Aktif</option>
-                        <option value="CLOSED">Kapalı</option>
-                        <option value="DISABLED">Pasif</option>
-                      </Form.Select>
+                    <Form.Group as={Row} className="mb-3 align-items-center">
+                      <Form.Label column sm={3} className="small fw-semibold">Durum</Form.Label>
+                      <Col sm={9}>
+                        <Form.Select name="newStatus" value={values.newStatus} onChange={handleChange}>
+                          <option value="ACTIVE">Aktif</option>
+                          <option value="CLOSED">Kapalı</option>
+                          <option value="DISABLED">Pasif</option>
+                        </Form.Select>
+                      </Col>
                     </Form.Group>
 
-                    <hr className="my-3" />
-                    <h6 className="fw-bold mb-3 text-primary">İletişim Tercihleri</h6>
-                    
-                    <Form.Group className="mb-2">
-                      <Form.Check
-                        type="switch"
-                        id="allowEmail-switch"
-                        name="allowEmail"
-                        label="E-Posta İzni"
-                        checked={values.allowEmail}
-                        onChange={handleChange}
-                      />
-                    </Form.Group>
-                    <Form.Group className="mb-2">
-                      <Form.Check
-                        type="switch"
-                        id="allowSms-switch"
-                        name="allowSms"
-                        label="SMS İzni"
-                        checked={values.allowSms}
-                        onChange={handleChange}
-                      />
-                    </Form.Group>
-                    <Form.Group className="mb-3">
-                      <Form.Check
-                        type="switch"
-                        id="allowWhatsapp-switch"
-                        name="allowWhatsapp"
-                        label="WhatsApp İzni"
-                        checked={values.allowWhatsapp}
-                        onChange={handleChange}
-                      />
-                    </Form.Group>
+
 
                     <div className="row g-2 mt-2 pt-2 border-top">
                       <div className="col-6">
@@ -399,7 +383,6 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                     <tr>
                       <th>Sözleşme / İzin Tipi</th>
                       <th>Durum</th>
-                      <th>Kanal</th>
                       <th>Tarih</th>
                     </tr>
                   </thead>
@@ -407,7 +390,7 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                     {consentLogs.map((log) => (
                       <tr key={log.id}>
                         <td>
-                          {log.agreementType}
+                          {consentLogTypeText(log.agreementType)}
                           {log.version && <span className="ms-1 text-muted">({log.version})</span>}
                         </td>
                         <td>
@@ -417,7 +400,6 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                             <Badge bg="danger">İptal Edildi</Badge>
                           )}
                         </td>
-                        <td>{log.channel}</td>
                         <td className="text-nowrap">{formatDateTimeForText(log.createdAt)}</td>
                       </tr>
                     ))}

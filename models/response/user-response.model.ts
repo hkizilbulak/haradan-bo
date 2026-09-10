@@ -11,9 +11,6 @@ export interface UserResponse extends BaseResponse {
   status: 'ACTIVE' | 'CLOSED' | 'DISABLED';
   phone?: string | null;
   activeSessionCount?: number;
-  allowEmail?: boolean;
-  allowSms?: boolean;
-  allowWhatsapp?: boolean;
   createdAt: string;
   updatedAt?: string;
 }
