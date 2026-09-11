@@ -19,5 +19,21 @@ export function buildAdvertDetailUrl(advertId: string | number): string {
 }
 
 export function buildMediaUrl(assetId: string, profile: string) {
-  return `${MEDIA_URL}/${assetId}/${profile}`;
+  const trimmed = assetId?.trim();
+  if (!trimmed) return '';
+  if (
+    /^https?:\/\//i.test(trimmed) ||
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('blob:')
+  ) {
+    return trimmed;
+  }
+  let base = '';
+  if (typeof window !== 'undefined') {
+    const proxyUrl = process.env.NEXT_PUBLIC_DEV_PROXY_URL;
+    if (proxyUrl && window.location.origin !== proxyUrl) {
+      base = proxyUrl.replace(/\/+$/, '');
+    }
+  }
+  return `${base}${MEDIA_URL}/${encodeURIComponent(trimmed)}/${encodeURIComponent(profile)}`;
 }

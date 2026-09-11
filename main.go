@@ -171,6 +171,9 @@ func isAllowedCORSOrigin(origin string, r *http.Request) bool {
 	if strings.EqualFold(parsed.Host, r.Host) {
 		return true
 	}
+	if (strings.EqualFold(parsed.Hostname(), "localhost") || parsed.Hostname() == "127.0.0.1") && (parsed.Port() == "3001" || parsed.Port() == "3000") {
+		return true
+	}
 	for _, raw := range strings.Split(os.Getenv("CORS_ALLOWED_ORIGINS"), ",") {
 		allowed := strings.TrimSpace(raw)
 		if allowed != "" && allowed == origin {

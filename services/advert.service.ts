@@ -26,8 +26,12 @@ type ModerationQueueResponse = {
 export type ModerationAdvertDetail = OwnerAdvertItem & {
     ownerUserId: string;
     description?: string | null;
-    price?: { amount: number; currency: string } | null;
-    districtId?: number | null;
+    price?: { amountMinor?: number; amount?: number; currency: string } | null;
+    districtId?: string | number | null;
+    provinceId?: string | number | null;
+    provinceName?: string | null;
+    districtName?: string | null;
+    locationName?: string | null;
     horseId?: string | null;
     categoryClearedWarning?: boolean;
     properties?: Record<string, any>;

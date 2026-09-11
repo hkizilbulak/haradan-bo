@@ -4,10 +4,10 @@ import { Modal, Button, Badge, Row, Col, Card, Table, Spinner, Alert } from 'rea
 import StatusBadge from '@/components/StatusBadge';
 import { buildMediaUrl } from '@/contants/urls';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
-import { getAdvertStatusText } from '@/helpers/EnumUtils';
 import { formatMoney, getErrorMessage } from '@/helpers/HelperUtils';
 import { looksLikeHtml, sanitizeRichHtml } from '@/helpers/sanitizeHtml';
 import { canModerationAction } from '@/helpers/moderationActions';
+import { useResolvedLocation } from '@/helpers/location';
 import { ModerationAdvertResponse } from '@/models';
 import { advertService, ModerationAdvertDetail } from '@/services/advert.service';
 
@@ -43,7 +43,6 @@ export default function AdvertDetailModal({
   const [error, setError] = useState<string | null>(null);
   const [activeMediaIndex, setActiveMediaIndex] = useState<number>(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'pedigree' | 'history'>('overview');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const fetchDetail = async () => {
@@ -66,7 +65,6 @@ export default function AdvertDetailModal({
 
   useEffect(() => {
     if (advert) {
-      setActiveSubTab('overview');
       setActiveMediaIndex(0);
       setLightboxIndex(null);
       void fetchDetail();
@@ -81,13 +79,7 @@ export default function AdvertDetailModal({
   const canReject = advert ? canModerationAction(currentStatus, 'reject') : false;
   const canSuspend = advert ? canModerationAction(currentStatus, 'suspend') : false;
 
-  const resolvedCategory = categoryName || detail?.categoryId || advert?.categoryId || 'Kategori Belirtilmemiş';
-  const priceFormatted = detail?.price?.amount
-    ? formatMoney(detail.price.amount, detail.price.currency || 'TRY')
-    : 'Fiyat Belirtilmemiş';
-
   const mediaList = detail?.media || [];
-  const statusHistory = detail?.statusHistory || [];
   const properties = (detail?.properties || {}) as Record<string, any>;
 
   const normText = (s: string) =>
@@ -122,6 +114,18 @@ export default function AdvertDetailModal({
     return '';
   };
 
+  const resolvedCategory = categoryName || detail?.categoryId || advert?.categoryId || 'Kategori Belirtilmemiş';
+  const rawPriceAmount = (detail?.price as any)?.amountMinor ?? (detail?.price as any)?.amount;
+  const priceFormatted = rawPriceAmount != null
+    ? formatMoney(rawPriceAmount, detail?.price?.currency || 'TRY')
+    : (() => {
+        const propPrice = getProp(['fiyat', 'price', 'ucret', 'bedel']);
+        if (propPrice) return propPrice;
+        return 'Fiyat Belirtilmemiş';
+      })();
+
+  const resolvedLocation = useResolvedLocation(detail);
+
   // Horse & Advert specific fields
   const horseName = getProp(['registeredName', 'atAdi', 'isim', 'horseName', 'title']) || detail?.title || advert?.title || '-';
   const breed = getProp(['horseBreed', 'irk', 'breed', 'atIrki']) || '-';
@@ -137,8 +141,6 @@ export default function AdvertDetailModal({
   const phone = getProp(['sellerPhone', 'phone', 'telefon', 'iletisimTelefonu']) || '';
   const companyName = getProp(['companyName', 'firmaAdi', 'sirket']) || '';
   const websiteUrl = getProp(['websiteUrl', 'website', 'webSitesi']) || '';
-
-  const hasHorseData = Boolean(sire !== '-' || dam !== '-' || breed !== '-' || tjkNumber);
 
   // Build BuyBox specifications list (Matches Haradan published advert layout)
   const specRows = useMemo(() => {
@@ -273,29 +275,6 @@ export default function AdvertDetailModal({
                 </Badge>
               </div>
             </div>
-
-            {/* Quick action buttons for header */}
-            <div className="d-flex align-items-center gap-2">
-              {phone && (
-                <a
-                  href={`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=Merhaba, Haradan.com'daki ${encodeURIComponent(detail?.title || '')} ilanınız hakkında bilgi almak istiyorum.`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-sm btn-success d-flex align-items-center gap-1 shadow-sm px-3"
-                  style={{ backgroundColor: '#25D366', borderColor: '#25D366' }}
-                >
-                  <i className="fe fe-message-circle" /> WhatsApp
-                </a>
-              )}
-              {phone && (
-                <a
-                  href={`tel:${phone}`}
-                  className="btn btn-sm btn-dark d-flex align-items-center gap-1 shadow-sm px-3"
-                >
-                  <i className="fe fe-phone" /> Ara
-                </a>
-              )}
-            </div>
           </div>
         </Modal.Header>
 
@@ -321,45 +300,7 @@ export default function AdvertDetailModal({
           )}
 
           {!loading && !error && (
-            <>
-              {/* SubTabs Bar (Identical to Haradan.com Desktop Tabs) */}
-              <div className="d-flex gap-2 mb-3 bg-white p-2 rounded-3 shadow-sm border">
-                <Button
-                  variant={activeSubTab === 'overview' ? 'primary' : 'light'}
-                  size="sm"
-                  className="rounded-2 fw-semibold d-flex align-items-center gap-2 border-0 px-3"
-                  onClick={() => setActiveSubTab('overview')}
-                >
-                  <i className="fe fe-info" /> Genel Bilgiler
-                </Button>
-
-                {hasHorseData && (
-                  <Button
-                    variant={activeSubTab === 'pedigree' ? 'primary' : 'light'}
-                    size="sm"
-                    className="rounded-2 fw-semibold d-flex align-items-center gap-2 border-0 px-3"
-                    onClick={() => setActiveSubTab('pedigree')}
-                  >
-                    <i className="fe fe-git-branch" /> Pedigri (Soyağacı)
-                  </Button>
-                )}
-
-                <Button
-                  variant={activeSubTab === 'history' ? 'primary' : 'light'}
-                  size="sm"
-                  className="rounded-2 fw-semibold d-flex align-items-center gap-2 border-0 px-3 ms-auto"
-                  onClick={() => setActiveSubTab('history')}
-                >
-                  <i className="fe fe-clock" /> Moderasyon Süreci
-                  <Badge bg={activeSubTab === 'history' ? 'light' : 'secondary'} text={activeSubTab === 'history' ? 'dark' : 'white'} pill>
-                    {statusHistory.length}
-                  </Badge>
-                </Button>
-              </div>
-
-              {/* TAB 1: GENEL BİLGİLER (HARADAN MAIN 2-COLUMN VIEW) */}
-              {activeSubTab === 'overview' && (
-                <Row className="g-4">
+            <Row className="g-4">
                   {/* SOL KOLON: GALERİ VİTRİNİ & AÇIKLAMA */}
                   <Col lg={7}>
                     {/* Main Gallery Showcase */}
@@ -377,8 +318,9 @@ export default function AdvertDetailModal({
                                 src={activeMediaUrl}
                                 alt={detail?.title || 'İlan Görseli'}
                                 className="w-100 h-100 object-fit-contain"
+                                crossOrigin="use-credentials"
                                 onError={(e) => {
-                                  (e.target as HTMLImageElement).src = '/images/placeholder/image-placeholder.jpg';
+                                  (e.target as HTMLImageElement).src = '/images/placeholder/placeholder-img.jpg';
                                 }}
                               />
                             </div>
@@ -452,8 +394,9 @@ export default function AdvertDetailModal({
                                   src={buildMediaUrl(m.assetId, 'DETAIL')}
                                   alt={`Küçük Resim ${idx + 1}`}
                                   className="w-100 h-100 object-fit-cover"
+                                  crossOrigin="use-credentials"
                                   onError={(e) => {
-                                    (e.target as HTMLImageElement).src = '/images/placeholder/image-placeholder.jpg';
+                                    (e.target as HTMLImageElement).src = '/images/placeholder/placeholder-img.jpg';
                                   }}
                                 />
                               </div>
@@ -497,14 +440,7 @@ export default function AdvertDetailModal({
                         <div className="d-flex align-items-center gap-2 text-secondary">
                           <i className="fe fe-map-pin text-primary fs-5" />
                           <span className="fw-semibold text-dark">
-                            {(() => {
-                              const city = getProp(['sehir', 'il', 'city', 'province', 'ilAdi', 'sehirAdi']);
-                              const district = getProp(['ilce', 'ilçe', 'district', 'town', 'ilceAdi']);
-                              const locFromProps = [city, district].filter(Boolean).join(' / ');
-                              if (locFromProps) return locFromProps;
-                              const dId = detail?.districtId ? String(detail.districtId) : '';
-                              return dId && !dId.includes('-') ? `Bölge: ${dId}` : 'Konum Belirtilmedi';
-                            })()}
+                            {resolvedLocation}
                           </span>
                         </div>
                         <div className="fs-3 fw-bold text-dark">
@@ -603,300 +539,6 @@ export default function AdvertDetailModal({
                     </Card>
                   </Col>
                 </Row>
-              )}
-
-              {/* TAB 2: PEDİGRİ (SOYAĞACI) - HARADAN.COM 1:1 REPLICATION */}
-              {activeSubTab === 'pedigree' && (
-                <Card className="border-0 shadow-sm rounded-4 bg-white p-4">
-                  <div className="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
-                    <div>
-                      <h5 className="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
-                        <i className="fe fe-git-branch text-primary" /> Pedigri (Soyağacı)
-                      </h5>
-                      <div className="small text-muted">{horseName} atının 3 nesil soy kütüğü</div>
-                    </div>
-                  </div>
-
-                  <div
-                    className="p-4 rounded-4 border"
-                    style={{
-                      backgroundColor: '#f8fafc',
-                      borderColor: '#e2e8f0',
-                    }}
-                  >
-                    <Row className="g-4 align-items-stretch">
-                      {/* Gen 0: İLAN SAFKANI (KÖK) */}
-                      <Col lg={4} className="d-flex flex-column justify-content-center">
-                        <div
-                          className="p-4 rounded-3 shadow-sm text-center position-relative"
-                          style={{
-                            backgroundColor: '#ffffff',
-                            border: '1px solid #cbd5e1',
-                            borderLeft: '5px solid #002B49',
-                          }}
-                        >
-                          <div
-                            className="d-inline-flex align-items-center gap-1 px-2 py-1 rounded-pill small fw-bold mb-2"
-                            style={{ backgroundColor: '#e2e8f0', color: '#002B49', fontSize: '11px' }}
-                          >
-                            <i className="fe fe-award" /> SAFKAN (ORİJİN)
-                          </div>
-                          <h4 className="fw-bold mb-1" style={{ color: '#002B49' }}>
-                            {horseName}
-                          </h4>
-                          <div className="small text-muted">
-                            {breed} • {gender} • {coatColor}
-                          </div>
-                          {birthDate && (
-                            <div className="small text-muted mt-1">
-                              <i className="fe fe-calendar me-1" /> Doğum: {birthDate}
-                            </div>
-                          )}
-                        </div>
-                      </Col>
-
-                      {/* Gen 1: BABA & ANNE (%50) */}
-                      <Col lg={4} className="d-flex flex-column justify-content-around gap-3">
-                        {/* Baba (Sire) Card */}
-                        <div
-                          className="p-3 rounded-3 shadow-sm position-relative"
-                          style={{
-                            backgroundColor: '#f0f9ff',
-                            border: '1px solid #bae6fd',
-                            borderLeft: '5px solid #0284c7',
-                          }}
-                        >
-                          <div className="d-flex justify-content-between align-items-center mb-1">
-                            <span
-                              className="fw-bold d-flex align-items-center gap-1"
-                              style={{ color: '#0284c7', fontSize: '12px' }}
-                            >
-                              ♂ Baba (Sire)
-                            </span>
-                            <span
-                              className="badge rounded-pill fw-bold"
-                              style={{ backgroundColor: 'rgba(2, 132, 199, 0.15)', color: '#0284c7' }}
-                            >
-                              %50
-                            </span>
-                          </div>
-                          <div className="fs-5 fw-bold text-dark mb-1">
-                            {sire && sire !== '-' ? sire : '-'}
-                          </div>
-                          {sire && sire !== '-' && (
-                            <a
-                              href={`https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(sire)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="small text-decoration-none d-inline-flex align-items-center gap-1 fw-semibold"
-                              style={{ color: '#0284c7' }}
-                            >
-                              <span>TJK'da Sorgula</span>
-                              <i className="fe fe-external-link small" />
-                            </a>
-                          )}
-                        </div>
-
-                        {/* Anne (Dam) Card */}
-                        <div
-                          className="p-3 rounded-3 shadow-sm position-relative"
-                          style={{
-                            backgroundColor: '#fdf2f8',
-                            border: '1px solid #fbcfe8',
-                            borderLeft: '5px solid #db2777',
-                          }}
-                        >
-                          <div className="d-flex justify-content-between align-items-center mb-1">
-                            <span
-                              className="fw-bold d-flex align-items-center gap-1"
-                              style={{ color: '#db2777', fontSize: '12px' }}
-                            >
-                              ♀ Anne (Dam)
-                            </span>
-                            <span
-                              className="badge rounded-pill fw-bold"
-                              style={{ backgroundColor: 'rgba(219, 39, 119, 0.15)', color: '#db2777' }}
-                            >
-                              %50
-                            </span>
-                          </div>
-                          <div className="fs-5 fw-bold text-dark mb-1">
-                            {dam && dam !== '-' ? dam : '-'}
-                          </div>
-                          {dam && dam !== '-' && (
-                            <a
-                              href={`https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(dam)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="small text-decoration-none d-inline-flex align-items-center gap-1 fw-semibold"
-                              style={{ color: '#db2777' }}
-                            >
-                              <span>TJK'da Sorgula</span>
-                              <i className="fe fe-external-link small" />
-                            </a>
-                          )}
-                        </div>
-                      </Col>
-
-                      {/* Gen 2: BÜYÜK EBEVEYNLER (%25) */}
-                      <Col lg={4} className="d-flex flex-column justify-content-between gap-2">
-                        {/* Babanın Babası */}
-                        <div
-                          className="p-2 px-3 rounded-3 shadow-sm"
-                          style={{
-                            backgroundColor: '#f0f9ff',
-                            border: '1px solid #e0f2fe',
-                            borderLeft: '3px solid #38bdf8',
-                          }}
-                        >
-                          <div className="d-flex justify-content-between align-items-center">
-                            <span style={{ color: '#0284c7', fontSize: '11px', fontWeight: 600 }}>
-                              ♂ Babanın Babası
-                            </span>
-                            <span className="text-muted small" style={{ fontSize: '10px' }}>%25</span>
-                          </div>
-                          <div className="fw-bold text-dark small">-</div>
-                        </div>
-
-                        {/* Babanın Annesi */}
-                        <div
-                          className="p-2 px-3 rounded-3 shadow-sm"
-                          style={{
-                            backgroundColor: '#fdf2f8',
-                            border: '1px solid #fce7f3',
-                            borderLeft: '3px solid #f472b6',
-                          }}
-                        >
-                          <div className="d-flex justify-content-between align-items-center">
-                            <span style={{ color: '#db2777', fontSize: '11px', fontWeight: 600 }}>
-                              ♀ Babanın Annesi
-                            </span>
-                            <span className="text-muted small" style={{ fontSize: '10px' }}>%25</span>
-                          </div>
-                          <div className="fw-bold text-dark small">-</div>
-                        </div>
-
-                        {/* Kısrak Babası (Damsire) */}
-                        <div
-                          className="p-2 px-3 rounded-3 shadow-sm"
-                          style={{
-                            backgroundColor: '#f0f9ff',
-                            border: '1px solid #bae6fd',
-                            borderLeft: '4px solid #0284c7',
-                          }}
-                        >
-                          <div className="d-flex justify-content-between align-items-center">
-                            <span style={{ color: '#0284c7', fontSize: '11px', fontWeight: 700 }}>
-                              ♂ Kısrak Babası (Damsire)
-                            </span>
-                            <span
-                              className="badge rounded-pill fw-bold"
-                              style={{ backgroundColor: 'rgba(2, 132, 199, 0.15)', color: '#0284c7', fontSize: '10px' }}
-                            >
-                              %25
-                            </span>
-                          </div>
-                          <div className="fw-bold text-dark small">
-                            {damsire && damsire !== '-' ? (
-                              <a
-                                href={`https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(damsire)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-decoration-none fw-bold d-inline-flex align-items-center gap-1"
-                                style={{ color: '#0284c7' }}
-                              >
-                                {damsire} <i className="fe fe-external-link" style={{ fontSize: '10px' }} />
-                              </a>
-                            ) : (
-                              '-'
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Annenin Annesi */}
-                        <div
-                          className="p-2 px-3 rounded-3 shadow-sm"
-                          style={{
-                            backgroundColor: '#fdf2f8',
-                            border: '1px solid #fce7f3',
-                            borderLeft: '3px solid #f472b6',
-                          }}
-                        >
-                          <div className="d-flex justify-content-between align-items-center">
-                            <span style={{ color: '#db2777', fontSize: '11px', fontWeight: 600 }}>
-                              ♀ Annenin Annesi
-                            </span>
-                            <span className="text-muted small" style={{ fontSize: '10px' }}>%25</span>
-                          </div>
-                          <div className="fw-bold text-dark small">-</div>
-                        </div>
-                      </Col>
-                    </Row>
-                  </div>
-                </Card>
-              )}
-
-              {/* TAB: MODERASYON GEÇMİŞİ */}
-              {activeSubTab === 'history' && (
-                <Card className="border-0 shadow-sm rounded-4 bg-white p-4">
-                  <h5 className="fw-bold text-dark mb-3 pb-2 border-bottom">Moderasyon Süreci & Durum Geçmişi</h5>
-                  {statusHistory.length === 0 ? (
-                    <div className="text-center py-4 text-muted bg-light rounded-3">Durum geçmişi kaydı bulunamadı.</div>
-                  ) : (
-                    <div className="timeline position-relative ps-3">
-                      {statusHistory.map((item, index) => (
-                        <div key={index} className="position-relative pb-4 ps-4 border-start border-2 border-primary">
-                          <div
-                            className="position-absolute rounded-circle bg-primary"
-                            style={{
-                              width: '14px',
-                              height: '14px',
-                              left: '-8px',
-                              top: '4px',
-                              border: '3px solid #fff',
-                              boxShadow: '0 0 0 1px #0d6efd',
-                            }}
-                          />
-                          <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
-                            <div className="d-flex align-items-center gap-2">
-                              {item.fromStatus && (
-                                <>
-                                  <Badge bg="light" className="text-secondary border">
-                                    {getAdvertStatusText(item.fromStatus)}
-                                  </Badge>
-                                  <span className="text-muted">➔</span>
-                                </>
-                              )}
-                              <Badge bg="primary">{getAdvertStatusText(item.toStatus)}</Badge>
-                            </div>
-                            <span className="small text-muted">
-                              <i className="fe fe-calendar me-1" /> {formatDateTimeForText(item.createdAt)}
-                            </span>
-                          </div>
-
-                          <div className="small text-muted mb-2">
-                            İşlemi Yapan:{' '}
-                            <Badge bg={item.isSystem ? 'secondary' : 'dark'}>
-                              {item.isSystem ? 'Sistem' : `Yönetici ${item.actorUserId ? `(${item.actorUserId.slice(0, 8)}...)` : ''}`}
-                            </Badge>
-                          </div>
-
-                          {item.reason && (
-                            <div
-                              className="p-3 rounded-3 border-start border-3 border-danger bg-light small mt-2"
-                              style={{ backgroundColor: '#fff5f5' }}
-                            >
-                              <div className="fw-bold text-danger mb-1">Moderasyon Notu:</div>
-                              <div className="text-dark">{item.reason}</div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </Card>
-              )}
-            </>
           )}
         </Modal.Body>
 
@@ -997,6 +639,10 @@ export default function AdvertDetailModal({
                 alt={`Önizleme ${lightboxIndex + 1}`}
                 className="img-fluid rounded"
                 style={{ maxHeight: '75vh', objectFit: 'contain' }}
+                crossOrigin="use-credentials"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/images/placeholder/placeholder-img.jpg';
+                }}
               />
             </div>
 
