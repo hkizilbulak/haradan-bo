@@ -20,4 +20,5 @@ export interface ModerationAdvertResponse extends BaseResponse {
   categoryId?: string | null;
   ownerUserId?: string | null;
   mediaVersion?: number;
+  rejectionReason?: string | null;
 }

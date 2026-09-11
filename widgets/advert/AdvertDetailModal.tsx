@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Button, Badge, Row, Col, Card, Table, Spinner, Alert } from 'react-bootstrap';
 import StatusBadge from '@/components/StatusBadge';
-import { buildMediaUrl } from '@/contants/urls';
+import { buildMediaUrl, buildAdvertDetailUrl } from '@/contants/urls';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
 import { formatMoney, getErrorMessage } from '@/helpers/HelperUtils';
 import { looksLikeHtml, sanitizeRichHtml } from '@/helpers/sanitizeHtml';
@@ -75,9 +75,44 @@ export default function AdvertDetailModal({
   }, [advertId]);
 
   const currentStatus = detail?.status ?? advert?.status ?? 'PENDING_REVIEW';
+  const isRejected = currentStatus === 'REJECTED';
+  const isPublished = currentStatus === 'PUBLISHED' || advert?.status === 'PUBLISHED';
   const canApprove = advert ? canModerationAction(currentStatus, 'approve') : false;
   const canReject = advert ? canModerationAction(currentStatus, 'reject') : false;
   const canSuspend = advert ? canModerationAction(currentStatus, 'suspend') : false;
+
+  const rejectionInfo = useMemo(() => {
+    if (!isRejected && !detail?.rejectionReason && !advert?.rejectionReason) {
+      return null;
+    }
+
+    let reason: string | null = detail?.rejectionReason || advert?.rejectionReason || null;
+    let createdAt: string | null = null;
+
+    if (detail?.statusHistory && detail.statusHistory.length > 0) {
+      const historyReversed = [...detail.statusHistory].reverse();
+      const rejectedEntry = historyReversed.find(
+        (h) => h.toStatus?.toUpperCase() === 'REJECTED'
+      );
+      if (rejectedEntry) {
+        if (!reason && rejectedEntry.reason) {
+          reason = rejectedEntry.reason;
+        }
+        if (rejectedEntry.createdAt) {
+          createdAt = rejectedEntry.createdAt;
+        }
+      }
+    }
+
+    if (!reason && !isRejected) {
+      return null;
+    }
+
+    return {
+      reason: reason?.trim() || 'Reddedilme gerekçesi belirtilmemiş.',
+      createdAt: createdAt ? formatDateTimeForText(createdAt) : null,
+    };
+  }, [detail, advert, isRejected]);
 
   const mediaList = detail?.media || [];
   const properties = (detail?.properties || {}) as Record<string, any>;
@@ -146,7 +181,12 @@ export default function AdvertDetailModal({
   const specRows = useMemo(() => {
     const list: SpecRow[] = [];
 
-    list.push({ label: 'İlan No', value: String(advertId) });
+    list.push({
+      label: 'İlan No',
+      value: String(advertId),
+      isClickable: isPublished && Boolean(advertId),
+      href: isPublished && advertId ? buildAdvertDetailUrl(advertId) : undefined,
+    });
     list.push({
       label: 'İlan Tarihi',
       value: detail?.publishedAt
@@ -228,7 +268,7 @@ export default function AdvertDetailModal({
     }
 
     return list;
-  }, [advertId, detail, resolvedCategory, horseName, breed, age, gender, coatColor, sire, dam, damsire, ownerName, tjkNumber, birthDate, companyName, websiteUrl, properties]);
+  }, [advertId, isPublished, detail, resolvedCategory, horseName, breed, age, gender, coatColor, sire, dam, damsire, ownerName, tjkNumber, birthDate, companyName, websiteUrl, properties]);
 
   const copyToClipboard = (text: string, keyName: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -275,6 +315,19 @@ export default function AdvertDetailModal({
                 </Badge>
               </div>
             </div>
+            {isPublished && advertId && (
+              <Button
+                as="a"
+                href={buildAdvertDetailUrl(advertId)}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="primary"
+                size="sm"
+                className="d-flex align-items-center gap-1 px-3 py-2 fw-semibold shadow-sm"
+              >
+                <i className="fe fe-external-link" /> Gerçek İlana Git
+              </Button>
+            )}
           </div>
         </Modal.Header>
 
@@ -430,6 +483,29 @@ export default function AdvertDetailModal({
                         <div className="text-muted fst-italic py-3">Bu ilan için açıklama belirtilmemiş.</div>
                       )}
                     </Card>
+
+                    {/* Red Nedeni Card (Reddedilen İlanlar İçin) */}
+                    {isRejected && (
+                      <Card className="border-0 shadow-sm rounded-4 bg-white p-4 mt-4 border-start border-danger border-4">
+                        <div className="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                          <h5 className="fw-bold text-danger mb-0 d-flex align-items-center gap-2">
+                            <i className="fe fe-alert-octagon text-danger" /> Red Nedeni
+                          </h5>
+                          {rejectionInfo?.createdAt && (
+                            <span className="text-muted small">
+                              <i className="fe fe-clock me-1" />
+                              {rejectionInfo.createdAt}
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className="p-3 rounded-3 bg-danger-subtle text-danger-emphasis border border-danger-subtle"
+                          style={{ whiteSpace: 'pre-line', lineHeight: '1.6', fontSize: '14.5px' }}
+                        >
+                          {rejectionInfo?.reason || 'Reddedilme gerekçesi belirtilmemiş.'}
+                        </div>
+                      </Card>
+                    )}
                   </Col>
 
                   {/* SAĞ KOLON: HARADAN BUYBOX (FİYAT, BİLGİ TABLOSU, İLETİŞİM) */}

@@ -14,6 +14,7 @@ type OwnerAdvertItem = {
     mediaVersion?: number;
     categoryId?: string | null;
     ownerUserId?: string | null;
+    rejectionReason?: string | null;
 };
 
 type ModerationQueueResponse = {
@@ -26,6 +27,7 @@ type ModerationQueueResponse = {
 export type ModerationAdvertDetail = OwnerAdvertItem & {
     ownerUserId: string;
     description?: string | null;
+    rejectionReason?: string | null;
     price?: { amountMinor?: number; amount?: number; currency: string } | null;
     districtId?: string | number | null;
     provinceId?: string | number | null;
@@ -233,6 +235,7 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
                                 mediaVersion: 1,
                                 categoryId: item.categoryId || 'c1000000-0000-4000-8000-000000000011',
                                 ownerUserId: item.sellerId || 'u1000000-0000-4000-8000-000000000001',
+                                rejectionReason: item.rejectionReason || null,
                             });
                         }
                     }
@@ -243,10 +246,13 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
     return list;
 }
 
-function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem>) {
+function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem> & { rejectionReason?: string | null; reason?: string | null }) {
     const idx = fallbackMockAdverts.findIndex((m) => m.id === id);
     if (idx !== -1) {
         Object.assign(fallbackMockAdverts[idx], patch);
+        if (patch.rejectionReason || patch.reason) {
+            fallbackMockAdverts[idx].rejectionReason = patch.rejectionReason || patch.reason;
+        }
     }
     if (typeof window !== 'undefined') {
         try {
@@ -262,6 +268,9 @@ function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem>) {
                         }
                         if (patch.version) parsed[itemIdx].version = patch.version;
                         if (patch.publishedAt) parsed[itemIdx].publishedAt = patch.publishedAt;
+                        if (patch.rejectionReason || patch.reason) {
+                            parsed[itemIdx].rejectionReason = patch.rejectionReason || patch.reason;
+                        }
                         localStorage.setItem('haradan.mockMyListings.items', JSON.stringify(parsed));
                     }
                 }
@@ -341,16 +350,18 @@ class AdvertService {
         } catch (err) {
             const mock = getLocalMockAdverts().find((m) => m.id === advertId);
             if (mock) {
+                const mockReason = (mock as any).rejectionReason || (mock.status === 'REJECTED' ? 'İlan kriterlere uygun bulunmadı.' : undefined);
                 return {
                     ...mock,
                     ownerUserId: mock.ownerUserId || 'u1000000-0000-4000-8000-000000000001',
                     description: `${mock.title} - Detay açıklaması`,
                     media: [],
+                    rejectionReason: mockReason,
                     statusHistory: [
                         {
                             fromStatus: 'DRAFT',
                             toStatus: mock.status,
-                            reason: 'İlan onaya gönderildi',
+                            reason: mock.status === 'REJECTED' ? (mockReason || 'İlan kriterlere uygun bulunmadı.') : 'İlan onaya gönderildi',
                             isSystem: false,
                             createdAt: new Date().toISOString(),
                         },
@@ -383,6 +394,7 @@ class AdvertService {
             updateLocalMockAdvert(advertId, {
                 status: 'REJECTED',
                 version: request.expectedVersion + 1,
+                rejectionReason: request.reason,
             });
             return;
         }

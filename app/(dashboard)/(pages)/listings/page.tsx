@@ -5,7 +5,6 @@ import { toast } from 'react-toastify';
 import Loading from '@/components/Loading';
 import PrepareTable from '@/components/PrepareTable';
 import StatusBadge from '@/components/StatusBadge';
-import { buildAdvertDetailUrl } from '@/contants/urls';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
 import { getAdvertStatusText } from '@/helpers/EnumUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
@@ -238,7 +237,6 @@ export default function Adverts() {
     const advertId = advert.identifier ?? advert.id;
     const canApprove = canModerationAction(advert.status, 'approve');
     const canReject = canModerationAction(advert.status, 'reject');
-    const canSuspend = canModerationAction(advert.status, 'suspend');
     const categoryName = advert.categoryId ? (categoryMap.get(advert.categoryId) || advert.categoryId) : '-';
     return (
       <tr key={advertId}>
@@ -248,26 +246,13 @@ export default function Adverts() {
         <td><StatusBadge status={advert.status} /></td>
         <td style={{ minWidth: '420px' }}>
           <div className="d-flex flex-wrap gap-1 align-items-center">
-            {advert.status === 'PUBLISHED' ? (
-              <Button
-                as="a"
-                href={buildAdvertDetailUrl(advertId!)}
-                target="_blank"
-                rel="noopener noreferrer"
-                size="sm"
-                variant="outline-primary"
-              >
-                Detay
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline-primary"
-                onClick={() => setDetailAdvert(advert)}
-              >
-                Detay
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant="outline-primary"
+              onClick={() => setDetailAdvert(advert)}
+            >
+              Detay
+            </Button>
             {canApprove && (
               <Button size="sm" variant="success" disabled={actionBusy} onClick={() => void handleApprove(advert)}>
                 Onayla
@@ -277,11 +262,6 @@ export default function Adverts() {
             {canReject && (
               <Button size="sm" variant="danger" onClick={() => openActionModal(advert, 'reject')}>
                 Reddet
-              </Button>
-            )}
-            {canSuspend && (
-              <Button size="sm" variant="secondary" onClick={() => openActionModal(advert, 'suspend')}>
-                Askıya Al
               </Button>
             )}
           </div>
