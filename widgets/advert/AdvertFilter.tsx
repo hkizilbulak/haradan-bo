@@ -28,7 +28,7 @@ export default function AdvertFilter({ onFilter, tab }: IProps) {
                 if (values.status && (values.status as string) !== '') {
                     filter = appendOperator(filter, `status==${values.status}`);
                 } else {
-                    filter = appendOperator(filter, `status!=PUBLISHED;status!=DRAFT`);
+                    filter = appendOperator(filter, `status!=PUBLISHED;status!=DRAFT;status!=ARCHIVED;status!=SOLD;status!=CHANGES_REQUESTED`);
                 }
             }
             onFilter(filter);
@@ -53,11 +53,8 @@ export default function AdvertFilter({ onFilter, tab }: IProps) {
                 >
                     <option value="">Tüm durumlar</option>
                     <option value="PENDING_REVIEW">İnceleme Bekliyor</option>
-                    <option value="CHANGES_REQUESTED">Düzeltme İstendi</option>
                     <option value="REJECTED">Reddedildi</option>
                     <option value="SUSPENDED">Askıya Alındı</option>
-                    <option value="SOLD">Satıldı</option>
-                    <option value="ARCHIVED">Arşivlendi</option>
                 </Form.Select>
             </Form.Group>
         </Row>
