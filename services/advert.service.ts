@@ -26,13 +26,24 @@ type ModerationQueueResponse = {
 export type ModerationAdvertDetail = OwnerAdvertItem & {
     ownerUserId: string;
     description?: string | null;
-    media?: Array<{ assetId: string; displayOrder: number; isCover: boolean }>;
+    price?: { amount: number; currency: string } | null;
+    districtId?: number | null;
+    horseId?: string | null;
+    categoryClearedWarning?: boolean;
+    properties?: Record<string, any>;
+    media?: Array<{
+        assetId: string;
+        displayOrder: number;
+        isCover: boolean;
+        lifecycleStatus?: string;
+    }>;
     statusHistory?: Array<{
         fromStatus?: string | null;
         toStatus: string;
         reason?: string | null;
         isSystem: boolean;
         createdAt: string;
+        actorUserId?: string | null;
     }>;
 };
 
@@ -457,6 +468,10 @@ class AdvertService {
                 return items;
             }
         }
+    }
+
+    async getUrgent(advertId: string): Promise<{ advertId: string; isUrgent: boolean }> {
+        return apiRequest('GET', `${publicAdvertUrl}/${advertId}/urgent`);
     }
 
     async activateUrgent(advertId: string) {

@@ -7,11 +7,7 @@ import PrepareTable from '@/components/PrepareTable';
 import StatusBadge from '@/components/StatusBadge';
 import { buildAdvertDetailUrl } from '@/contants/urls';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
-import {
-  getAdvertStatusText,
-  getPackageAssignmentSourceText,
-  getPackageAssignmentStatusText,
-} from '@/helpers/EnumUtils';
+import { getAdvertStatusText } from '@/helpers/EnumUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
 import { canModerationAction } from '@/helpers/moderationActions';
 import useApi from '@/hooks/useApi';
@@ -20,12 +16,8 @@ import {
   advertService,
   categoryService,
   ModerationReasonRequest,
-  AdvertPackageAssignment,
-  AssignPackageRequest,
-  packageService,
-  PackageResponse,
 } from '@/services';
-import { PageHeading } from '@/widgets';
+import { PageHeading, AdvertDetailModal, PackageModal } from '@/widgets';
 import AdvertFilter from '@/widgets/advert/AdvertFilter';
 import CustomPagination from '@/components/Pagination';
 
@@ -37,206 +29,6 @@ const headItems = [
   ''
 ];
 
-function PackageModal({ advert, onClose, onDone }: { advert: ModerationAdvertResponse; onClose: () => void; onDone: () => void }) {
-  const advertId = advert.identifier ?? advert.id;
-  const [tab, setTab] = useState<'assign' | 'history'>('assign');
-  const [packages, setPackages] = useState<PackageResponse[]>([]);
-  const [currentPackage, setCurrentPackage] = useState<AdvertPackageAssignment | null>(null);
-  const [packageCode, setPackageCode] = useState('');
-  const [assignReason, setAssignReason] = useState('');
-  const [history, setHistory] = useState<AdvertPackageAssignment[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [loadingCurrent, setLoadingCurrent] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (!advertId) {
-      return;
-    }
-
-    setLoadingCurrent(true);
-    Promise.all([
-      packageService.search({ pageRequest: { page: 0, size: 200 } }),
-      advertService.getPackage(advertId).catch(() => null),
-    ])
-      .then(([packagePage, assignment]) => {
-        setPackages((packagePage.content || []).filter((item) => item.isActive));
-        setCurrentPackage(assignment);
-        if (assignment?.packageCode) {
-          setPackageCode(assignment.packageCode);
-        }
-      })
-      .catch((err) => toast.error(getErrorMessage(err)))
-      .finally(() => setLoadingCurrent(false));
-  }, [advertId]);
-
-  const loadHistory = useCallback(() => {
-    if (!advertId) return;
-    setHistoryLoading(true);
-    advertService.getPackageHistory(advertId)
-      .then(setHistory)
-      .catch((err) => toast.error(getErrorMessage(err)))
-      .finally(() => setHistoryLoading(false));
-  }, [advertId]);
-
-  useEffect(() => {
-    if (tab === 'history') {
-      loadHistory();
-    }
-  }, [tab, loadHistory]);
-
-  const handleAssign = async () => {
-    if (!advertId || !packageCode.trim() || submitting) return;
-    setSubmitting(true);
-    try {
-      const request: AssignPackageRequest = {
-        packageCode: packageCode.trim(),
-        reason: assignReason.trim() || undefined,
-      };
-      await advertService.assignPackage(advertId, request);
-      toast.success('Paket atandı');
-      onDone();
-    } catch (err) {
-      toast.error(getErrorMessage(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleCancel = async () => {
-    if (!advertId || submitting) return;
-    setSubmitting(true);
-    try {
-      await advertService.cancelPackage(advertId);
-      toast.success('Paket iptal edildi');
-      onDone();
-    } catch (err) {
-      toast.error(getErrorMessage(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleUrgent = async (activate: boolean) => {
-    if (!advertId || submitting) return;
-    setSubmitting(true);
-    try {
-      if (activate) {
-        await advertService.activateUrgent(advertId);
-        toast.success('Acil ilan aktifleştirildi');
-      } else {
-        await advertService.deactivateUrgent(advertId);
-        toast.success('Acil ilan kapatıldı');
-      }
-      onDone();
-    } catch (err) {
-      toast.error(getErrorMessage(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const statusVariant = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'success';
-      case 'EXPIRED': return 'warning';
-      case 'CANCELLED': return 'danger';
-      case 'SUPERSEDED': return 'secondary';
-      default: return 'secondary';
-    }
-  };
-
-  return (
-    <Modal show onHide={onClose} size="lg">
-      <Modal.Header closeButton>
-        <Modal.Title>Paket İşlemleri — {advert.title ?? advertId}</Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        <div className="mb-3">
-          <Button size="sm" variant={tab === 'assign' ? 'primary' : 'outline-primary'} className="me-2" onClick={() => setTab('assign')}>Paket Ata / Acil</Button>
-          <Button size="sm" variant={tab === 'history' ? 'primary' : 'outline-primary'} onClick={() => setTab('history')}>Geçmiş</Button>
-        </div>
-
-        {tab === 'assign' && (
-          <>
-            {loadingCurrent && <Loading />}
-            {!loadingCurrent && (
-              <>
-                {currentPackage ? (
-                  <Alert variant="info" className="py-2">
-                    Aktif paket: <strong>{currentPackage.packageCode}</strong> ({getPackageAssignmentStatusText(currentPackage.status)})
-                  </Alert>
-                ) : (
-                  <Alert variant="secondary" className="py-2">Aktif paket ataması yok.</Alert>
-                )}
-                <Form.Group className="mb-3">
-                  <Form.Label>Paket</Form.Label>
-                  <Form.Select value={packageCode} onChange={(e) => setPackageCode(e.target.value)}>
-                    <option value="">Paket seçin</option>
-                    {packages.map((item) => (
-                      <option key={item.code} value={item.code}>
-                        {item.displayName}
-                      </option>
-                    ))}
-                  </Form.Select>
-                </Form.Group>
-                <Form.Group className="mb-3">
-                  <Form.Label>Sebep (opsiyonel)</Form.Label>
-                  <Form.Control value={assignReason} onChange={(e) => setAssignReason(e.target.value)} />
-                </Form.Group>
-                <div className="d-flex flex-wrap gap-2 mb-3">
-                  <Button variant="success" disabled={!packageCode.trim() || submitting} onClick={() => void handleAssign()}>Paket Ata</Button>
-                  <Button variant="danger" disabled={submitting || !currentPackage} onClick={() => void handleCancel()}>Mevcut Paketi İptal Et</Button>
-                </div>
-                <hr />
-                <div className="d-flex flex-wrap gap-2">
-                  <Button variant="warning" disabled={submitting || !currentPackage} onClick={() => void handleUrgent(true)}>Acil Aktifleştir</Button>
-                  <Button variant="outline-secondary" disabled={submitting} onClick={() => void handleUrgent(false)}>Acil Kapat</Button>
-                </div>
-              </>
-            )}
-          </>
-        )}
-
-        {tab === 'history' && (
-          <>
-            {historyLoading && <Loading />}
-            {!historyLoading && history.length === 0 && <p className="text-muted">Paket geçmişi bulunamadı.</p>}
-            {!historyLoading && history.length > 0 && (
-              <Table striped bordered hover size="sm">
-                <thead>
-                  <tr>
-                    <th>Paket</th>
-                    <th>Durum</th>
-                    <th>Başlangıç</th>
-                    <th>Bitiş</th>
-                    <th>Kaynak</th>
-                    <th>Sebep</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.packageCode}</td>
-                      <td><Badge bg={statusVariant(item.status)}>{getPackageAssignmentStatusText(item.status)}</Badge></td>
-                      <td>{formatDateTimeForText(item.startsAt)}</td>
-                      <td>{item.endsAt ? formatDateTimeForText(item.endsAt) : '-'}</td>
-                      <td>{getPackageAssignmentSourceText(item.source)}</td>
-                      <td>{item.reason ?? '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            )}
-          </>
-        )}
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="secondary" onClick={onClose}>Kapat</Button>
-      </Modal.Footer>
-    </Modal>
-  );
-}
 
 function ActionModal({
   action,
@@ -327,6 +119,7 @@ export default function Adverts() {
     action: 'reject' | 'requestChanges' | 'suspend';
   } | null>(null);
   const [packageAdvert, setPackageAdvert] = useState<ModerationAdvertResponse | null>(null);
+  const [detailAdvert, setDetailAdvert] = useState<ModerationAdvertResponse | null>(null);
   const [reason, setReason] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
   const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
@@ -444,7 +237,6 @@ export default function Adverts() {
   const content = data?.content?.map((advert) => {
     const advertId = advert.identifier ?? advert.id;
     const canApprove = canModerationAction(advert.status, 'approve');
-    const canRequestChanges = canModerationAction(advert.status, 'requestChanges');
     const canReject = canModerationAction(advert.status, 'reject');
     const canSuspend = canModerationAction(advert.status, 'suspend');
     const categoryName = advert.categoryId ? (categoryMap.get(advert.categoryId) || advert.categoryId) : '-';
@@ -456,52 +248,41 @@ export default function Adverts() {
         <td><StatusBadge status={advert.status} /></td>
         <td style={{ minWidth: '420px' }}>
           <div className="d-flex flex-wrap gap-1 align-items-center">
-            <Button
-              as="a"
-              href={buildAdvertDetailUrl(advertId!)}
-              target="_blank"
-              rel="noopener noreferrer"
-              size="sm"
-              variant="outline-primary"
-            >
-              Detay
-            </Button>
+            {advert.status === 'PUBLISHED' ? (
+              <Button
+                as="a"
+                href={buildAdvertDetailUrl(advertId!)}
+                target="_blank"
+                rel="noopener noreferrer"
+                size="sm"
+                variant="outline-primary"
+              >
+                Detay
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline-primary"
+                onClick={() => setDetailAdvert(advert)}
+              >
+                Detay
+              </Button>
+            )}
             {canApprove && (
               <Button size="sm" variant="success" disabled={actionBusy} onClick={() => void handleApprove(advert)}>
                 Onayla
               </Button>
             )}
 
-            <Button 
-              size="sm" 
-              variant="light" 
-              onClick={() => setExpandedRow(expandedRow === advertId ? null : (advertId as string))}
-              className="border"
-            >
-              {expandedRow === advertId ? '◁' : '▷'}
-            </Button>
-
-            {expandedRow === advertId && (
-              <>
-                {canRequestChanges && (
-                  <Button size="sm" variant="warning" onClick={() => openActionModal(advert, 'requestChanges')}>
-                    Düzeltme İste
-                  </Button>
-                )}
-                {canReject && (
-                  <Button size="sm" variant="danger" onClick={() => openActionModal(advert, 'reject')}>
-                    Reddet
-                  </Button>
-                )}
-                {canSuspend && (
-                  <Button size="sm" variant="secondary" onClick={() => openActionModal(advert, 'suspend')}>
-                    Askıya Al
-                  </Button>
-                )}
-                <Button size="sm" variant="info" onClick={() => setPackageAdvert(advert)}>
-                  Paket
-                </Button>
-              </>
+            {canReject && (
+              <Button size="sm" variant="danger" onClick={() => openActionModal(advert, 'reject')}>
+                Reddet
+              </Button>
+            )}
+            {canSuspend && (
+              <Button size="sm" variant="secondary" onClick={() => openActionModal(advert, 'suspend')}>
+                Askıya Al
+              </Button>
             )}
           </div>
         </td>
@@ -543,6 +324,20 @@ export default function Adverts() {
       </Modal>
 
       {packageAdvert && <PackageModal advert={packageAdvert} onClose={() => setPackageAdvert(null)} onDone={() => { setPackageAdvert(null); refetch(); }} />}
+
+      <AdvertDetailModal
+        advert={detailAdvert}
+        categoryName={
+          detailAdvert?.categoryId
+            ? categoryMap.get(detailAdvert.categoryId) || detailAdvert.categoryId
+            : undefined
+        }
+        onClose={() => setDetailAdvert(null)}
+        onApprove={(adv) => void handleApprove(adv)}
+        onReject={(adv) => openActionModal(adv, 'reject')}
+        onSuspend={(adv) => openActionModal(adv, 'suspend')}
+        onPackage={(adv) => setPackageAdvert(adv)}
+      />
 
       {isLoading && <Loading />}
 
