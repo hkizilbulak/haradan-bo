@@ -39,7 +39,7 @@ const CustomPagination = ({ onPageChange, page, siblingCount = 1 }: IProps) => {
     let lastPage = paginationRange && paginationRange[paginationRange.length - 1];
     return (
 
-        <Pagination className='d-flex justify-content-center'>
+        <Pagination className='d-flex justify-content-center mb-0'>
             <Pagination.Prev disabled={currentPage + 1 === 1} onClick={onPrevious} />
             {paginationRange?.map((pageNumber, index) => {
                 if (pageNumber === DOTS) {

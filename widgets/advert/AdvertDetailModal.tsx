@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Button, Badge, Row, Col, Card, Table, Spinner, Alert } from 'react-bootstrap';
 import StatusBadge from '@/components/StatusBadge';
 import { buildMediaUrl, buildAdvertDetailUrl } from '@/contants/urls';
-import { formatDateTimeForText } from '@/helpers/DateUtils';
+import { formatDateForText, formatDateTimeForText } from '@/helpers/DateUtils';
 import { formatMoney, getErrorMessage } from '@/helpers/HelperUtils';
 import { looksLikeHtml, sanitizeRichHtml } from '@/helpers/sanitizeHtml';
 import { canModerationAction } from '@/helpers/moderationActions';
@@ -187,11 +187,18 @@ export default function AdvertDetailModal({
       isClickable: isPublished && Boolean(advertId),
       href: isPublished && advertId ? buildAdvertDetailUrl(advertId) : undefined,
     });
+    const submissionDate = detail?.createdAt || advert?.createdAt;
+    if (submissionDate) {
+      list.push({
+        label: 'İlan Gönderim Tarihi',
+        value: formatDateForText(submissionDate),
+      });
+    }
     list.push({
-      label: 'İlan Tarihi',
+      label: isPublished ? 'Yayın Tarihi' : 'İlan Tarihi',
       value: detail?.publishedAt
-        ? formatDateTimeForText(detail.publishedAt)
-        : formatDateTimeForText(new Date().toISOString()),
+        ? (isPublished ? formatDateForText(detail.publishedAt) : formatDateTimeForText(detail.publishedAt))
+        : (isPublished ? formatDateForText(new Date().toISOString()) : formatDateTimeForText(new Date().toISOString())),
     });
     list.push({ label: 'Kategori', value: resolvedCategory });
 

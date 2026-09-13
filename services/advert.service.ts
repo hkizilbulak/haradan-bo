@@ -8,12 +8,15 @@ type OwnerAdvertItem = {
     id: string;
     title?: string | null;
     publishedAt?: string | null;
+    createdAt?: string | null;
     deletedAt?: string | null;
     status: ModerationAdvertResponse['status'];
     version: number;
     mediaVersion?: number;
     categoryId?: string | null;
     ownerUserId?: string | null;
+    ownerName?: string | null;
+    properties?: Record<string, any>;
     rejectionReason?: string | null;
 };
 
@@ -59,47 +62,47 @@ export type ModerationReasonRequest = {
 };
 
 export type AdvertPackageAssignment = {
-  id: string;
-  advertId: string;
-  packageCode: string;
-  status: 'ACTIVE' | 'SUPERSEDED' | 'EXPIRED' | 'CANCELLED';
-  startsAt: string;
-  endsAt?: string | null;
-  assignedByUserId: string;
-  assignedAt: string;
-  supersededAt?: string | null;
-  expiredAt?: string | null;
-  cancelledAt?: string | null;
-  reason?: string | null;
-  source: 'ADMIN' | 'SYSTEM';
-  version: number;
-  createdAt: string;
-  updatedAt: string;
+    id: string;
+    advertId: string;
+    packageCode: string;
+    status: 'ACTIVE' | 'SUPERSEDED' | 'EXPIRED' | 'CANCELLED';
+    startsAt: string;
+    endsAt?: string | null;
+    assignedByUserId: string;
+    assignedAt: string;
+    supersededAt?: string | null;
+    expiredAt?: string | null;
+    cancelledAt?: string | null;
+    reason?: string | null;
+    source: 'ADMIN' | 'SYSTEM';
+    version: number;
+    createdAt: string;
+    updatedAt: string;
 };
 
 export type AdvertPackageHistoryPage = {
-  items: AdvertPackageAssignment[];
-  nextCursor?: string | null;
-  hasMore: boolean;
+    items: AdvertPackageAssignment[];
+    nextCursor?: string | null;
+    hasMore: boolean;
 };
 
 export type AssignPackageRequest = {
-  packageCode: string;
-  startsAt?: string;
-  endsAt?: string | null;
-  reason?: string | null;
+    packageCode: string;
+    startsAt?: string;
+    endsAt?: string | null;
+    reason?: string | null;
 };
 
 export type AdvertUrgentActivation = {
-  id: string;
-  advertId: string;
-  packageAssignmentId: string;
-  featureCode: string;
-  status: string;
-  activatedByUserId: string;
-  activatedAt: string;
-  activationVersion: number;
-  createdAt: string;
+    id: string;
+    advertId: string;
+    packageAssignmentId: string;
+    featureCode: string;
+    status: string;
+    activatedByUserId: string;
+    activatedAt: string;
+    activationVersion: number;
+    createdAt: string;
 };
 
 const baseUrl = `${API_URL}v1/admin/adverts/moderation`;
@@ -119,19 +122,32 @@ function parseStatusFilter(filter?: string): string | undefined {
     return clause.slice('status=='.length).trim() || undefined;
 }
 
-function toModerationAdvert(item: OwnerAdvertItem): ModerationAdvertResponse {
+function toModerationAdvert(item: any): ModerationAdvertResponse {
     const mapped = withIdentifier(item);
+    const rawCreated = item.createdAt
+        || item.created_at
+        || item.properties?.createdAt
+        || item.properties?.submittedAt
+        || item.submittedAt
+        || item.updatedAt
+        || item.updated_at
+        || item.createdDate
+        || item.createDate
+        || item.publishedAt;
     return {
         ...mapped,
         identifier: mapped.id,
         title: item.title ?? undefined,
         publishedAt: item.publishedAt ?? undefined,
+        createdAt: rawCreated ?? undefined,
         deletedAt: item.deletedAt ?? undefined,
         status: item.status,
         version: item.version,
         mediaVersion: item.mediaVersion,
         categoryId: item.categoryId ?? undefined,
-        ownerUserId: item.ownerUserId ?? undefined,
+        ownerUserId: item.ownerUserId ?? item.owner_user_id ?? undefined,
+        ownerName: item.ownerName ?? item.properties?.ownerName ?? undefined,
+        properties: item.properties ?? undefined,
     };
 }
 
@@ -140,6 +156,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         id: 'adv-nalbant-001',
         title: 'denem nalbant',
         publishedAt: null,
+        createdAt: '2026-09-13T11:45:00Z',
         deletedAt: null,
         status: 'PENDING_REVIEW',
         version: 1,
@@ -151,6 +168,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         id: 'adv-abacan-002',
         title: 'ABACAN',
         publishedAt: null,
+        createdAt: '2026-09-13T10:30:00Z',
         deletedAt: null,
         status: 'PENDING_REVIEW',
         version: 1,
@@ -162,6 +180,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         id: 'adv-deneme-003',
         title: 'deneme',
         publishedAt: null,
+        createdAt: '2026-09-12T17:15:00Z',
         deletedAt: null,
         status: 'PENDING_REVIEW',
         version: 1,
@@ -173,45 +192,57 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         id: 'adv-deneme-ilan-004',
         title: 'deneme ilan',
         publishedAt: null,
+        createdAt: '2026-09-12T14:20:00Z',
         deletedAt: null,
         status: 'PENDING_REVIEW',
         version: 1,
         mediaVersion: 1,
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+        ownerName: 'Admin Kullanıcı',
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com' },
     },
     {
         id: 'adv-001',
         title: 'Satılık Arap Atı - Rüzgar',
         publishedAt: '2026-03-01T10:00:00Z',
+        createdAt: '2026-03-01T08:00:00Z',
         deletedAt: null,
         status: 'PUBLISHED',
         version: 1,
         mediaVersion: 1,
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+        ownerName: 'Admin Kullanıcı',
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com' },
     },
     {
         id: 'adv-002',
         title: 'Şampiyon İngiliz Yarış Atı',
         publishedAt: '2026-03-02T11:00:00Z',
+        createdAt: '2026-03-02T09:30:00Z',
         deletedAt: null,
         status: 'PUBLISHED',
         version: 1,
         mediaVersion: 1,
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+        ownerName: 'Admin Kullanıcı',
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com' },
     },
     {
         id: 'adv-003',
         title: 'Safkan İngiliz Tay - 2 Yaş',
         publishedAt: null,
+        createdAt: '2026-09-11T09:10:00Z',
         deletedAt: null,
         status: 'PENDING_REVIEW',
         version: 1,
         mediaVersion: 1,
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+        ownerName: 'Admin Kullanıcı',
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com' },
     },
 ];
 
@@ -229,6 +260,7 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
                                 id: item.id,
                                 title: item.title || 'İlan',
                                 publishedAt: item.publishedAt || null,
+                                createdAt: item.createdAt || item.updatedAt || item.createdDate || item.submittedAt || null,
                                 deletedAt: null,
                                 status: item.backendStatus || (item.status === 'pending' ? 'PENDING_REVIEW' : item.status === 'published' ? 'PUBLISHED' : 'PENDING_REVIEW'),
                                 version: item.version || 1,
@@ -241,7 +273,7 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
                     }
                 }
             }
-        } catch {}
+        } catch { }
     }
     return list;
 }
@@ -275,7 +307,7 @@ function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem> & { r
                     }
                 }
             }
-        } catch {}
+        } catch { }
     }
 }
 
@@ -315,7 +347,11 @@ class AdvertService {
                 console.error('Moderation API fetch error:', err);
             }
 
-            const localAdverts = getLocalMockAdverts().filter((a) => !status || a.status === status);
+            const localAdverts = getLocalMockAdverts().filter((a) => {
+                if (!status) return true;
+                if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED';
+                return a.status === status;
+            });
             for (const localAdv of localAdverts) {
                 if (!rawItems.some((r) => r.id === localAdv.id || (localAdv.title && r.title === localAdv.title))) {
                     rawItems.unshift(localAdv);
@@ -498,7 +534,26 @@ class AdvertService {
         await apiRequest('DELETE', `${publicAdvertUrl}/${advertId}/urgent`);
     }
 
-    private async fetchAll(status?: string) {
+    private async fetchAll(status?: string): Promise<ModerationAdvertResponse[]> {
+        if (status === 'UNPUBLISHED') {
+            const unpublishedStatuses = ['PENDING_REVIEW', 'REJECTED'];
+            const results = await Promise.all(
+                unpublishedStatuses.map((st) => this.fetchAll(st))
+            );
+            const seen = new Set<string>();
+            const merged: ModerationAdvertResponse[] = [];
+            for (const list of results) {
+                for (const item of list) {
+                    const id = item.identifier ?? item.id;
+                    if (id && !seen.has(id)) {
+                        seen.add(id);
+                        merged.push(item);
+                    }
+                }
+            }
+            return merged;
+        }
+
         const items: OwnerAdvertItem[] = [];
         let cursor: string | undefined;
         let hasMore = true;
@@ -517,12 +572,28 @@ class AdvertService {
             cursor = response?.nextCursor;
         }
 
+        const localAdverts = getLocalMockAdverts().filter((a) => {
+            if (!status) return true;
+            if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED';
+            return a.status === status;
+        });
+        for (const localAdv of localAdverts) {
+            if (!items.some((r) => r.id === localAdv.id || (localAdv.title && r.title === localAdv.title))) {
+                items.unshift(localAdv);
+            }
+        }
+
         return items.map(toModerationAdvert);
     }
 
     private applyFilter(items: ModerationAdvertResponse[], filter?: string) {
         if (!filter) {
             return items;
+        }
+
+        const status = parseStatusFilter(filter);
+        if (status === 'UNPUBLISHED') {
+            items = items.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'REJECTED');
         }
 
         const clauses = filter.split(';').map((clause) => clause.trim()).filter(Boolean);
@@ -542,7 +613,7 @@ class AdvertService {
     private matchesClause(item: ModerationAdvertResponse, clause: string) {
         const matchEq = clause.match(/^([a-zA-Z0-9_]+)==(.+)$/);
         const matchNeq = clause.match(/^([a-zA-Z0-9_]+)!=(.+)$/);
-        
+
         if (!matchEq && !matchNeq) {
             return true;
         }
@@ -552,7 +623,7 @@ class AdvertService {
         const field = match[1];
         let expected = match[2].trim();
         const actual = this.readField(item, field);
-        
+
         if (actual === undefined || actual === null) {
             return !isEq;
         }

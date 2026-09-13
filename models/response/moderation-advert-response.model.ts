@@ -14,11 +14,14 @@ export interface ModerationAdvertResponse extends BaseResponse {
   id?: string;
   title?: string | null;
   publishedAt?: string | null;
+  createdAt?: string | null;
   deletedAt?: string | null;
   status: ModerationAdvertStatus;
   version?: number;
   categoryId?: string | null;
   ownerUserId?: string | null;
+  ownerName?: string | null;
+  properties?: Record<string, any>;
   mediaVersion?: number;
   rejectionReason?: string | null;
 }

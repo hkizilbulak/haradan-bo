@@ -1,11 +1,11 @@
 "use client"
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Col, Container, Form, Modal, Row, Badge, Table, Alert, Tabs, Tab } from 'react-bootstrap';
+import { Button, Col, Container, Form, Modal, Row, Badge, Table, Alert, Nav, Card } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import Loading from '@/components/Loading';
 import PrepareTable from '@/components/PrepareTable';
 import StatusBadge from '@/components/StatusBadge';
-import { formatDateTimeForText } from '@/helpers/DateUtils';
+import { formatDateForText, formatDateTimeForText } from '@/helpers/DateUtils';
 import { getAdvertStatusText } from '@/helpers/EnumUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
 import { canModerationAction } from '@/helpers/moderationActions';
@@ -14,105 +14,20 @@ import { ModerationAdvertResponse } from '@/models';
 import {
   advertService,
   categoryService,
+  userService,
   ModerationReasonRequest,
 } from '@/services';
 import { PageHeading, AdvertDetailModal, PackageModal } from '@/widgets';
 import AdvertFilter from '@/widgets/advert/AdvertFilter';
 import CustomPagination from '@/components/Pagination';
 
-const headItems = [
-  'Başlık',
-  'Yayın Tarihi',
-  'Kategori',
-  'Durum',
-  ''
-];
-
-
-function ActionModal({
-  action,
-  advert,
-  onClose,
-  onSubmit,
-}: {
-  action: 'reject' | 'requestChanges' | 'suspend';
-  advert: ModerationAdvertResponse;
-  onClose: () => void;
-  onSubmit: (reason: string) => Promise<void>;
-}) {
-  const [reason, setReason] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  const title =
-    action === 'reject'
-      ? 'İlanı Reddet'
-      : action === 'requestChanges'
-        ? 'Düzeltme İste'
-        : 'İlanı Askıya Al';
-
-  const label =
-    action === 'reject'
-      ? 'Ret Sebebi'
-      : action === 'requestChanges'
-        ? 'Düzeltme Talebi Notu'
-        : 'Askıya Alma Sebebi';
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reason.trim()) {
-      toast.error('Lütfen bir açıklama girin');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await onSubmit(reason.trim());
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal show onHide={onClose} centered>
-      <Modal.Header closeButton>
-        <Modal.Title>{title}</Modal.Title>
-      </Modal.Header>
-      <Form onSubmit={handleSubmit}>
-        <Modal.Body>
-          <p className="text-muted mb-2">
-            <strong>İlan:</strong> {advert.title || advert.id}
-          </p>
-          <Form.Group>
-            <Form.Label>{label} <span className="text-danger">*</span></Form.Label>
-            <Form.Control
-              as="textarea"
-              rows={3}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Açıklama giriniz..."
-              required
-              autoFocus
-            />
-          </Form.Group>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={onClose} disabled={submitting}>
-            Vazgeç
-          </Button>
-          <Button
-            variant={action === 'reject' ? 'danger' : action === 'requestChanges' ? 'warning' : 'secondary'}
-            type="submit"
-            disabled={submitting || !reason.trim()}
-          >
-            {submitting ? 'İşleniyor...' : 'Onayla'}
-          </Button>
-        </Modal.Footer>
-      </Form>
-    </Modal>
-  );
-}
+type OwnerAccountInfo = {
+  name?: string;
+  email?: string;
+};
 
 export default function Adverts() {
-  const [tab, setTab] = useState<'published' | 'unpublished'>('published');
+  const [tab, setTab] = useState<'published' | 'unpublished'>('unpublished');
   const [pendingAction, setPendingAction] = useState<{
     advert: ModerationAdvertResponse;
     action: 'reject' | 'requestChanges' | 'suspend';
@@ -122,6 +37,40 @@ export default function Adverts() {
   const [reason, setReason] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
   const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
+  const [userMap, setUserMap] = useState<Map<string, OwnerAccountInfo>>(new Map());
+  const [advertOwnerMap, setAdvertOwnerMap] = useState<Map<string, OwnerAccountInfo>>(new Map());
+
+  useEffect(() => {
+    userService.fetchAll()
+      .then((users) => {
+        const map = new Map<string, OwnerAccountInfo>();
+        for (const u of users) {
+          const id = u.identifier ?? u.id;
+          if (id) {
+            const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+            const info: OwnerAccountInfo = {
+              name: fullName || undefined,
+              email: u.email || undefined,
+            };
+            map.set(id, info);
+            map.set(id.toLowerCase(), info);
+          }
+        }
+        const defaultAdmin: OwnerAccountInfo = {
+          name: 'Sistem Yöneticisi',
+          email: 'admin@haradan.com',
+        };
+        map.set('u1000000-0000-4000-8000-000000000001', defaultAdmin);
+        setUserMap((prev) => {
+          const next = new Map(prev);
+          map.forEach((v, k) => {
+            next.set(k, v);
+          });
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     categoryService.search({ pageRequest: { page: 0, size: 100 } })
@@ -149,10 +98,92 @@ export default function Adverts() {
   const [{ data, parameters, isLoading, isError, handleFilter, handlePageChange, setParameters, refetch }] = useApi<ModerationAdvertResponse>({
     service: advertService,
     params: {
-      filter: 'status==PUBLISHED',
+      filter: 'status==UNPUBLISHED',
       pageRequest: { page: 0, size: 10, sort: [{ direction: 'DESC', property: 'createdDate' }] },
     } as any,
   });
+
+  // Effect to resolve missing ownerUserIds and owner details for displayed adverts
+  useEffect(() => {
+    const adverts = data?.content ?? [];
+    if (adverts.length === 0) return;
+
+    let isMounted = true;
+
+    adverts.forEach(async (adv) => {
+      const advId = adv.identifier ?? adv.id;
+      if (!advId) return;
+
+      if (advertOwnerMap.has(advId)) return;
+
+      let ownerId = adv.ownerUserId;
+
+      // If ownerUserId is not present on the advert summary, fetch advert detail
+      if (!ownerId) {
+        try {
+          const detail = await advertService.getDetail(advId);
+          ownerId = detail.ownerUserId;
+        } catch {
+          // ignore
+        }
+      }
+
+      if (!isMounted) return;
+
+      if (ownerId) {
+        const found = userMap.get(ownerId) || userMap.get(ownerId.toLowerCase());
+        if (found) {
+          if (isMounted) {
+            setAdvertOwnerMap((prev) => new Map(prev).set(advId, found));
+          }
+          return;
+        }
+
+        try {
+          const u = await userService.getById(ownerId);
+          if (u && isMounted) {
+            const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+            const info: OwnerAccountInfo = {
+              name: fullName || undefined,
+              email: u.email || undefined,
+            };
+            setUserMap((prev) => {
+              const next = new Map(prev);
+              next.set(ownerId!, info);
+              const uId = u.identifier ?? u.id;
+              if (uId) next.set(uId, info);
+              return next;
+            });
+            setAdvertOwnerMap((prev) => new Map(prev).set(advId, info));
+          }
+        } catch {
+          if (isMounted) {
+            const pName = (adv as any).properties?.ownerName || (adv as any).ownerName;
+            const pEmail = (adv as any).properties?.ownerEmail || (adv as any).ownerEmail;
+            if (pName || pEmail) {
+              setAdvertOwnerMap((prev) => new Map(prev).set(advId, {
+                name: pName || undefined,
+                email: pEmail || undefined,
+              }));
+            }
+          }
+        }
+      } else {
+        const pName = (adv as any).properties?.ownerName || (adv as any).ownerName;
+        const pEmail = (adv as any).properties?.ownerEmail || (adv as any).ownerEmail;
+        if (pName || pEmail) {
+          setAdvertOwnerMap((prev) => new Map(prev).set(advId, {
+            name: pName || undefined,
+            email: pEmail || undefined,
+          }));
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [data?.content, userMap, advertOwnerMap]);
 
   const pageIndex = parameters?.pageRequest?.page ?? 0;
   const pageSize = parameters?.pageRequest?.size ?? 10;
@@ -233,19 +264,86 @@ export default function Adverts() {
     }
   };
 
-  const content = data?.content?.map((advert) => {
-    const advertId = advert.identifier ?? advert.id;
+  const headItems = tab === 'published'
+    ? [
+        'İlanı Gönderen',
+        'Gönderim Tarihi',
+        'Yayın Tarihi',
+        'Kategori',
+        'Durum',
+        '',
+      ]
+    : [
+        'İlanı Gönderen',
+        'Gönderim Tarihi',
+        'Kategori',
+        'Durum',
+        '',
+      ];
+
+  const filteredItems = (data?.content ?? []).filter((advert) => {
+    if (tab === 'unpublished') {
+      return advert.status !== 'CHANGES_REQUESTED' && advert.status !== 'SUSPENDED';
+    }
+    return true;
+  });
+
+  const content = filteredItems.map((advert) => {
+    const advertId = advert.identifier ?? advert.id ?? '';
     const canApprove = canModerationAction(advert.status, 'approve');
     const canReject = canModerationAction(advert.status, 'reject');
     const categoryName = advert.categoryId ? (categoryMap.get(advert.categoryId) || advert.categoryId) : '-';
+    
+    // İlanı Gönderen Hesap Bilgisi
+    const ownerInfo = (advertId ? advertOwnerMap.get(advertId) : undefined)
+      || (advert.ownerUserId ? (userMap.get(advert.ownerUserId) || userMap.get(advert.ownerUserId.toLowerCase())) : undefined)
+      || (advert.ownerName ? { name: advert.ownerName, email: (advert as any).properties?.ownerEmail } : undefined)
+      || ((advert as any).properties?.ownerName ? { name: (advert as any).properties.ownerName, email: (advert as any).properties?.ownerEmail } : undefined);
+
+    const primaryText = ownerInfo?.name || ownerInfo?.email;
+    const secondaryText = ownerInfo?.name && ownerInfo?.email ? ownerInfo.email : null;
+    const tooltipText = ownerInfo ? [ownerInfo.name, ownerInfo.email].filter(Boolean).join(' - ') : undefined;
+
+    // Gönderim Tarihi (createdAt) - saatsiz gösterim
+    const createdDateValue = advert.createdAt
+      || (advert as any).properties?.createdAt
+      || (advert as any).updatedAt
+      || (tab === 'unpublished' ? advert.publishedAt : undefined);
+    const createdDateText = createdDateValue ? formatDateForText(createdDateValue) : '-';
+
+    // Yayın Tarihi (publishedAt) - saatsiz gösterim
+    const publishedDateText = advert.publishedAt ? formatDateForText(advert.publishedAt) : '-';
+
     return (
       <tr key={advertId}>
-        <td>{advert.title}</td>
-        <td>{advert.publishedAt ? formatDateTimeForText(advert.publishedAt) : '-'}</td>
-        <td title={advert.categoryId || undefined}>{categoryName}</td>
-        <td><StatusBadge status={advert.status} /></td>
-        <td style={{ minWidth: '420px' }}>
-          <div className="d-flex flex-wrap gap-1 align-items-center">
+        <td style={{ maxWidth: '240px' }} title={tooltipText}>
+          {primaryText ? (
+            <div>
+              <div className="fw-semibold text-dark text-truncate">
+                {primaryText}
+              </div>
+              {secondaryText && (
+                <div className="text-muted text-truncate" style={{ fontSize: '0.78rem', lineHeight: '1.2' }}>
+                  {secondaryText}
+                </div>
+              )}
+            </div>
+          ) : (
+            <span className="text-muted fst-italic" style={{ fontSize: '0.85rem' }}>
+              Yükleniyor...
+            </span>
+          )}
+        </td>
+        <td className="text-nowrap">{createdDateText}</td>
+        {tab === 'published' && <td className="text-nowrap">{publishedDateText}</td>}
+        <td className="text-truncate" style={{ maxWidth: '160px' }} title={advert.categoryId || undefined}>
+          {categoryName}
+        </td>
+        <td className="text-nowrap">
+          <StatusBadge status={advert.status} />
+        </td>
+        <td className="text-end text-nowrap">
+          <div className="d-flex gap-1 align-items-center justify-content-end">
             <Button
               size="sm"
               variant="outline-primary"
@@ -278,27 +376,151 @@ export default function Adverts() {
         </Col>
       </Row>
 
-      <Tabs activeKey={tab} onSelect={(k) => setTab(k as any)} className="mb-3">
-        <Tab eventKey="published" title="Yayında Olan İlanlar" />
-        <Tab eventKey="unpublished" title="Yayında Olmayan İlanlar" />
-      </Tabs>
+      {/* Sekmeler */}
+      <div className="mb-3">
+        <Nav
+          variant="pills"
+          className="bg-white p-1 rounded-3 border shadow-sm w-100 w-md-auto d-flex flex-row"
+          style={{ maxWidth: '440px' }}
+        >
+          <Nav.Item className="flex-fill">
+            <Nav.Link
+              active={tab === 'unpublished'}
+              onClick={() => setTab('unpublished')}
+              className={`px-2 px-sm-3 py-2 fw-semibold d-flex align-items-center justify-content-center gap-1 gap-sm-2 rounded-2 text-center text-nowrap ${
+                tab === 'unpublished' ? 'active shadow-sm text-white' : 'text-muted'
+              }`}
+              style={{ cursor: 'pointer', fontSize: '13px' }}
+            >
+              <i className="fe fe-inbox" />
+              <span>
+                <span className="d-inline d-sm-none">Yayında Olmayan</span>
+                <span className="d-none d-sm-inline">Yayında Olmayan İlanlar</span>
+              </span>
+            </Nav.Link>
+          </Nav.Item>
+          <Nav.Item className="flex-fill">
+            <Nav.Link
+              active={tab === 'published'}
+              onClick={() => setTab('published')}
+              className={`px-2 px-sm-3 py-2 fw-semibold d-flex align-items-center justify-content-center gap-1 gap-sm-2 rounded-2 text-center text-nowrap ${
+                tab === 'published' ? 'active shadow-sm text-white' : 'text-muted'
+              }`}
+              style={{ cursor: 'pointer', fontSize: '13px' }}
+            >
+              <i className="fe fe-check-circle" />
+              <span>
+                <span className="d-inline d-sm-none">Yayında Olan</span>
+                <span className="d-none d-sm-inline">Yayında Olan İlanlar</span>
+              </span>
+            </Nav.Link>
+          </Nav.Item>
+        </Nav>
+      </div>
 
-      <AdvertFilter onFilter={(values: string) => handleFilter(values)} tab={tab} />
+      {/* Filtre */}
+      <div className="mb-3">
+        <AdvertFilter onFilter={(values: string) => handleFilter(values)} tab={tab} />
+      </div>
 
-      <Modal show={pendingAction !== null} onHide={closeActionModal}>
-        <Modal.Header closeButton>
-          <Modal.Title>Moderasyon İşlemi</Modal.Title>
+      {/* Moderasyon İşlemi Açılan Penceresi (Modal) */}
+      <Modal show={pendingAction !== null} onHide={closeActionModal} centered backdrop="static">
+        <Modal.Header closeButton className="border-bottom-0 pb-1">
+          <div className="d-flex align-items-center gap-3">
+            <div
+              className={`rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${
+                pendingAction?.action === 'reject'
+                  ? 'bg-danger-subtle text-danger'
+                  : pendingAction?.action === 'suspend'
+                  ? 'bg-warning-subtle text-warning'
+                  : 'bg-primary-subtle text-primary'
+              }`}
+              style={{ width: '44px', height: '44px' }}
+            >
+              <i
+                className={`fs-4 ${
+                  pendingAction?.action === 'reject'
+                    ? 'fe fe-x-circle'
+                    : pendingAction?.action === 'suspend'
+                    ? 'fe fe-pause-circle'
+                    : 'fe fe-edit-3'
+                }`}
+              />
+            </div>
+            <div>
+              <Modal.Title className="h5 mb-0 fw-bold">
+                {pendingAction?.action === 'reject'
+                  ? 'İlanı Reddet'
+                  : pendingAction?.action === 'suspend'
+                  ? 'İlanı Askıya Al'
+                  : 'Düzeltme Talebi'}
+              </Modal.Title>
+              <small className="text-muted">
+                {pendingAction?.action === 'reject'
+                  ? 'İlanın reddedilme gerekçesini belirtiniz.'
+                  : pendingAction?.action === 'suspend'
+                  ? 'İlanın askıya alınma gerekçesini belirtiniz.'
+                  : 'Kullanıcıya iletilecek notu belirtiniz.'}
+              </small>
+            </div>
+          </div>
         </Modal.Header>
-        <Modal.Body>
+        <Modal.Body className="pt-3">
+          {pendingAction?.advert && (
+            <div className="p-3 bg-light rounded-3 mb-3 border">
+              <div className="text-muted small mb-1">İşlem Yapılan İlan:</div>
+              <div className="fw-semibold text-dark text-truncate">
+                {pendingAction.advert.title || 'Başlıksız İlan'}
+              </div>
+            </div>
+          )}
           <Form.Group>
-            <Form.Label>Gerekçe</Form.Label>
-            <Form.Control as="textarea" rows={4} value={reason} onChange={(event) => setReason(event.target.value)} />
+            <Form.Label className="small fw-semibold text-secondary">
+              Gerekçe <span className="text-danger">*</span>
+            </Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={4}
+              value={reason}
+              placeholder={
+                pendingAction?.action === 'reject'
+                  ? 'İlanın neden reddedildiğini detaylıca açıklayınız (kullanıcıya gösterilecektir)...'
+                  : 'Gerekçe açıklamasını giriniz...'
+              }
+              className="rounded-3 shadow-none"
+              onChange={(event) => setReason(event.target.value)}
+              autoFocus
+            />
           </Form.Group>
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={closeActionModal}>Vazgeç</Button>
-          <Button variant="primary" disabled={reason.trim().length === 0 || actionBusy} onClick={() => void handleReasonedAction()}>
-            Kaydet
+        <Modal.Footer className="border-top-0 pt-1">
+          <Button variant="outline-secondary" className="rounded-3 px-3" onClick={closeActionModal} disabled={actionBusy}>
+            Vazgeç
+          </Button>
+          <Button
+            variant={
+              pendingAction?.action === 'reject'
+                ? 'danger'
+                : pendingAction?.action === 'suspend'
+                ? 'warning'
+                : 'primary'
+            }
+            className="rounded-3 px-4 fw-semibold"
+            disabled={reason.trim().length === 0 || actionBusy}
+            onClick={() => void handleReasonedAction()}
+          >
+            {actionBusy ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
+                İşleniyor...
+              </>
+            ) : pendingAction?.action === 'reject' ? (
+              'İlanı Reddet'
+            ) : pendingAction?.action === 'suspend' ? (
+              'Askıya Al'
+            ) : (
+              'Kaydet'
+            )}
           </Button>
         </Modal.Footer>
       </Modal>
@@ -328,21 +550,23 @@ export default function Adverts() {
         </Alert>
       )}
 
-      {!isLoading && !isError && (data?.content?.length ?? 0) === 0 && (
+      {!isLoading && !isError && filteredItems.length === 0 && (
         <Alert variant="light" className="border text-muted">Moderasyon kuyruğunda ilan bulunmuyor.</Alert>
       )}
 
-      {!isLoading && !isError && (data?.content?.length ?? 0) > 0 && (
+      {!isLoading && !isError && filteredItems.length > 0 && (
         <>
-          <PrepareTable headItems={headItems} content={content} page={undefined} onHandlePageChange={() => undefined} />
+          <Card className="border-0 shadow-sm rounded-3 overflow-hidden mb-3">
+            <PrepareTable headItems={headItems} content={content} page={undefined} onHandlePageChange={() => undefined} />
+          </Card>
           
-          <div className="d-flex justify-content-between align-items-center mt-3">
-            <div className="d-flex align-items-center text-muted small">
-              <span className="me-2">Sayfa başına:</span>
+          <div className="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mt-3 pt-3 border-top">
+            <div className="d-flex flex-wrap align-items-center justify-content-center justify-content-md-start gap-2 text-muted small w-100 w-md-auto">
+              <span className="text-nowrap fw-medium">Sayfa başına:</span>
               <Form.Select 
                 size="sm" 
-                className="me-3" 
-                style={{ width: '70px', display: 'inline-block' }} 
+                className="rounded-2 shadow-none border text-center fw-medium" 
+                style={{ width: '85px', minWidth: '85px', display: 'inline-block', cursor: 'pointer' }} 
                 value={pageSize} 
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
               >
@@ -351,10 +575,12 @@ export default function Adverts() {
                 <option value={50}>50</option>
                 <option value={100}>100</option>
               </Form.Select>
-              <span>Toplam {data?.page?.totalElements ?? 0} kayıt, sayfa {pageIndex + 1} / {data?.page?.totalPages ?? 1}</span>
+              <span className="text-nowrap ms-md-2">
+                Toplam <strong>{data?.page?.totalElements ?? 0}</strong> kayıt (Sayfa {pageIndex + 1} / {data?.page?.totalPages ?? 1})
+              </span>
             </div>
             
-            <div className="me-4">
+            <div className="d-flex justify-content-center align-items-center w-100 w-md-auto overflow-auto">
               <CustomPagination page={data?.page} onPageChange={handlePageChange} />
             </div>
           </div>
