@@ -346,30 +346,117 @@ export const EXCLUDED_PROP_KEYS = new Set([
   'id', 'identifier', 'title', 'baslik', 'status', 'version', 'mediaversion',
   'categoryid', 'horseid', 'createdat', 'publishedat', 'updatedat', 'deletedat',
   'rejectionreason', 'suspensionreason', 'categoryclearedwarning',
-]);
+  // Horse / Stud identity & technical fields
+  'birthdate', 'birth_date', 'tjknumber', 'tjk_number', 'tjkno', 'tjk_no', 'microchip', 'microchipnumber', 'microchip_number',
+  'horsegender', 'horse_gender', 'gender', 'cinsiyet',
+  'registeredname', 'registered_name', 'horsename', 'horse_name', 'atadi', 'at_adi', 'aygiradi', 'aygir_adi',
+  'studhorse', 'stud_horse', 'studhorsename', 'stud_horse_name', 'isim',
+  'horseage', 'horse_age', 'stallionage', 'stallion_age', 'studage', 'stud_age', 'age', 'yas', 'yaş',
+  'horsebreed', 'horse_breed', 'stallionbreed', 'stallion_breed', 'studbreed', 'stud_breed', 'breed', 'irk', 'ırk', 'atirki', 'at_irki',
+  'coatcolor', 'coat_color', 'studcoatcolor', 'stud_coat_color', 'donu', 'don', 'renk',
+  'sire', 'studsire', 'stud_sire', 'baba', 'babaadi', 'baba_adi', 'babasire', 'baba_sire',
+  'dam', 'studdam', 'stud_dam', 'anne', 'anneadi', 'anne_adi', 'annedam', 'anne_dam',
+  'damsire', 'studdamsire', 'stud_damsire', 'annebabasi', 'anne_babasi', 'kisrakbabasi', 'kisrak_babasi', 'annesininbabasi', 'annesinin_babasi', 'anneninbabasi',
+  'heightcm', 'height_cm', 'breeder', 'trainer',
+  // Race horse flags
+  'intraining', 'in_training', 'idmanda',
+  'israceready', 'is_race_ready', 'kosar', 'koşar',
+  'isforrent', 'is_for_rent', 'kiralik', 'kiralık',
+  // Mare pregnancy
+  'ispregnant', 'is_pregnant', 'gebe', 'gebemi', 'gebe_mi',
+  'coveringstallion', 'covering_stallion', 'gebeolduguaygir', 'gebe_oldugu_aygir', 'aygir', 'aygır',
+  'pregnancystage', 'pregnancy_stage', 'gebelikdurumu', 'gebelik_durumu', 'gebelik', 'evre',
+  'lastcoveringdate', 'last_covering_date', 'sonasimtarihi', 'son_asim_tarihi', 'son aşım tarihi', 'coveringdate', 'covering_date',
+  // Facility / Paddock
+  'grasspaddock', 'facilitygrasspaddock', 'cimpadok', 'çim padok',
+  'sandpaddock', 'facilitysandpaddock', 'kumpadok', 'kum padok',
+  'stallionpaddock', 'facilitystallionpaddock', 'aygirpadogu', 'aygır padoğu',
+  'foalingbarn', 'facilityfoalingbarn', 'dogumhane', 'doğumhane', 'maternity',
+  'farrier', 'facilityfarrier', 'nalbant',
+  'vet', 'facilityveterinarian', 'veterinarian', 'veteriner', 'veterinerhekim',
+  'trainingtrack', 'facilitytrainingtrack', 'idmanpisti', 'idman pisti',
+  // Transport
+  'companyname', 'firmaadi', 'sirket', 'company',
+  'websiteurl', 'website', 'websitesi', 'servicetype', 'service_type',
+  // Equipment
+  'equipmenttype', 'malzemeturu', 'tur',
+  'condition', 'durum', 'kullanimdurumu',
+  'brandname', 'brand', 'marka', 'uretici',
+  // Facility
+  'facilitytype', 'tesisturu',
+  'boxcount', 'bokskapasitesi', 'kapasite',
+  'totalaream2', 'toplamalan', 'alan',
+  'waterelectricity', 'elektriksu', 'altyapi',
+].map(normText));
+
+export function resolveDisplayAdvertNo(rawId?: string | number | null, props?: Record<string, any>): string {
+  if (props?.advertNo) return String(props.advertNo).trim();
+  if (props?.ilanNo) return String(props.ilanNo).trim();
+  if (props?.advertNumber) return String(props.advertNumber).trim();
+  if (props?.advertId) return String(props.advertId).trim();
+
+  const str = String(rawId || '').trim();
+  if (!str) return '-';
+
+  const mockIdMap: Record<string, string> = {
+    'adv-001': '1001',
+    'adv-002': '1002',
+    'adv-003': '1003',
+    'adv-suspend-001': '1004',
+    'adv-nalbant-001': '1005',
+    'adv-abacan-002': '1006',
+    'adv-deneme-003': '1007',
+    'adv-deneme-ilan-004': '1008',
+  };
+  if (mockIdMap[str]) {
+    return mockIdMap[str];
+  }
+
+  const match = str.match(/^adv-(\d+)$/i);
+  if (match) {
+    const num = parseInt(match[1], 10);
+    return String(1000 + num);
+  }
+
+  return str;
+}
 
 export function buildModerationAdvertSpecRows(
   detail: ModerationAdvertDetail | null,
   advert: ModerationAdvertResponse | null,
   categoryName?: string
 ): SpecRow[] {
-  const advertId = advert?.identifier ?? advert?.id ?? detail?.id;
+  const rawAdvertId = advert?.identifier ?? advert?.id ?? detail?.id;
+  const properties = (detail?.properties || advert?.properties || {}) as Record<string, any>;
+  const displayAdvertNo = resolveDisplayAdvertNo(rawAdvertId, properties);
   const currentStatus = detail?.status ?? advert?.status ?? 'PENDING_REVIEW';
   const isPublished = currentStatus === 'PUBLISHED' || advert?.status === 'PUBLISHED';
 
-  const properties = (detail?.properties || {}) as Record<string, any>;
   const resolvedCategory =
     categoryName || detail?.categoryId || advert?.categoryId || 'Kategori Belirtilmemiş';
 
   const usedKeys = new Set<string>();
 
+  const markUsedKeys = (keys: string[]) => {
+    const normKeys = keys.map(normText);
+    for (const nk of normKeys) {
+      usedKeys.add(nk);
+    }
+    for (const pk of Object.keys(properties)) {
+      const pkNorm = normText(pk);
+      if (normKeys.some((k) => k === pkNorm || pkNorm.includes(k) || k.includes(pkNorm))) {
+        usedKeys.add(pkNorm);
+      }
+    }
+  };
+
   const getProp = (keys: string[], defaultVal?: string): string => {
+    markUsedKeys(keys);
     const normKeys = keys.map(normText);
     for (const [pk, pv] of Object.entries(properties)) {
       if (pv == null || pv === '') continue;
       const pkNorm = normText(pk);
       if (normKeys.some((k) => k === pkNorm)) {
-        usedKeys.add(pkNorm);
         return String(pv).trim();
       }
     }
@@ -377,7 +464,6 @@ export function buildModerationAdvertSpecRows(
       if (pv == null || pv === '') continue;
       const pkNorm = normText(pk);
       if (normKeys.some((k) => pkNorm.includes(k) || k.includes(pkNorm))) {
-        usedKeys.add(pkNorm);
         return String(pv).trim();
       }
     }
@@ -385,6 +471,7 @@ export function buildModerationAdvertSpecRows(
   };
 
   const getBoolProp = (keys: string[], defaultVal: boolean | string | null = null): string | null => {
+    markUsedKeys(keys);
     const raw = getProp(keys);
     if (raw) {
       const lower = raw.toLowerCase();
@@ -404,9 +491,9 @@ export function buildModerationAdvertSpecRows(
   // 1. İlan No
   list.push({
     label: 'İlan No',
-    value: String(advertId || '-'),
-    isClickable: isPublished && Boolean(advertId),
-    href: isPublished && advertId ? buildAdvertDetailUrl(advertId) : undefined,
+    value: displayAdvertNo,
+    isClickable: isPublished && Boolean(displayAdvertNo) && displayAdvertNo !== '-',
+    href: isPublished && displayAdvertNo && displayAdvertNo !== '-' ? buildAdvertDetailUrl(displayAdvertNo) : undefined,
   });
 
   // 2. İlan Gönderim Tarihi (Varsa)
@@ -472,10 +559,10 @@ export function buildModerationAdvertSpecRows(
 
     list.push({ label: 'Hizmet', value: 'At Nakliyesi & Taşımacılık' });
   } else if (categoryKind === 'stud') {
-    const studName = getProp(['registeredName', 'atAdi', 'aygirAdi', 'isim', 'horseName', 'studHorseName']) || detail?.title || advert?.title || '-';
+    const studName = getProp(['registeredName', 'atAdi', 'aygirAdi', 'isim', 'horseName', 'studHorseName', 'studHorse']) || detail?.title || advert?.title || '-';
     if (studName && studName !== '-') list.push({ label: 'Aygır Adı', value: studName });
 
-    const sire = getProp(['baba', 'sire', 'babaAdi', 'studSire']);
+    const sire = getProp(['baba', 'sire', 'babaAdi', 'studSire', 'babaSire']);
     if (sire && sire !== '-') {
       list.push({
         label: 'Baba (Sire)',
@@ -485,7 +572,7 @@ export function buildModerationAdvertSpecRows(
       });
     }
 
-    const dam = getProp(['anne', 'dam', 'anneAdi', 'studDam']);
+    const dam = getProp(['anne', 'dam', 'anneAdi', 'studDam', 'anneDam']);
     if (dam && dam !== '-') {
       list.push({
         label: 'Anne (Dam)',
@@ -495,7 +582,7 @@ export function buildModerationAdvertSpecRows(
       });
     }
 
-    const damsire = getProp(['damsire', 'anneBabasi', 'kisrakBabasi', 'annesininBabasi', 'studDamSire']);
+    const damsire = getProp(['damsire', 'anneBabasi', 'kisrakBabasi', 'annesininBabasi', 'studDamSire', 'studDamsire']);
     if (damsire && damsire !== '-') {
       list.push({
         label: 'Anne Babası (Damsire)',
@@ -505,16 +592,16 @@ export function buildModerationAdvertSpecRows(
       });
     }
 
-    const breed = getProp(['stallionBreed', 'horseBreed', 'irk', 'ırk', 'breed', 'atIrki']) || 'İngiliz';
+    const breed = getProp(['stallionBreed', 'studBreed', 'horseBreed', 'irk', 'ırk', 'breed', 'atIrki']) || 'İngiliz';
     list.push({ label: 'At Irkı', value: breed });
 
-    const ageRaw = getProp(['stallionAge', 'horseAge', 'yas', 'yaş', 'age']);
+    const ageRaw = getProp(['stallionAge', 'studAge', 'horseAge', 'yas', 'yaş', 'age']);
     const age = formatHorseAge(ageRaw);
     if (age) list.push({ label: 'Yaş', value: age });
 
     list.push({ label: 'Cinsiyet', value: 'Erkek' });
 
-    const coat = getProp(['coatColor', 'donu', 'don', 'renk']);
+    const coat = getProp(['coatColor', 'studCoatColor', 'donu', 'don', 'renk']);
     if (coat && coat !== '-') list.push({ label: 'Donu', value: coat });
   } else if (categoryKind === 'equipment') {
     const eqType = getProp(['equipmentType', 'malzemeTuru', 'tur']);
@@ -541,10 +628,10 @@ export function buildModerationAdvertSpecRows(
     list.push({ label: 'Hizmet Türü', value: resolvedCategory });
   } else {
     // Horse adverts (Satılık Yarış Atı, Satılık Kısrak, Satılık Aygır, Satılık Binek Atı, Satılık Pony)
-    const horseName = getProp(['registeredName', 'atAdi', 'isim', 'horseName']) || detail?.title || advert?.title || '-';
+    const horseName = getProp(['registeredName', 'atAdi', 'isim', 'horseName', 'studHorse', 'studHorseName']) || detail?.title || advert?.title || '-';
     if (horseName && horseName !== '-') list.push({ label: 'At Adı', value: horseName });
 
-    const sire = getProp(['baba', 'sire', 'babaAdi', 'babaSire']);
+    const sire = getProp(['baba', 'sire', 'babaAdi', 'babaSire', 'studSire']);
     if (sire && sire !== '-') {
       list.push({
         label: 'Baba (Sire)',
@@ -554,7 +641,7 @@ export function buildModerationAdvertSpecRows(
       });
     }
 
-    const dam = getProp(['anne', 'dam', 'anneAdi', 'anneDam']);
+    const dam = getProp(['anne', 'dam', 'anneAdi', 'anneDam', 'studDam']);
     if (dam && dam !== '-') {
       list.push({
         label: 'Anne (Dam)',
@@ -564,7 +651,7 @@ export function buildModerationAdvertSpecRows(
       });
     }
 
-    const damsire = getProp(['damsire', 'anneBabasi', 'kisrakBabasi', 'annesininBabasi']);
+    const damsire = getProp(['damsire', 'anneBabasi', 'kisrakBabasi', 'annesininBabasi', 'studDamSire', 'studDamsire']);
     if (damsire && damsire !== '-') {
       list.push({
         label: 'Anne Babası (Damsire)',
@@ -574,10 +661,10 @@ export function buildModerationAdvertSpecRows(
       });
     }
 
-    const breed = getProp(['horseBreed', 'irk', 'ırk', 'breed', 'atIrki']) || 'İngiliz';
+    const breed = getProp(['horseBreed', 'stallionBreed', 'studBreed', 'irk', 'ırk', 'breed', 'atIrki']) || 'İngiliz';
     list.push({ label: 'At Irkı', value: breed });
 
-    const ageRaw = getProp(['horseAge', 'yas', 'yaş', 'age']);
+    const ageRaw = getProp(['horseAge', 'stallionAge', 'studAge', 'yas', 'yaş', 'age']);
     const age = formatHorseAge(ageRaw);
     if (age) list.push({ label: 'Yaş', value: age });
 
@@ -586,7 +673,7 @@ export function buildModerationAdvertSpecRows(
     const gender = isMare ? 'Dişi' : isStallion ? 'Erkek' : getProp(['horseGender', 'cinsiyet', 'gender']) || '-';
     if (gender && gender !== '-') list.push({ label: 'Cinsiyet', value: gender });
 
-    const coat = getProp(['coatColor', 'donu', 'don', 'renk']);
+    const coat = getProp(['coatColor', 'studCoatColor', 'donu', 'don', 'renk']);
     if (coat && coat !== '-') list.push({ label: 'Donu', value: coat });
 
     // Race Horse specific properties
@@ -642,6 +729,13 @@ export function buildModerationAdvertSpecRows(
         }
       }
     }
+  }
+
+  // For horse and stud categories, only the official horse/stud specifications
+  // displayed on the live advert (haradan-fe) should be shown, avoiding any duplicate
+  // raw property dumps (e.g. birthDate, studHorse, stallionAge, etc.)
+  if (categoryKind === 'horse' || categoryKind === 'stud') {
+    return list;
   }
 
   // Add remaining dynamic properties not already used and not in EXCLUDED_PROP_KEYS

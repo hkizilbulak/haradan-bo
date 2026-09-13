@@ -219,6 +219,68 @@ function assert(cond: unknown, msg: string): asserts cond {
   console.log('✓ Stud category test passed');
 }
 
+// 5b. Stud Category Real-World Multi-Alias Test (ABAKÜS example - no duplicate properties)
+{
+  const mockDetail = {
+    id: '75',
+    title: 'ABAKÜS',
+    status: 'PUBLISHED' as const,
+    version: 1,
+    ownerUserId: 'u-75',
+    createdAt: '2026-09-05T10:00:00Z',
+    publishedAt: '2026-09-05T10:00:00Z',
+    categoryId: 'c1000000-0000-4000-8000-000000000031',
+    properties: {
+      birthDate: '6.05.2012',
+      horseGender: 'Dişi',
+      registeredName: 'ABAKÜS',
+      stallionAge: '10-15 arası',
+      stallionBreed: 'Arap',
+      tjkNumber: '55824',
+      studAge: '10-15 arası',
+      studBreed: 'Arap',
+      studCoatColor: 'Al',
+      studDam: 'AYŞE.18',
+      studDamSire: 'HİLALÜZZAMAN.25',
+      studDamsire: 'HİLALÜZZAMAN.25',
+      studHorse: 'ABAKÜS',
+      studHorseName: 'ABAKÜS',
+      studSire: 'PİKEHAN',
+    },
+  };
+
+  const rows = buildModerationAdvertSpecRows(mockDetail as any, null, 'Arap Aygır');
+  const labels = rows.map((r) => r.label);
+
+  assert(labels.includes('Aygır Adı'), 'has Aygır Adı');
+  assert(labels.includes('Baba (Sire)'), 'has Baba (Sire)');
+  assert(labels.includes('Anne (Dam)'), 'has Anne (Dam)');
+  assert(labels.includes('Anne Babası (Damsire)'), 'has Anne Babası (Damsire)');
+  assert(labels.includes('At Irkı'), 'has At Irkı');
+  assert(labels.includes('Yaş'), 'has Yaş');
+  assert(labels.includes('Cinsiyet'), 'has Cinsiyet');
+  assert(labels.includes('Donu'), 'has Donu');
+
+  // Verify that NO duplicated/raw English property rows appear
+  assert(!labels.includes('Birth Date'), 'must NOT include duplicate Birth Date');
+  assert(!labels.includes('Horse Gender'), 'must NOT include duplicate Horse Gender');
+  assert(!labels.includes('Registered Name'), 'must NOT include duplicate Registered Name');
+  assert(!labels.includes('Stallion Age'), 'must NOT include duplicate Stallion Age');
+  assert(!labels.includes('Stallion Breed'), 'must NOT include duplicate Stallion Breed');
+  assert(!labels.includes('Tjk Number'), 'must NOT include duplicate Tjk Number');
+  assert(!labels.includes('Stud Age'), 'must NOT include duplicate Stud Age');
+  assert(!labels.includes('Stud Breed'), 'must NOT include duplicate Stud Breed');
+  assert(!labels.includes('Stud Coat Color'), 'must NOT include duplicate Stud Coat Color');
+  assert(!labels.includes('Stud Dam'), 'must NOT include duplicate Stud Dam');
+  assert(!labels.includes('Stud Dam Sire'), 'must NOT include duplicate Stud Dam Sire');
+  assert(!labels.includes('Stud Damsire'), 'must NOT include duplicate Stud Damsire');
+  assert(!labels.includes('Stud Horse'), 'must NOT include duplicate Stud Horse');
+  assert(!labels.includes('Stud Horse Name'), 'must NOT include duplicate Stud Horse Name');
+  assert(!labels.includes('Stud Sire'), 'must NOT include duplicate Stud Sire');
+
+  console.log('✓ Stud category no-duplicates real-world test passed');
+}
+
 // 6. Equipment Test (Ekipman & Malzemeler)
 {
   const mockDetail = {

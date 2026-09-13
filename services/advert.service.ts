@@ -19,6 +19,18 @@ type OwnerAdvertItem = {
     ownerName?: string | null;
     properties?: Record<string, any>;
     rejectionReason?: string | null;
+    media?: Array<{
+        assetId: string;
+        displayOrder: number;
+        isCover: boolean;
+        lifecycleStatus?: string;
+        publicUrl?: string;
+    }>;
+    cover?: {
+        assetId?: string;
+        publicUrl?: string;
+        url?: string;
+    } | null;
 };
 
 type ModerationQueueResponse = {
@@ -153,6 +165,65 @@ function toModerationAdvert(item: any): ModerationAdvertResponse {
     };
 }
 
+export const DEFAULT_MOCK_MEDIA: Record<string, Array<{ assetId: string; displayOrder: number; isCover: boolean }>> = {
+    'adv-001': [
+        { assetId: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+        { assetId: 'https://images.unsplash.com/photo-1598974357801-cbca100e65d3?auto=format&fit=crop&w=1200&q=80', displayOrder: 1, isCover: false },
+    ],
+    'adv-002': [
+        { assetId: 'https://images.unsplash.com/photo-1544967082-d9d25d867d66?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+        { assetId: 'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=1200&q=80', displayOrder: 1, isCover: false },
+        { assetId: 'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1200&q=80', displayOrder: 2, isCover: false },
+    ],
+    'adv-003': [
+        { assetId: 'https://images.unsplash.com/photo-1731838618093-7ed3508d2fcd?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+        { assetId: 'https://images.unsplash.com/photo-1500485035595-cbe6f645feb1?auto=format&fit=crop&w=1200&q=80', displayOrder: 1, isCover: false },
+    ],
+    'adv-suspend-001': [
+        { assetId: 'https://images.unsplash.com/photo-1493962853295-0fd70327578a?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+    ],
+    'adv-nalbant-001': [
+        { assetId: 'https://images.unsplash.com/photo-1766524872796-ff2a543004bb?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+    ],
+    'adv-abacan-002': [
+        { assetId: 'https://images.unsplash.com/photo-1625047509168-a7026f36de04?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+    ],
+    'adv-deneme-003': [
+        { assetId: 'https://images.unsplash.com/photo-1615811361523-6bd03d7748e7?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+    ],
+    'adv-deneme-ilan-004': [
+        { assetId: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+    ],
+    '1001': [
+        { assetId: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+        { assetId: 'https://images.unsplash.com/photo-1598974357801-cbca100e65d3?auto=format&fit=crop&w=1200&q=80', displayOrder: 1, isCover: false },
+    ],
+    '1002': [
+        { assetId: 'https://images.unsplash.com/photo-1544967082-d9d25d867d66?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+        { assetId: 'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=1200&q=80', displayOrder: 1, isCover: false },
+        { assetId: 'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1200&q=80', displayOrder: 2, isCover: false },
+    ],
+    '1003': [
+        { assetId: 'https://images.unsplash.com/photo-1731838618093-7ed3508d2fcd?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+        { assetId: 'https://images.unsplash.com/photo-1500485035595-cbe6f645feb1?auto=format&fit=crop&w=1200&q=80', displayOrder: 1, isCover: false },
+    ],
+    '1004': [
+        { assetId: 'https://images.unsplash.com/photo-1493962853295-0fd70327578a?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+    ],
+    '1005': [
+        { assetId: 'https://images.unsplash.com/photo-1766524872796-ff2a543004bb?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+    ],
+    '1006': [
+        { assetId: 'https://images.unsplash.com/photo-1625047509168-a7026f36de04?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+    ],
+    '1007': [
+        { assetId: 'https://images.unsplash.com/photo-1615811361523-6bd03d7748e7?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+    ],
+    '1008': [
+        { assetId: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+    ],
+};
+
 const fallbackMockAdverts: OwnerAdvertItem[] = [
     {
         id: 'adv-nalbant-001',
@@ -165,6 +236,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         mediaVersion: 1,
         categoryId: 'c1000000-0000-4000-8000-000000000023',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+        media: DEFAULT_MOCK_MEDIA['adv-nalbant-001'],
     },
     {
         id: 'adv-abacan-002',
@@ -177,6 +249,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         mediaVersion: 1,
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+        media: DEFAULT_MOCK_MEDIA['adv-abacan-002'],
     },
     {
         id: 'adv-deneme-003',
@@ -189,6 +262,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         mediaVersion: 1,
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+        media: DEFAULT_MOCK_MEDIA['adv-deneme-003'],
     },
     {
         id: 'adv-deneme-ilan-004',
@@ -203,6 +277,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
         properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com' },
+        media: DEFAULT_MOCK_MEDIA['adv-deneme-ilan-004'],
     },
     {
         id: 'adv-001',
@@ -217,6 +292,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
         properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sellerPhone: '0532 111 22 33', phone: '0532 111 22 33' },
+        media: DEFAULT_MOCK_MEDIA['adv-001'],
     },
     {
         id: 'adv-002',
@@ -231,6 +307,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
         properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sellerPhone: '0533 222 33 44', phone: '0533 222 33 44' },
+        media: DEFAULT_MOCK_MEDIA['adv-002'],
     },
     {
         id: 'adv-003',
@@ -245,6 +322,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
         properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sellerPhone: '0532 123 45 67', phone: '0532 123 45 67' },
+        media: DEFAULT_MOCK_MEDIA['adv-003'],
     },
     {
         id: 'adv-suspend-001',
@@ -259,6 +337,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
         properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sellerPhone: '0535 333 44 55', phone: '0535 333 44 55' },
+        media: DEFAULT_MOCK_MEDIA['adv-suspend-001'],
     },
 ];
 
@@ -272,6 +351,24 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
                 if (Array.isArray(parsed)) {
                     for (const item of parsed) {
                         if (item && item.id && !list.some((x) => x.id === item.id || (item.title && x.title === item.title))) {
+                            const itemMedia = Array.isArray(item.media) && item.media.length > 0
+                                ? item.media
+                                : Array.isArray(item.gallery) && item.gallery.length > 0
+                                ? item.gallery.map((g: any, i: number) => ({
+                                    assetId: g.publicUrl || g.assetId || g.url || g.uri,
+                                    displayOrder: i,
+                                    isCover: Boolean(g.isCover ?? (i === 0)),
+                                }))
+                                : item.cover?.publicUrl || item.cover?.assetId || item.imageUrl
+                                ? [{
+                                    assetId: item.cover?.publicUrl || item.cover?.assetId || item.imageUrl,
+                                    displayOrder: 0,
+                                    isCover: true,
+                                }]
+                                : DEFAULT_MOCK_MEDIA[item.id] || [
+                                    { assetId: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+                                ];
+
                             list.unshift({
                                 id: item.id,
                                 title: item.title || 'İlan',
@@ -284,6 +381,12 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
                                 categoryId: item.categoryId || 'c1000000-0000-4000-8000-000000000011',
                                 ownerUserId: item.sellerId || 'u1000000-0000-4000-8000-000000000001',
                                 rejectionReason: item.rejectionReason || null,
+                                media: itemMedia,
+                                cover: item.cover || null,
+                                properties: {
+                                    ...(item.properties || {}),
+                                    imageUrl: item.imageUrl || item.cover?.publicUrl,
+                                },
                             });
                         }
                     }
@@ -411,16 +514,33 @@ class AdvertService {
         try {
             return await apiRequest<ModerationAdvertDetail>('GET', `${moderationRootUrl}/${advertId}`);
         } catch (err) {
-            const mock = getLocalMockAdverts().find((m) => m.id === advertId);
+            const targetId = advertId?.trim();
+            const mock = getLocalMockAdverts().find((m) => {
+                if (m.id === targetId || (m as any).identifier === targetId) return true;
+                if (targetId === '1001' && m.id === 'adv-001') return true;
+                if (targetId === '1002' && m.id === 'adv-002') return true;
+                if (targetId === '1003' && m.id === 'adv-003') return true;
+                if (targetId === '1004' && m.id === 'adv-suspend-001') return true;
+                if (targetId === '1005' && m.id === 'adv-nalbant-001') return true;
+                if (targetId === '1006' && m.id === 'adv-abacan-002') return true;
+                if (targetId === '1007' && m.id === 'adv-deneme-003') return true;
+                if (targetId === '1008' && m.id === 'adv-deneme-ilan-004') return true;
+                return false;
+            });
             if (mock) {
                 const mockReason = (mock as any).rejectionReason || (mock.status === 'REJECTED' ? 'İlan kriterlere uygun bulunmadı.' : undefined);
                 const mockPhone = (mock as any).sellerPhone || (mock as any).properties?.sellerPhone || (mock as any).properties?.phone || '0532 123 45 67';
+                const mockMedia = (mock.media && mock.media.length > 0)
+                    ? mock.media
+                    : DEFAULT_MOCK_MEDIA[advertId]
+                    || ((mock as any).cover?.publicUrl ? [{ assetId: (mock as any).cover.publicUrl, displayOrder: 0, isCover: true }] : [])
+                    || [{ assetId: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true }];
                 return {
                     ...mock,
                     sellerPhone: mockPhone,
                     ownerUserId: mock.ownerUserId || 'u1000000-0000-4000-8000-000000000001',
                     description: `${mock.title} - Detay açıklaması`,
-                    media: [],
+                    media: mockMedia,
                     rejectionReason: mockReason,
                     properties: {
                         ...(mock.properties || {}),

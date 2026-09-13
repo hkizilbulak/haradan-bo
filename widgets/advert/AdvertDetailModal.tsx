@@ -9,8 +9,8 @@ import { looksLikeHtml, sanitizeRichHtml } from '@/helpers/sanitizeHtml';
 import { canModerationAction } from '@/helpers/moderationActions';
 import { useResolvedLocation } from '@/helpers/location';
 import { ModerationAdvertResponse } from '@/models';
-import { advertService, ModerationAdvertDetail } from '@/services/advert.service';
-import { buildModerationAdvertSpecRows, SpecRow } from '@/helpers/advertCategoryHelper';
+import { advertService, ModerationAdvertDetail, DEFAULT_MOCK_MEDIA } from '@/services/advert.service';
+import { buildModerationAdvertSpecRows, resolveDisplayAdvertNo, SpecRow } from '@/helpers/advertCategoryHelper';
 
 interface AdvertDetailModalProps {
   advert: ModerationAdvertResponse | null;
@@ -140,7 +140,57 @@ export default function AdvertDetailModal({
     };
   }, [detail, advert, isRejected]);
 
-  const mediaList = detail?.media || [];
+  const mediaList = useMemo(() => {
+    // 1. Direct detail.media
+    if (detail?.media && Array.isArray(detail.media) && detail.media.length > 0) {
+      return detail.media;
+    }
+    // 2. advert.media
+    if ((advert as any)?.media && Array.isArray((advert as any).media) && (advert as any).media.length > 0) {
+      return (advert as any).media;
+    }
+    // 3. detail.cover or advert.cover
+    const coverObj = (detail as any)?.cover || (advert as any)?.cover;
+    if (coverObj) {
+      const coverUrl = coverObj.publicUrl || coverObj.url || coverObj.assetId;
+      if (coverUrl && typeof coverUrl === 'string' && coverUrl.trim()) {
+        return [{ assetId: coverUrl.trim(), displayOrder: 0, isCover: true }];
+      }
+    }
+    // 4. properties.images or properties.imageUrl or properties.coverUrl
+    const props = ((detail?.properties || (advert as any)?.properties) || {}) as Record<string, any>;
+    if (Array.isArray(props.images) && props.images.length > 0) {
+      return props.images.map((img: any, idx: number) => ({
+        assetId: typeof img === 'string' ? img : (img.url || img.publicUrl || img.assetId),
+        displayOrder: idx,
+        isCover: idx === 0,
+      }));
+    }
+    const propImg = props.imageUrl || props.coverUrl || props.image || (advert as any)?.imageUrl;
+    if (propImg && typeof propImg === 'string' && propImg.trim()) {
+      return [{ assetId: propImg.trim(), displayOrder: 0, isCover: true }];
+    }
+    // 5. Default mock photos for known demo adverts
+    const targetId = String(advert?.id || advertId || '').trim();
+    if (targetId && DEFAULT_MOCK_MEDIA[targetId]) {
+      return DEFAULT_MOCK_MEDIA[targetId];
+    }
+    return [];
+  }, [detail, advert, advertId]);
+
+  const resolveMediaSrc = (m: any): string => {
+    if (!m) return '';
+    if (typeof m === 'string') return buildMediaUrl(m, 'DETAIL');
+    const url = m.publicUrl || m.url || m.imageUrl || m.src;
+    if (url && typeof url === 'string' && url.trim()) {
+      return buildMediaUrl(url, 'DETAIL');
+    }
+    if (m.assetId && typeof m.assetId === 'string' && m.assetId.trim()) {
+      return buildMediaUrl(m.assetId, 'DETAIL');
+    }
+    return '';
+  };
+
   const properties = (detail?.properties || {}) as Record<string, any>;
 
   const normText = (s: string) =>
@@ -216,7 +266,13 @@ export default function AdvertDetailModal({
     return digits;
   };
 
-  const openWhatsAppChat = (phoneNumber?: string) => {
+  const displayAdvertNo = useMemo(() => {
+    const rawAdvertId = advert?.identifier ?? advert?.id ?? detail?.id;
+    const props = (detail?.properties || advert?.properties || {}) as Record<string, any>;
+    return resolveDisplayAdvertNo(rawAdvertId, props);
+  }, [advert, detail]);
+
+  const openWhatsAppChat = (phoneNumber?: string | null) => {
     const rawTarget = phoneNumber || phone;
     let target = rawTarget ? cleanWhatsAppPhone(rawTarget) : '';
     if (!target) {
@@ -231,7 +287,7 @@ export default function AdvertDetailModal({
       }
     }
     const advertTitle = detail?.title || advert?.title || 'İlanınız';
-    const advertNo = advert?.id || advertId || '';
+    const advertNo = displayAdvertNo || advert?.id || advertId || '';
     const text = encodeURIComponent(
       `Merhaba, Haradan.com'daki ${advertNo ? `#${advertNo} numaralı ` : ''}"${advertTitle}" başlıklı ilanınız ile ilgili yazıyorum.`
     );
@@ -252,7 +308,7 @@ export default function AdvertDetailModal({
   };
 
   const activeMedia = mediaList[activeMediaIndex] ?? mediaList[0];
-  const activeMediaUrl = activeMedia ? buildMediaUrl(activeMedia.assetId, 'DETAIL') : null;
+  const activeMediaUrl = activeMedia ? resolveMediaSrc(activeMedia) : null;
 
   if (!advert) return null;
 
@@ -283,24 +339,19 @@ export default function AdvertDetailModal({
                   {detail?.title || advert.title || 'İlan'}
                 </h4>
                 <StatusBadge status={currentStatus} />
-                <Badge bg="light" text="dark" className="border fw-normal">
-                  #{advertId}
-                </Badge>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(displayAdvertNo, 'headerAdvertNo')}
+                  className="badge bg-light text-dark border fw-normal text-decoration-none d-inline-flex align-items-center gap-1 cursor-pointer py-1 px-2"
+                  style={{ cursor: 'pointer', border: '1px solid #dee2e6' }}
+                  title="İlan No Kopyala"
+                >
+                  <span>#{displayAdvertNo}</span>
+                  <i className={`fe ${copiedKey === 'headerAdvertNo' ? 'fe-check text-success' : 'fe-copy'} ms-1`} style={{ fontSize: '11px' }} />
+                  {copiedKey === 'headerAdvertNo' && <span className="small text-success ms-1">Kopyalandı</span>}
+                </button>
               </div>
             </div>
-            {isPublished && advertId && (
-              <Button
-                as="a"
-                href={buildAdvertDetailUrl(advertId)}
-                target="_blank"
-                rel="noopener noreferrer"
-                variant="primary"
-                size="sm"
-                className="d-flex align-items-center gap-1 px-3 py-2 fw-semibold shadow-sm"
-              >
-                <i className="fe fe-external-link" /> Gerçek İlana Git
-              </Button>
-            )}
           </div>
         </Modal.Header>
 
@@ -342,11 +393,13 @@ export default function AdvertDetailModal({
                             >
                               <img
                                 src={activeMediaUrl}
-                                alt={detail?.title || 'İlan Görseli'}
+                                alt={detail?.title || advert?.title || 'İlan Görseli'}
                                 className="w-100 h-100 object-fit-contain"
-                                crossOrigin="use-credentials"
                                 onError={(e) => {
-                                  (e.target as HTMLImageElement).src = '/images/placeholder/placeholder-img.jpg';
+                                  const target = e.target as HTMLImageElement;
+                                  if (!target.src.includes('placeholder-img.jpg')) {
+                                    target.src = '/images/placeholder/placeholder-img.jpg';
+                                  }
                                 }}
                               />
                             </div>
@@ -405,11 +458,11 @@ export default function AdvertDetailModal({
                       {/* Thumbnail Bar */}
                       {mediaList.length > 1 && (
                         <div className="p-3 bg-white border-top d-flex gap-2 overflow-auto">
-                          {mediaList.map((m, idx) => {
+                          {mediaList.map((m: any, idx: number) => {
                             const isCurrent = idx === activeMediaIndex;
                             return (
                               <div
-                                key={m.assetId || idx}
+                                key={m.assetId || m.publicUrl || idx}
                                 onClick={() => setActiveMediaIndex(idx)}
                                 className={`rounded-3 overflow-hidden flex-shrink-0 border ${
                                   isCurrent ? 'border-primary border-3 shadow-sm' : 'border-light'
@@ -417,12 +470,14 @@ export default function AdvertDetailModal({
                                 style={{ width: '74px', height: '56px', cursor: 'pointer' }}
                               >
                                 <img
-                                  src={buildMediaUrl(m.assetId, 'DETAIL')}
+                                  src={resolveMediaSrc(m)}
                                   alt={`Küçük Resim ${idx + 1}`}
                                   className="w-100 h-100 object-fit-cover"
-                                  crossOrigin="use-credentials"
                                   onError={(e) => {
-                                    (e.target as HTMLImageElement).src = '/images/placeholder/placeholder-img.jpg';
+                                    const target = e.target as HTMLImageElement;
+                                    if (!target.src.includes('placeholder-img.jpg')) {
+                                      target.src = '/images/placeholder/placeholder-img.jpg';
+                                    }
                                   }}
                                 />
                               </div>
@@ -530,7 +585,30 @@ export default function AdvertDetailModal({
                                   {row.label}
                                 </td>
                                 <td className="text-end fw-bold text-dark py-2 px-3 text-break" style={{ border: 0 }}>
-                                  {row.href ? (
+                                  {row.label === 'İlan No' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => copyToClipboard(row.value, 'advertNo')}
+                                      className="btn btn-sm text-decoration-none d-inline-flex align-items-center gap-1 fw-bold shadow-none"
+                                      style={{
+                                        backgroundColor: copiedKey === 'advertNo' ? '#ecfdf5' : '#f0f9ff',
+                                        color: copiedKey === 'advertNo' ? '#16a34a' : '#0284c7',
+                                        border: `1px solid ${copiedKey === 'advertNo' ? '#86efac' : '#bae6fd'}`,
+                                        borderRadius: '6px',
+                                        padding: '2px 8px',
+                                        fontSize: '12.5px',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease-in-out',
+                                      }}
+                                      title={copiedKey === 'advertNo' ? 'Kopyalandı!' : 'İlan No Kopyala'}
+                                    >
+                                      <span>{row.value}</span>
+                                      <i
+                                        className={`fe ${copiedKey === 'advertNo' ? 'fe-check text-success' : 'fe-copy'}`}
+                                        style={{ fontSize: '12px', color: copiedKey === 'advertNo' ? '#16a34a' : '#0284c7' }}
+                                      />
+                                    </button>
+                                  ) : row.href ? (
                                     <a
                                       href={row.href}
                                       target="_blank"
@@ -572,28 +650,11 @@ export default function AdvertDetailModal({
 
                       {/* Seller & Contact Block */}
                       <div className="p-4 bg-light border-top">
-                        <div className="d-flex justify-content-between align-items-center mb-3">
-                          <div>
-                            <div className="small text-muted fw-semibold">İLAN SAHİBİ</div>
-                            <div className="fw-bold text-dark">
-                              {ownerName && ownerName !== '-' ? ownerName : 'Kullanıcı'}
-                            </div>
-                            <div className="small font-monospace text-muted text-truncate" style={{ maxWidth: '180px' }}>
-                              ID: {detail?.ownerUserId || advert.ownerUserId || '-'}
-                            </div>
+                        <div className="mb-3">
+                          <div className="small text-muted fw-semibold">İLAN SAHİBİ</div>
+                          <div className="fw-bold text-dark fs-6">
+                            {ownerName && ownerName !== '-' ? ownerName : 'Kullanıcı'}
                           </div>
-                          {detail?.ownerUserId && (
-                            <Button
-                              size="sm"
-                              variant="outline-secondary"
-                              onClick={() => copyToClipboard(detail.ownerUserId, 'owner')}
-                              title="ID Kopyala"
-                              className="d-flex align-items-center gap-1"
-                            >
-                              <i className={`fe ${copiedKey === 'owner' ? 'fe-check text-success' : 'fe-copy'}`} />
-                              <span className="small">{copiedKey === 'owner' ? 'Kopyalandı' : 'Kopyala'}</span>
-                            </Button>
-                          )}
                         </div>
 
                         {phone ? (
@@ -683,18 +744,19 @@ export default function AdvertDetailModal({
             )}
           </div>
           <div className="d-flex gap-2 align-items-center">
-            <Button
-              size="sm"
-              className="d-flex align-items-center gap-2 shadow-sm px-3 fw-semibold text-white border-0"
-              style={{ backgroundColor: '#25D366' }}
-              onClick={() => openWhatsAppChat()}
-              title={phone ? `İlan sahibine WhatsApp üzerinden yaz (${phone})` : "İlan sahibine WhatsApp üzerinden yaz"}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" />
-              </svg>
-              <span>WhatsApp ile Yaz</span>
-            </Button>
+            {isPublished && (displayAdvertNo || advertId) && (
+              <Button
+                as="a"
+                href={buildAdvertDetailUrl(displayAdvertNo || advertId || '')}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="primary"
+                size="sm"
+                className="d-flex align-items-center gap-1 px-3 fw-semibold shadow-sm text-decoration-none"
+              >
+                <i className="fe fe-external-link" /> Gerçek İlana Git
+              </Button>
+            )}
             <Button variant="outline-secondary" size="sm" className="px-4" onClick={onClose}>
               Kapat
             </Button>
@@ -733,13 +795,15 @@ export default function AdvertDetailModal({
 
             <div className="d-flex align-items-center justify-content-center" style={{ minHeight: '400px' }}>
               <img
-                src={buildMediaUrl(mediaList[lightboxIndex].assetId, 'DETAIL')}
+                src={resolveMediaSrc(mediaList[lightboxIndex])}
                 alt={`Önizleme ${lightboxIndex + 1}`}
                 className="img-fluid rounded"
                 style={{ maxHeight: '75vh', objectFit: 'contain' }}
-                crossOrigin="use-credentials"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/images/placeholder/placeholder-img.jpg';
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.includes('placeholder-img.jpg')) {
+                    target.src = '/images/placeholder/placeholder-img.jpg';
+                  }
                 }}
               />
             </div>

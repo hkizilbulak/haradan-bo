@@ -35,5 +35,9 @@ export function buildMediaUrl(assetId: string, profile: string) {
       base = proxyUrl.replace(/\/+$/, '');
     }
   }
+  if (trimmed.startsWith('/')) {
+    return `${base}${trimmed}`;
+  }
   return `${base}${MEDIA_URL}/${encodeURIComponent(trimmed)}/${encodeURIComponent(profile)}`;
 }
+
