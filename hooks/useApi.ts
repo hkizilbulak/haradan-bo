@@ -36,9 +36,13 @@ const useApi = <T>({ service, params = initialParameters as SearchParams<T> }: I
     const handleFilter = (filter: string) => {
         setParameters({
             ...parameters,
-            filter
-        })
-    }
+            filter,
+            pageRequest: {
+                ...parameters?.pageRequest,
+                page: 0,
+            },
+        });
+    };
 
     const handlePageChange = (page: number) => {
         setParameters({

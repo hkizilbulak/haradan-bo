@@ -80,7 +80,7 @@ export function getAdvertStatusText(searchType?: string) {
     if (searchType === 'CHANGES_REQUESTED') return 'Düzeltme İstendi';
     if (searchType === 'PUBLISHED') return 'Yayında';
     if (searchType === 'REJECTED') return 'Reddedildi';
-    if (searchType === 'SUSPENDED') return 'Askıya Alındı';
+    if (searchType === 'SUSPENDED') return 'Yayından Kaldırıldı';
     if (searchType === 'SOLD') return 'Satıldı';
     if (searchType === 'ARCHIVED') return 'Arşivlendi';
     return searchType ?? '-';

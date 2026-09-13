@@ -18,7 +18,6 @@ interface AdvertDetailModalProps {
   onApprove?: (advert: ModerationAdvertResponse) => void;
   onReject?: (advert: ModerationAdvertResponse) => void;
   onSuspend?: (advert: ModerationAdvertResponse) => void;
-  onPackage?: (advert: ModerationAdvertResponse) => void;
 }
 
 interface SpecRow {
@@ -35,7 +34,6 @@ export default function AdvertDetailModal({
   onApprove,
   onReject,
   onSuspend,
-  onPackage,
 }: AdvertDetailModalProps) {
   const advertId = advert?.identifier ?? advert?.id;
   const [detail, setDetail] = useState<ModerationAdvertDetail | null>(null);
@@ -76,10 +74,44 @@ export default function AdvertDetailModal({
 
   const currentStatus = detail?.status ?? advert?.status ?? 'PENDING_REVIEW';
   const isRejected = currentStatus === 'REJECTED';
+  const isSuspended = currentStatus === 'SUSPENDED';
   const isPublished = currentStatus === 'PUBLISHED' || advert?.status === 'PUBLISHED';
-  const canApprove = advert ? canModerationAction(currentStatus, 'approve') : false;
+  const canApprove = advert ? (canModerationAction(currentStatus, 'approve') || isSuspended) : false;
   const canReject = advert ? canModerationAction(currentStatus, 'reject') : false;
   const canSuspend = advert ? canModerationAction(currentStatus, 'suspend') : false;
+
+  const suspensionInfo = useMemo(() => {
+    if (!isSuspended && !(detail as any)?.suspensionReason && !(advert as any)?.suspensionReason) {
+      return null;
+    }
+
+    let reason: string | null = (detail as any)?.suspensionReason || (advert as any)?.suspensionReason || (detail as any)?.reason || null;
+    let createdAt: string | null = null;
+
+    if (detail?.statusHistory && detail.statusHistory.length > 0) {
+      const historyReversed = [...detail.statusHistory].reverse();
+      const suspendedEntry = historyReversed.find(
+        (h) => h.toStatus?.toUpperCase() === 'SUSPENDED'
+      );
+      if (suspendedEntry) {
+        if (!reason && suspendedEntry.reason) {
+          reason = suspendedEntry.reason;
+        }
+        if (suspendedEntry.createdAt) {
+          createdAt = suspendedEntry.createdAt;
+        }
+      }
+    }
+
+    if (!reason && !isSuspended) {
+      return null;
+    }
+
+    return {
+      reason: reason?.trim() || 'Yayından kaldırılma gerekçesi belirtilmemiş.',
+      createdAt: createdAt ? formatDateTimeForText(createdAt) : null,
+    };
+  }, [detail, advert, isSuspended]);
 
   const rejectionInfo = useMemo(() => {
     if (!isRejected && !detail?.rejectionReason && !advert?.rejectionReason) {
@@ -513,6 +545,29 @@ export default function AdvertDetailModal({
                         </div>
                       </Card>
                     )}
+
+                    {/* Yayından Kaldırılma Nedeni Card (Yayından Kaldırılan İlanlar İçin) */}
+                    {isSuspended && (
+                      <Card className="border-0 shadow-sm rounded-4 bg-white p-4 mt-4 border-start border-secondary border-4">
+                        <div className="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                          <h5 className="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                            <i className="fe fe-pause-circle text-secondary" /> Yayından Kaldırılma Nedeni
+                          </h5>
+                          {suspensionInfo?.createdAt && (
+                            <span className="text-muted small">
+                              <i className="fe fe-clock me-1" />
+                              {suspensionInfo.createdAt}
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className="p-3 rounded-3 bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"
+                          style={{ whiteSpace: 'pre-line', lineHeight: '1.6', fontSize: '14.5px' }}
+                        >
+                          {suspensionInfo?.reason || 'Yayından kaldırılma gerekçesi belirtilmemiş.'}
+                        </div>
+                      </Card>
+                    )}
                   </Col>
 
                   {/* SAĞ KOLON: HARADAN BUYBOX (FİYAT, BİLGİ TABLOSU, İLETİŞİM) */}
@@ -638,7 +693,7 @@ export default function AdvertDetailModal({
                   onApprove(advert);
                 }}
               >
-                <i className="fe fe-check" /> İlanı Onayla
+                <i className="fe fe-check" /> {isSuspended ? 'Yayınla' : 'İlanı Onayla'}
               </Button>
             )}
             {canReject && onReject && (
@@ -657,31 +712,18 @@ export default function AdvertDetailModal({
             {canSuspend && onSuspend && (
               <Button
                 size="sm"
-                variant="warning"
-                className="d-flex align-items-center gap-1 shadow-sm px-3 fw-semibold"
+                variant="secondary"
+                className="d-flex align-items-center gap-1 shadow-sm px-3 fw-semibold text-white"
                 onClick={() => {
                   onClose();
                   onSuspend(advert);
                 }}
               >
-                <i className="fe fe-slash" /> Askıya Al
-              </Button>
-            )}
-            {onPackage && (
-              <Button
-                size="sm"
-                variant="info"
-                className="d-flex align-items-center gap-1 shadow-sm text-white px-3 fw-semibold"
-                onClick={() => {
-                  onClose();
-                  onPackage(advert);
-                }}
-              >
-                <i className="fe fe-package" /> Paket İşlemleri
+                <i className="fe fe-slash" /> Yayından Kaldır
               </Button>
             )}
           </div>
-          <Button variant="secondary" size="sm" className="px-4" onClick={onClose}>
+          <Button variant="outline-secondary" size="sm" className="px-4" onClick={onClose}>
             Kapat
           </Button>
         </Modal.Footer>

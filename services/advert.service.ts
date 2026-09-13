@@ -244,6 +244,20 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         ownerName: 'Admin Kullanıcı',
         properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com' },
     },
+    {
+        id: 'adv-suspend-001',
+        title: 'Safkan Arap Tayı',
+        publishedAt: null,
+        createdAt: '2026-09-12T12:00:00Z',
+        deletedAt: null,
+        status: 'SUSPENDED',
+        version: 1,
+        mediaVersion: 1,
+        categoryId: 'c1000000-0000-4000-8000-000000000011',
+        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+        ownerName: 'Admin Kullanıcı',
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com' },
+    },
 ];
 
 function getLocalMockAdverts(): OwnerAdvertItem[] {
@@ -262,7 +276,7 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
                                 publishedAt: item.publishedAt || null,
                                 createdAt: item.createdAt || item.updatedAt || item.createdDate || item.submittedAt || null,
                                 deletedAt: null,
-                                status: item.backendStatus || (item.status === 'pending' ? 'PENDING_REVIEW' : item.status === 'published' ? 'PUBLISHED' : 'PENDING_REVIEW'),
+                                status: item.backendStatus || (item.status === 'pending' ? 'PENDING_REVIEW' : item.status === 'published' ? 'PUBLISHED' : item.status === 'suspended' ? 'SUSPENDED' : item.status === 'rejected' ? 'REJECTED' : 'PENDING_REVIEW'),
                                 version: item.version || 1,
                                 mediaVersion: 1,
                                 categoryId: item.categoryId || 'c1000000-0000-4000-8000-000000000011',
@@ -336,7 +350,7 @@ class AdvertService {
                     params: {
                         cursor: params.cursor || undefined,
                         limit,
-                        status: status || undefined,
+                        status: (status && status !== 'UNPUBLISHED') ? status : undefined,
                     },
                 });
                 rawItems = response?.items ?? [];
@@ -347,9 +361,15 @@ class AdvertService {
                 console.error('Moderation API fetch error:', err);
             }
 
+            if (status && status !== 'UNPUBLISHED') {
+                rawItems = rawItems.filter((item) => item.status === status);
+            } else if (status === 'UNPUBLISHED') {
+                rawItems = rawItems.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED');
+            }
+
             const localAdverts = getLocalMockAdverts().filter((a) => {
                 if (!status) return true;
-                if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED';
+                if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED' || a.status === 'SUSPENDED';
                 return a.status === status;
             });
             for (const localAdv of localAdverts) {
@@ -536,7 +556,7 @@ class AdvertService {
 
     private async fetchAll(status?: string): Promise<ModerationAdvertResponse[]> {
         if (status === 'UNPUBLISHED') {
-            const unpublishedStatuses = ['PENDING_REVIEW', 'REJECTED'];
+            const unpublishedStatuses = ['PENDING_REVIEW', 'SUSPENDED', 'REJECTED'];
             const results = await Promise.all(
                 unpublishedStatuses.map((st) => this.fetchAll(st))
             );
@@ -559,41 +579,48 @@ class AdvertService {
         let hasMore = true;
 
         while (hasMore) {
-            const response = await apiRequest<ModerationQueueResponse>('GET', baseUrl, undefined, {
-                params: {
-                    cursor,
-                    limit: 100,
-                    status: status || undefined,
-                },
-            });
-            const rawItems = response?.items ?? [];
-            items.push(...rawItems);
-            hasMore = Boolean(response?.hasMore);
-            cursor = response?.nextCursor;
+            try {
+                const response = await apiRequest<ModerationQueueResponse>('GET', baseUrl, undefined, {
+                    params: {
+                        cursor,
+                        limit: 100,
+                        status: (status && status !== 'UNPUBLISHED') ? status : undefined,
+                    },
+                });
+                const rawItems = response?.items ?? [];
+                items.push(...rawItems);
+                hasMore = Boolean(response?.hasMore);
+                cursor = response?.nextCursor;
+            } catch (err) {
+                console.error('Moderation API fetch error:', err);
+                hasMore = false;
+            }
+        }
+
+        let filteredBackendItems = items;
+        if (status && status !== 'UNPUBLISHED') {
+            filteredBackendItems = items.filter((item) => item.status === status);
+        } else if (status === 'UNPUBLISHED') {
+            filteredBackendItems = items.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED');
         }
 
         const localAdverts = getLocalMockAdverts().filter((a) => {
             if (!status) return true;
-            if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED';
+            if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED' || a.status === 'SUSPENDED';
             return a.status === status;
         });
         for (const localAdv of localAdverts) {
-            if (!items.some((r) => r.id === localAdv.id || (localAdv.title && r.title === localAdv.title))) {
-                items.unshift(localAdv);
+            if (!filteredBackendItems.some((r) => r.id === localAdv.id || (localAdv.title && r.title === localAdv.title))) {
+                filteredBackendItems.unshift(localAdv);
             }
         }
 
-        return items.map(toModerationAdvert);
+        return filteredBackendItems.map(toModerationAdvert);
     }
 
     private applyFilter(items: ModerationAdvertResponse[], filter?: string) {
         if (!filter) {
             return items;
-        }
-
-        const status = parseStatusFilter(filter);
-        if (status === 'UNPUBLISHED') {
-            items = items.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'REJECTED');
         }
 
         const clauses = filter.split(';').map((clause) => clause.trim()).filter(Boolean);
@@ -602,9 +629,12 @@ class AdvertService {
         }
 
         return items.filter((item) => clauses.every((clause) => {
-            // status already applied server-side when present
             if (clause.startsWith('status==')) {
-                return true;
+                const statusVal = clause.slice('status=='.length).trim();
+                if (statusVal === 'UNPUBLISHED') {
+                    return item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED';
+                }
+                return item.status === statusVal;
             }
             return this.matchesClause(item, clause);
         }));

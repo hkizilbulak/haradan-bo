@@ -6,9 +6,7 @@ import Loading from '@/components/Loading';
 import PrepareTable from '@/components/PrepareTable';
 import StatusBadge from '@/components/StatusBadge';
 import { formatDateForText, formatDateTimeForText } from '@/helpers/DateUtils';
-import { getAdvertStatusText } from '@/helpers/EnumUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
-import { canModerationAction } from '@/helpers/moderationActions';
 import useApi from '@/hooks/useApi';
 import { ModerationAdvertResponse } from '@/models';
 import {
@@ -32,6 +30,7 @@ export default function Adverts() {
     advert: ModerationAdvertResponse;
     action: 'reject' | 'requestChanges' | 'suspend';
   } | null>(null);
+  const [pendingApprove, setPendingApprove] = useState<ModerationAdvertResponse | null>(null);
   const [packageAdvert, setPackageAdvert] = useState<ModerationAdvertResponse | null>(null);
   const [detailAdvert, setDetailAdvert] = useState<ModerationAdvertResponse | null>(null);
   const [reason, setReason] = useState('');
@@ -210,7 +209,9 @@ export default function Adverts() {
     setReason('');
   };
 
-  const handleApprove = async (advert: ModerationAdvertResponse) => {
+  const handleConfirmApprove = async () => {
+    if (!pendingApprove) return;
+    const advert = pendingApprove;
     const advertId = advert.identifier ?? advert.id;
     if (!advertId || !advert.version || actionBusy) {
       return;
@@ -219,7 +220,8 @@ export default function Adverts() {
     setActionBusy(true);
     try {
       await advertService.approve(advertId, advert.version);
-      toast.success('İlan onaylandı');
+      toast.success(advert.status === 'SUSPENDED' ? 'İlan yayınlandı' : 'İlan onaylandı');
+      setPendingApprove(null);
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -281,17 +283,29 @@ export default function Adverts() {
         '',
       ];
 
+  const activeStatus = (() => {
+    if (!parameters?.filter) return undefined;
+    const clause = parameters.filter.split(';').map((p) => p.trim()).find((p) => p.startsWith('status=='));
+    if (!clause) return undefined;
+    return clause.slice('status=='.length).trim();
+  })();
+
   const filteredItems = (data?.content ?? []).filter((advert) => {
     if (tab === 'unpublished') {
-      return advert.status !== 'CHANGES_REQUESTED' && advert.status !== 'SUSPENDED';
+      if (advert.status === 'CHANGES_REQUESTED') return false;
+      if (activeStatus && activeStatus !== 'UNPUBLISHED') {
+        return advert.status === activeStatus;
+      }
+      return advert.status === 'PENDING_REVIEW' || advert.status === 'REJECTED' || advert.status === 'SUSPENDED';
+    }
+    if (tab === 'published') {
+      return advert.status === 'PUBLISHED';
     }
     return true;
   });
 
   const content = filteredItems.map((advert) => {
     const advertId = advert.identifier ?? advert.id ?? '';
-    const canApprove = canModerationAction(advert.status, 'approve');
-    const canReject = canModerationAction(advert.status, 'reject');
     const categoryName = advert.categoryId ? (categoryMap.get(advert.categoryId) || advert.categoryId) : '-';
     
     // İlanı Gönderen Hesap Bilgisi
@@ -347,21 +361,21 @@ export default function Adverts() {
             <Button
               size="sm"
               variant="outline-primary"
+              className="p-1 px-2 d-inline-flex align-items-center justify-content-center"
+              title="Detay"
               onClick={() => setDetailAdvert(advert)}
             >
-              Detay
+              <i className="fe fe-eye" />
             </Button>
-            {canApprove && (
-              <Button size="sm" variant="success" disabled={actionBusy} onClick={() => void handleApprove(advert)}>
-                Onayla
-              </Button>
-            )}
-
-            {canReject && (
-              <Button size="sm" variant="danger" onClick={() => openActionModal(advert, 'reject')}>
-                Reddet
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant="outline-secondary"
+              className="p-1 px-2 d-inline-flex align-items-center justify-content-center"
+              title="Paket ve İlan Düzenle"
+              onClick={() => setPackageAdvert(advert)}
+            >
+              <i className="fe fe-edit" />
+            </Button>
           </div>
         </td>
       </tr>
@@ -432,7 +446,7 @@ export default function Adverts() {
                 pendingAction?.action === 'reject'
                   ? 'bg-danger-subtle text-danger'
                   : pendingAction?.action === 'suspend'
-                  ? 'bg-warning-subtle text-warning'
+                  ? 'bg-secondary-subtle text-secondary'
                   : 'bg-primary-subtle text-primary'
               }`}
               style={{ width: '44px', height: '44px' }}
@@ -452,14 +466,14 @@ export default function Adverts() {
                 {pendingAction?.action === 'reject'
                   ? 'İlanı Reddet'
                   : pendingAction?.action === 'suspend'
-                  ? 'İlanı Askıya Al'
+                  ? 'Yayından Kaldır'
                   : 'Düzeltme Talebi'}
               </Modal.Title>
               <small className="text-muted">
                 {pendingAction?.action === 'reject'
                   ? 'İlanın reddedilme gerekçesini belirtiniz.'
                   : pendingAction?.action === 'suspend'
-                  ? 'İlanın askıya alınma gerekçesini belirtiniz.'
+                  ? 'İlanın yayından kaldırılma gerekçesini belirtiniz.'
                   : 'Kullanıcıya iletilecek notu belirtiniz.'}
               </small>
             </div>
@@ -502,10 +516,10 @@ export default function Adverts() {
               pendingAction?.action === 'reject'
                 ? 'danger'
                 : pendingAction?.action === 'suspend'
-                ? 'warning'
+                ? 'secondary'
                 : 'primary'
             }
-            className="rounded-3 px-4 fw-semibold"
+            className="rounded-3 px-4 fw-semibold text-white"
             disabled={reason.trim().length === 0 || actionBusy}
             onClick={() => void handleReasonedAction()}
           >
@@ -517,9 +531,76 @@ export default function Adverts() {
             ) : pendingAction?.action === 'reject' ? (
               'İlanı Reddet'
             ) : pendingAction?.action === 'suspend' ? (
-              'Askıya Al'
+              'Yayından Kaldır'
             ) : (
               'Kaydet'
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Yayınlama / Onaylama Onay Penceresi (Modal) */}
+      <Modal show={pendingApprove !== null} onHide={() => !actionBusy && setPendingApprove(null)} centered backdrop="static">
+        <Modal.Header closeButton={!actionBusy} className="border-bottom-0 pb-1">
+          <div className="d-flex align-items-center gap-3">
+            <div
+              className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 bg-success-subtle text-success"
+              style={{ width: '44px', height: '44px' }}
+            >
+              <i className="fs-4 fe fe-check-circle" />
+            </div>
+            <div>
+              <Modal.Title className="h5 mb-0 fw-bold">
+                {pendingApprove?.status === 'SUSPENDED' ? 'İlanı Yayınla' : 'İlanı Onayla'}
+              </Modal.Title>
+              <small className="text-muted">
+                {pendingApprove?.status === 'SUSPENDED'
+                  ? 'İlanı tekrar yayına almak üzeresiniz.'
+                  : 'İlanı onaylayıp yayına almak üzeresiniz.'}
+              </small>
+            </div>
+          </div>
+        </Modal.Header>
+        <Modal.Body className="pt-3">
+          {pendingApprove && (
+            <div className="p-3 bg-light rounded-3 mb-3 border">
+              <div className="text-muted small mb-1">İşlem Yapılan İlan:</div>
+              <div className="fw-semibold text-dark text-truncate">
+                {pendingApprove.title || 'Başlıksız İlan'}
+              </div>
+            </div>
+          )}
+          <p className="text-muted mb-0" style={{ fontSize: '14.5px', lineHeight: '1.5' }}>
+            {pendingApprove?.status === 'SUSPENDED'
+              ? 'Bu ilanı tekrar yayına almak istediğinize emin misiniz?'
+              : 'Bu ilanı onaylayıp yayına almak istediğinize emin misiniz?'}
+          </p>
+        </Modal.Body>
+        <Modal.Footer className="border-top-0 pt-1">
+          <Button
+            variant="outline-secondary"
+            className="rounded-3 px-3"
+            onClick={() => setPendingApprove(null)}
+            disabled={actionBusy}
+          >
+            Vazgeç
+          </Button>
+          <Button
+            variant="success"
+            className="rounded-3 px-4 fw-semibold text-white d-inline-flex align-items-center gap-2"
+            disabled={actionBusy}
+            onClick={() => void handleConfirmApprove()}
+          >
+            {actionBusy ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
+                İşleniyor...
+              </>
+            ) : (
+              <>
+                <i className="fe fe-check" />
+                {pendingApprove?.status === 'SUSPENDED' ? 'Evet, Yayınla' : 'Evet, Onayla'}
+              </>
             )}
           </Button>
         </Modal.Footer>
@@ -535,10 +616,9 @@ export default function Adverts() {
             : undefined
         }
         onClose={() => setDetailAdvert(null)}
-        onApprove={(adv) => void handleApprove(adv)}
+        onApprove={(adv) => setPendingApprove(adv)}
         onReject={(adv) => openActionModal(adv, 'reject')}
         onSuspend={(adv) => openActionModal(adv, 'suspend')}
-        onPackage={(adv) => setPackageAdvert(adv)}
       />
 
       {isLoading && <Loading />}

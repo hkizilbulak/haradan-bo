@@ -36,6 +36,12 @@ const STATUS_OPTIONS: StatusOption[] = [
         dotColor: '#f59e0b',
     },
     {
+        value: 'SUSPENDED',
+        label: 'Yayından Kaldırıldı',
+        icon: 'fe fe-pause-circle',
+        dotColor: '#6c757d',
+    },
+    {
         value: 'REJECTED',
         label: 'Reddedildi',
         icon: 'fe fe-x-circle',
@@ -63,7 +69,14 @@ export default function AdvertFilter({ onFilter, tab }: IProps) {
     });
 
     useEffect(() => {
-        formik.submitForm();
+        formik.setFieldValue('status', '');
+        let filter = '';
+        if (tab === 'published') {
+            filter = appendOperator(filter, `status==PUBLISHED`);
+        } else {
+            filter = appendOperator(filter, `status==UNPUBLISHED`);
+        }
+        onFilter(filter);
     }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const currentStatus = formik.values.status || '';
