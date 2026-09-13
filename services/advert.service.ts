@@ -3,6 +3,7 @@ import { apiRequest } from '@/helpers/api/openapiClient';
 import { withIdentifier } from '@/helpers/api/mapIdentifier';
 import { ModerationAdvertResponse } from '@/models';
 import { PagedResponse, PageParams, SearchParams } from '@/models/common';
+import { getAdvertMainCategory } from '@/helpers/advertCategoryHelper';
 
 type OwnerAdvertItem = {
     id: string;
@@ -338,7 +339,12 @@ class AdvertService {
         const status = parseStatusFilter(params.filter);
         const limit = params.pageRequest.size ?? 10;
 
-        const needsClientFiltering = params.filter ? (params.filter.includes('!=') || (params.filter.split(';').filter(Boolean).length > 1)) : false;
+        const needsClientFiltering = params.filter
+            ? (params.filter.includes('!=')
+               || (params.filter.split(';').filter(Boolean).length > 1)
+               || params.filter.includes('mainCategory')
+               || params.filter.includes('categoryId'))
+            : false;
 
         if (params.cursor !== undefined && !needsClientFiltering) {
             let rawItems: OwnerAdvertItem[] = [];
@@ -636,6 +642,11 @@ class AdvertService {
                 }
                 return item.status === statusVal;
             }
+            if (clause.startsWith('mainCategory==')) {
+                const expected = clause.slice('mainCategory=='.length).trim().toLowerCase();
+                const actual = getAdvertMainCategory(item.categoryId, undefined, (item as any).properties);
+                return actual === expected;
+            }
             return this.matchesClause(item, clause);
         }));
     }
@@ -690,6 +701,8 @@ class AdvertService {
                 return item.version;
             case 'categoryId':
                 return item.categoryId;
+            case 'mainCategory':
+                return getAdvertMainCategory(item.categoryId, undefined, (item as any).properties);
             case 'ownerUserId':
                 return item.ownerUserId;
             default:

@@ -18,6 +18,7 @@ import {
 import { PageHeading, AdvertDetailModal, PackageModal } from '@/widgets';
 import AdvertFilter from '@/widgets/advert/AdvertFilter';
 import CustomPagination from '@/components/Pagination';
+import { getAdvertMainCategory } from '@/helpers/advertCategoryHelper';
 
 type OwnerAccountInfo = {
   name?: string;
@@ -290,16 +291,31 @@ export default function Adverts() {
     return clause.slice('status=='.length).trim();
   })();
 
+  const activeCategory = (() => {
+    if (!parameters?.filter) return undefined;
+    const clause = parameters.filter.split(';').map((p) => p.trim()).find((p) => p.startsWith('mainCategory=='));
+    if (!clause) return undefined;
+    return clause.slice('mainCategory=='.length).trim();
+  })();
+
   const filteredItems = (data?.content ?? []).filter((advert) => {
     if (tab === 'unpublished') {
       if (advert.status === 'CHANGES_REQUESTED') return false;
       if (activeStatus && activeStatus !== 'UNPUBLISHED') {
-        return advert.status === activeStatus;
+        if (advert.status !== activeStatus) return false;
+      } else {
+        if (advert.status !== 'PENDING_REVIEW' && advert.status !== 'REJECTED' && advert.status !== 'SUSPENDED') {
+          return false;
+        }
       }
-      return advert.status === 'PENDING_REVIEW' || advert.status === 'REJECTED' || advert.status === 'SUSPENDED';
     }
     if (tab === 'published') {
-      return advert.status === 'PUBLISHED';
+      if (advert.status !== 'PUBLISHED') return false;
+    }
+    if (activeCategory) {
+      const catName = advert.categoryId ? (categoryMap.get(advert.categoryId) || advert.categoryId) : undefined;
+      const cat = getAdvertMainCategory(advert.categoryId, catName, (advert as any).properties);
+      if (cat !== activeCategory) return false;
     }
     return true;
   });
@@ -631,7 +647,13 @@ export default function Adverts() {
       )}
 
       {!isLoading && !isError && filteredItems.length === 0 && (
-        <Alert variant="light" className="border text-muted">Moderasyon kuyruğunda ilan bulunmuyor.</Alert>
+        <Alert variant="light" className="border text-muted">
+          {activeCategory || (activeStatus && activeStatus !== 'UNPUBLISHED')
+            ? 'Seçilen filtre kriterlerine uygun ilan bulunamadı.'
+            : tab === 'published'
+            ? 'Yayında ilan bulunmuyor.'
+            : 'Moderasyon kuyruğunda ilan bulunmuyor.'}
+        </Alert>
       )}
 
       {!isLoading && !isError && filteredItems.length > 0 && (

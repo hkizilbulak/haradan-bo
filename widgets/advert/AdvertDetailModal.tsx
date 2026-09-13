@@ -10,6 +10,7 @@ import { canModerationAction } from '@/helpers/moderationActions';
 import { useResolvedLocation } from '@/helpers/location';
 import { ModerationAdvertResponse } from '@/models';
 import { advertService, ModerationAdvertDetail } from '@/services/advert.service';
+import { buildModerationAdvertSpecRows, SpecRow } from '@/helpers/advertCategoryHelper';
 
 interface AdvertDetailModalProps {
   advert: ModerationAdvertResponse | null;
@@ -18,13 +19,6 @@ interface AdvertDetailModalProps {
   onApprove?: (advert: ModerationAdvertResponse) => void;
   onReject?: (advert: ModerationAdvertResponse) => void;
   onSuspend?: (advert: ModerationAdvertResponse) => void;
-}
-
-interface SpecRow {
-  label: string;
-  value: string;
-  isClickable?: boolean;
-  href?: string;
 }
 
 export default function AdvertDetailModal({
@@ -193,121 +187,22 @@ export default function AdvertDetailModal({
 
   const resolvedLocation = useResolvedLocation(detail);
 
-  // Horse & Advert specific fields
-  const horseName = getProp(['registeredName', 'atAdi', 'isim', 'horseName', 'title']) || detail?.title || advert?.title || '-';
-  const breed = getProp(['horseBreed', 'irk', 'breed', 'atIrki']) || '-';
-  const age = getProp(['horseAge', 'yas', 'age']) || '-';
-  const gender = getProp(['horseGender', 'cinsiyet', 'gender']) || '-';
-  const coatColor = getProp(['coatColor', 'donu', 'don', 'renk']) || '-';
-  const sire = getProp(['baba', 'sire', 'babaAdi', 'babaSire']) || '-';
-  const dam = getProp(['anne', 'dam', 'anneAdi', 'anneDam']) || '-';
-  const damsire = getProp(['damsire', 'anneBabasi', 'kisrakBabasi', 'annesininBabasi']) || '-';
-  const ownerName = getProp(['owner', 'sahip', 'ownerName']) || '-';
-  const tjkNumber = getProp(['tjkNumber', 'tjkNo', 'tjkId']) || '';
-  const birthDate = getProp(['birthDate', 'dogumTarihi']) || '';
-  const phone = getProp(['sellerPhone', 'phone', 'telefon', 'iletisimTelefonu']) || '';
-  const companyName = getProp(['companyName', 'firmaAdi', 'sirket']) || '';
-  const websiteUrl = getProp(['websiteUrl', 'website', 'webSitesi']) || '';
+  // Seller & Contact info for bottom section
+  const ownerName =
+    (detail as any)?.ownerName ||
+    (advert as any)?.ownerName ||
+    getProp(['owner', 'sahip', 'ownerName', 'sellerName']) ||
+    '-';
+  const phone =
+    (detail as any)?.sellerPhone ||
+    (advert as any)?.sellerPhone ||
+    getProp(['sellerPhone', 'phone', 'telefon', 'iletisimTelefonu', 'saticiTelefonu']) ||
+    '';
 
-  // Build BuyBox specifications list (Matches Haradan published advert layout)
+  // Build BuyBox specifications list specific to each category (matches live advert layout)
   const specRows = useMemo(() => {
-    const list: SpecRow[] = [];
-
-    list.push({
-      label: 'İlan No',
-      value: String(advertId),
-      isClickable: isPublished && Boolean(advertId),
-      href: isPublished && advertId ? buildAdvertDetailUrl(advertId) : undefined,
-    });
-    const submissionDate = detail?.createdAt || advert?.createdAt;
-    if (submissionDate) {
-      list.push({
-        label: 'İlan Gönderim Tarihi',
-        value: formatDateForText(submissionDate),
-      });
-    }
-    list.push({
-      label: isPublished ? 'Yayın Tarihi' : 'İlan Tarihi',
-      value: detail?.publishedAt
-        ? (isPublished ? formatDateForText(detail.publishedAt) : formatDateTimeForText(detail.publishedAt))
-        : (isPublished ? formatDateForText(new Date().toISOString()) : formatDateTimeForText(new Date().toISOString())),
-    });
-    list.push({ label: 'Kategori', value: resolvedCategory });
-
-    if (horseName && horseName !== '-') list.push({ label: 'At Adı', value: horseName });
-
-    if (sire && sire !== '-') {
-      list.push({
-        label: 'Baba (Sire)',
-        value: sire,
-        isClickable: true,
-        href: `https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(sire)}`,
-      });
-    }
-
-    if (dam && dam !== '-') {
-      list.push({
-        label: 'Anne (Dam)',
-        value: dam,
-        isClickable: true,
-        href: `https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(dam)}`,
-      });
-    }
-
-    if (damsire && damsire !== '-') {
-      list.push({
-        label: 'Anne Babası (Damsire)',
-        value: damsire,
-        isClickable: true,
-        href: `https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(damsire)}`,
-      });
-    }
-
-    if (breed && breed !== '-') list.push({ label: 'Irk', value: breed });
-    if (age && age !== '-') list.push({ label: 'Yaş', value: age });
-    if (gender && gender !== '-') list.push({ label: 'Cinsiyet', value: gender });
-    if (coatColor && coatColor !== '-') list.push({ label: 'Donu', value: coatColor });
-    if (ownerName && ownerName !== '-') list.push({ label: 'Sahip', value: ownerName });
-    if (tjkNumber) list.push({ label: 'TJK No', value: tjkNumber });
-    if (birthDate) list.push({ label: 'Doğum Tarihi', value: birthDate });
-    if (companyName) list.push({ label: 'Firma / Şirket', value: companyName });
-    if (websiteUrl) list.push({ label: 'Web Sitesi', value: websiteUrl, isClickable: true, href: websiteUrl });
-    if (phone) list.push({ label: 'İletişim Telefonu', value: phone });
-
-    // Catch any other properties not in the predefined list
-    const knownKeys = new Set([
-      'registeredname', 'atadi', 'isim', 'horsename', 'title',
-      'horsebreed', 'irk', 'ırk', 'breed', 'atirki',
-      'horseage', 'yas', 'yaş', 'age',
-      'horsegender', 'cinsiyet', 'gender',
-      'coatcolor', 'donu', 'don', 'renk',
-      'baba', 'sire', 'babaadi', 'babasire',
-      'anne', 'dam', 'anneadi', 'annedam',
-      'damsire', 'annebabasi', 'kisrakbabasi', 'annesininbabasi',
-      'owner', 'sahip', 'ownername',
-      'tjknumber', 'tjkno', 'tjkid',
-      'birthdate', 'dogumtarihi',
-      'sellerphone', 'phone', 'telefon', 'iletisimtelefonu', 'saticitelefonu',
-      'companyname', 'firmaadi', 'sirket',
-      'websiteurl', 'website', 'websitesi',
-    ]);
-
-    for (const [key, val] of Object.entries(properties)) {
-      const normKey = normText(key);
-      if (!knownKeys.has(normKey) && val != null && val !== '') {
-        const readableKey = key
-          .replace(/_/g, ' ')
-          .replace(/([a-z])([A-Z])/g, '$1 $2')
-          .toLowerCase()
-          .split(' ')
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(' ');
-        list.push({ label: readableKey, value: typeof val === 'boolean' ? (val ? 'Evet' : 'Hayır') : String(val) });
-      }
-    }
-
-    return list;
-  }, [advertId, isPublished, detail, resolvedCategory, horseName, breed, age, gender, coatColor, sire, dam, damsire, ownerName, tjkNumber, birthDate, companyName, websiteUrl, properties]);
+    return buildModerationAdvertSpecRows(detail, advert, categoryName);
+  }, [detail, advert, categoryName]);
 
   const copyToClipboard = (text: string, keyName: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -614,6 +509,18 @@ export default function AdvertDetailModal({
                                       <span>{row.value}</span>
                                       <i className="fe fe-external-link" style={{ fontSize: '11px', color: '#0284c7' }} />
                                     </a>
+                                  ) : row.isBoolean && (row.value === 'Evet' || row.value === 'Hayır') ? (
+                                    <span
+                                      className={`badge rounded-pill ${
+                                        row.value === 'Evet'
+                                          ? 'bg-success-subtle text-success border border-success-subtle'
+                                          : 'bg-danger-subtle text-danger border border-danger-subtle'
+                                      } px-2 py-1 fw-semibold`}
+                                      style={{ fontSize: '12px' }}
+                                    >
+                                      <i className={`fe ${row.value === 'Evet' ? 'fe-check' : 'fe-x'} me-1`} />
+                                      {row.value}
+                                    </span>
                                   ) : (
                                     row.value
                                   )}
