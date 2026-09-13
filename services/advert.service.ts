@@ -30,6 +30,7 @@ type ModerationQueueResponse = {
 
 export type ModerationAdvertDetail = OwnerAdvertItem & {
     ownerUserId: string;
+    sellerPhone?: string | null;
     description?: string | null;
     rejectionReason?: string | null;
     price?: { amountMinor?: number; amount?: number; currency: string } | null;
@@ -215,7 +216,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com' },
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sellerPhone: '0532 111 22 33', phone: '0532 111 22 33' },
     },
     {
         id: 'adv-002',
@@ -229,7 +230,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com' },
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sellerPhone: '0533 222 33 44', phone: '0533 222 33 44' },
     },
     {
         id: 'adv-003',
@@ -243,7 +244,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com' },
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sellerPhone: '0532 123 45 67', phone: '0532 123 45 67' },
     },
     {
         id: 'adv-suspend-001',
@@ -257,7 +258,7 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com' },
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sellerPhone: '0535 333 44 55', phone: '0535 333 44 55' },
     },
 ];
 
@@ -413,12 +414,19 @@ class AdvertService {
             const mock = getLocalMockAdverts().find((m) => m.id === advertId);
             if (mock) {
                 const mockReason = (mock as any).rejectionReason || (mock.status === 'REJECTED' ? 'İlan kriterlere uygun bulunmadı.' : undefined);
+                const mockPhone = (mock as any).sellerPhone || (mock as any).properties?.sellerPhone || (mock as any).properties?.phone || '0532 123 45 67';
                 return {
                     ...mock,
+                    sellerPhone: mockPhone,
                     ownerUserId: mock.ownerUserId || 'u1000000-0000-4000-8000-000000000001',
                     description: `${mock.title} - Detay açıklaması`,
                     media: [],
                     rejectionReason: mockReason,
+                    properties: {
+                        ...(mock.properties || {}),
+                        sellerPhone: mockPhone,
+                        phone: mockPhone,
+                    },
                     statusHistory: [
                         {
                             fromStatus: 'DRAFT',
