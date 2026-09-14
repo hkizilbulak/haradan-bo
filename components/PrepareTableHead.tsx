@@ -9,7 +9,8 @@ const PrepareTableHead = ({
         <thead>
             <tr>
                 {headItems.map((item, index) => {
-                    return <th key={index} scope="col" className="fw-bold">{item}</th>
+                    const alignCenter = item === 'İşlemler' || item === '';
+                    return <th key={index} scope="col" className={`fw-bold ${alignCenter ? 'text-center' : ''}`}>{item}</th>
                 })}
             </tr>
         </thead>

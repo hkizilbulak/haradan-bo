@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useEffect, useCallback } from 'react';
-import { Alert, Badge, Button, Container, Row, Col, Tabs, Tab, Modal } from 'react-bootstrap';
+import { Alert, Badge, Button, Container, Row, Col, Tabs, Tab, Modal, Card } from 'react-bootstrap';
 import Loading from '@/components/Loading';
 import PrepareTable from '@/components/PrepareTable';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
@@ -16,14 +16,14 @@ export default function CommentsPage() {
   const [comments, setComments] = useState<AdvertComment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
 
-  const fetchComments = useCallback(async (status: CommentStatus) => {
+  const fetchComments = useCallback(async (status: CommentStatus, pageIndex: number, limit: number) => {
     setIsLoading(true);
     try {
-      // In a real app we might handle pagination. For now, fetch first page.
-      const data = await commentService.getComments(status, 1, 50);
+      const data = await commentService.getComments(status, pageIndex + 1, limit);
       setComments(data.items || []);
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -33,14 +33,14 @@ export default function CommentsPage() {
   }, []);
 
   useEffect(() => {
-    fetchComments(activeTab);
+    fetchComments(activeTab, 0, 50);
   }, [activeTab, fetchComments]);
 
   const handleApprove = async (id: string) => {
     try {
       await commentService.approveComment(id);
       toast.success('Yorum onaylandı');
-      fetchComments(activeTab);
+      fetchComments(activeTab, 0, 50);
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -50,7 +50,7 @@ export default function CommentsPage() {
     try {
       await commentService.rejectComment(id);
       toast.success('Yorum reddedildi');
-      fetchComments(activeTab);
+      fetchComments(activeTab, 0, 50);
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -66,7 +66,7 @@ export default function CommentsPage() {
     try {
       await commentService.deleteComment(commentToDelete);
       toast.success('Yorum silindi');
-      fetchComments(activeTab);
+      fetchComments(activeTab, 0, 50);
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
@@ -88,8 +88,8 @@ export default function CommentsPage() {
         {cmt.status === 'PUBLISHED' && <Badge bg="success">Onaylandı</Badge>}
         {cmt.status === 'REJECTED' && <Badge bg="danger">Reddedildi</Badge>}
       </td>
-      <td className="text-nowrap">
-        <div className="d-flex flex-wrap gap-1">
+      <td className="text-center">
+        <div className="d-flex flex-wrap gap-2 justify-content-center align-items-center">
           {cmt.status === 'PENDING' && (
             <>
               <Button size="sm" variant="outline-success" onClick={() => handleApprove(cmt.id)}>
@@ -100,8 +100,15 @@ export default function CommentsPage() {
               </Button>
             </>
           )}
-          <Button size="sm" variant="outline-dark" onClick={() => requestDelete(cmt.id)}>
-            <i className="fe fe-trash-2"></i> Sil
+          <Button 
+            size="sm" 
+            variant="outline-danger" 
+            className="d-flex align-items-center justify-content-center"
+            style={{ width: '32px', height: '32px', padding: 0 }}
+            title="Sil"
+            onClick={() => requestDelete(cmt.id)}
+          >
+            <i className="fe fe-trash-2"></i>
           </Button>
         </div>
       </td>
@@ -137,12 +144,14 @@ export default function CommentsPage() {
         </Alert>
       )}
       {!isLoading && comments.length > 0 && (
-        <PrepareTable
-          headItems={headItems}
-          content={content}
-          page={undefined}
-          onHandlePageChange={() => undefined}
-        />
+        <Card className="border-0 shadow-sm rounded-3 overflow-hidden mb-3">
+          <PrepareTable
+            headItems={headItems}
+            content={content}
+            page={undefined}
+            onHandlePageChange={() => undefined}
+          />
+        </Card>
       )}
 
       <Modal show={deleteModalOpen} onHide={() => setDeleteModalOpen(false)} centered>

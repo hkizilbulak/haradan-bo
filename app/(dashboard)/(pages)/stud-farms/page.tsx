@@ -2,10 +2,10 @@
 import React, { useState } from 'react';
 import { formatDateForText } from '@/helpers/DateUtils';
 import { capitalizeSentence } from '@/helpers/HelperUtils';
-import useCursorApi from '@/hooks/useCursorApi';
+import useApi from '@/hooks/useApi';
 import { StudFarm, StudFarmResponse } from '@/models/StudFarm';
 import { studFarmService } from '@/services';
-import CursorPagination from '@/components/CursorPagination';
+import CustomPagination from '@/components/Pagination';
 import { Skeleton } from '@/components/Skeleton';
 import { Col, Row, Container, Card, Table, Button, Alert, Form } from 'react-bootstrap';
 import { Trash2, Plus, ChevronDown, ChevronUp, Edit } from 'react-feather';
@@ -16,10 +16,8 @@ import StudFarmNotesTimeline from './components/StudFarmNotesTimeline';
 import { toast } from 'react-toastify';
 
 export default function StudFarms() {
-    const [pageSize, setPageSize] = useState(10);
-    const [{ data, isLoading, isError, handleFilter, goNext, goPrev, canGoPrev, canGoNext, pageIndex, refetch }] = useCursorApi<StudFarm>({
+    const [{ data, parameters, isLoading, isError, handleFilter, handlePageChange, setParameters, refetch }] = useApi<StudFarm>({
         service: studFarmService,
-        pageSize,
     });
 
     const [showAddModal, setShowAddModal] = useState(false);
@@ -130,7 +128,7 @@ export default function StudFarms() {
                                             <th className="text-muted fw-semibold" style={{ maxWidth: '37ch' }}>Konum</th>
                                             <th className="text-muted fw-semibold">Görüşme Sayısı</th>
                                             <th className="text-muted fw-semibold">Eklenme Tarihi</th>
-                                            <th className="text-end text-muted fw-semibold" style={{ paddingRight: '24px' }}>İşlemler</th>
+                                            <th className="text-center text-muted fw-semibold">İşlemler</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -174,43 +172,43 @@ export default function StudFarms() {
                                                             <td style={{ maxWidth: '37ch', whiteSpace: 'normal', wordWrap: 'break-word' }}>{item.location || '-'}</td>
                                                             <td>{item.interviewCount || 0}</td>
                                                             <td>{formatDateForText(item.createdAt)}</td>
-                                                            <td className="text-end" style={{ paddingRight: '24px' }}>
-                                                                <div className="d-flex justify-content-end align-items-center gap-2">
+                                                            <td className="text-center">
+                                                                <div className="d-flex justify-content-center align-items-center gap-2">
                                                                     <Button
                                                                         variant="success"
                                                                         size="sm"
                                                                         title="Görüşme Ekle"
                                                                         className="text-white border-0 d-flex align-items-center justify-content-center"
-                                                                        style={{ padding: '4px 8px', height: '32px' }}
+                                                                        style={{ width: '24px', height: '24px', padding: 0 }}
                                                                         onClick={() => {
                                                                             setSelectedStudFarmId(item.id);
                                                                             setShowNoteModal(true);
                                                                         }}
                                                                     >
-                                                                        <Plus size={16} />
+                                                                        <Plus size={12} />
                                                                     </Button>
                                                                     <Button 
                                                                         variant="light" 
                                                                         size="sm" 
                                                                         title="Hara Düzenle"
                                                                         className="bg-white border d-flex align-items-center justify-content-center"
-                                                                        style={{ width: '32px', height: '32px', padding: 0 }}
+                                                                        style={{ width: '24px', height: '24px', padding: 0 }}
                                                                         onClick={() => {
                                                                             setEditStudFarm(item);
                                                                             setShowAddModal(true);
                                                                         }}
                                                                     >
-                                                                        <Edit size={16} className="text-secondary" />
+                                                                        <Edit size={12} className="text-secondary" />
                                                                     </Button>
                                                                     <Button
                                                                         variant="light"
                                                                         size="sm"
                                                                         className="text-danger border-0 d-flex align-items-center justify-content-center"
-                                                                        style={{ padding: '4px 8px', height: '32px' }}
+                                                                        style={{ width: '24px', height: '24px', padding: 0 }}
                                                                         title="Sil"
                                                                         onClick={() => setDeleteStudFarmId(item.id)}
                                                                     >
-                                                                        <Trash2 size={16} />
+                                                                        <Trash2 size={12} />
                                                                     </Button>
                                                                 </div>
                                                             </td>
@@ -251,18 +249,29 @@ export default function StudFarms() {
             )}
 
             {!isLoading && !isError && rows.length > 0 && (
-                <div className="mt-3">
-                    <CursorPagination
-                        canGoPrev={canGoPrev}
-                        canGoNext={canGoNext}
-                        onPrev={goPrev}
-                        onNext={goNext}
-                        pageIndex={pageIndex}
-                        pageSize={pageSize}
-                        totalElements={data?.page?.totalElements}
-                        totalPages={data?.page?.totalPages}
-                        onPageSizeChange={setPageSize}
-                    />
+                <div className="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mt-3 pt-3">
+                    <div className="d-flex flex-wrap align-items-center justify-content-center justify-content-md-start gap-2 text-muted small w-100 w-md-auto">
+                        <span className="text-nowrap fw-medium">Sayfa başına:</span>
+                        <Form.Select 
+                            size="sm" 
+                            className="rounded-2 shadow-none border text-center fw-medium" 
+                            style={{ width: '85px', minWidth: '85px', display: 'inline-block', cursor: 'pointer' }} 
+                            value={parameters?.pageRequest?.size || 10} 
+                            onChange={(e) => setParameters({ ...parameters, pageRequest: { ...parameters.pageRequest, size: Number(e.target.value), page: 0 } })}
+                        >
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </Form.Select>
+                        <span className="text-nowrap ms-md-2">
+                            Toplam <strong>{data?.page?.totalElements ?? 0}</strong> kayıt (Sayfa {(parameters?.pageRequest?.page ?? 0) + 1} / {data?.page?.totalPages ?? 1})
+                        </span>
+                    </div>
+                    
+                    <div className="d-flex justify-content-center align-items-center w-100 w-md-auto overflow-auto">
+                        <CustomPagination page={data?.page} onPageChange={handlePageChange} />
+                    </div>
                 </div>
             )}
 

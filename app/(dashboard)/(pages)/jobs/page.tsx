@@ -25,7 +25,7 @@ import { PageHeading } from '@/widgets';
 import { toast } from 'react-toastify';
 import { Edit } from 'react-feather';
 
-const headItems = ['Ad', 'Tip', 'Çalışma Sıklığı', 'Durum', 'Son Çalışma', 'Sonraki Çalışma', ''];
+const headItems = ['Ad', 'Tip', 'Çalışma Sıklığı', 'Durum', 'Son Çalışma', 'Sonraki Çalışma', 'İşlemler'];
 const ALLOWED_SCHEDULED_JOBS = new Set(['TJK_SYNC', 'PACKAGE_EXPIRY_SCAN', 'MEDIA_RECONCILE']);
 
 type JobFormValues = {
@@ -298,19 +298,20 @@ export default function JobsPage() {
           ? 'Pasif'
           : (job.nextRunAt ? formatDateTimeForText(job.nextRunAt) : '-')}
       </td>
-      <td>
-        <Button size="sm" variant="outline-secondary" className="me-2" onClick={() => setHistoryJob(job)}>Geçmiş</Button>
-        <Button
-          size="sm"
-          variant="outline-primary"
-          className="me-2"
-          title="Düzenle"
-          aria-label="Düzenle"
-          onClick={() => openJobModal(job)}
-        >
-          <Edit size={14} />
-        </Button>
-        <Button size="sm" variant="primary" onClick={() => handleRun(job)}>Çalıştır</Button>
+      <td className="text-center text-nowrap">
+        <div className="d-flex flex-wrap gap-1 justify-content-center align-items-center">
+          <Button size="sm" variant="outline-secondary" onClick={() => setHistoryJob(job)}>Geçmiş</Button>
+          <Button
+            size="sm"
+            variant="outline-primary"
+            title="Düzenle"
+            aria-label="Düzenle"
+            onClick={() => openJobModal(job)}
+          >
+            <Edit size={14} />
+          </Button>
+          <Button size="sm" variant="primary" onClick={() => handleRun(job)}>Çalıştır</Button>
+        </div>
       </td>
     </tr>
   ));

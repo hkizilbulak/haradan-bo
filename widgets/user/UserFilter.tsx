@@ -1,4 +1,4 @@
-import { Button, Card, Col, Form, Row } from 'react-bootstrap';
+import { Button, Card, Col, Form, Row, Dropdown } from 'react-bootstrap';
 import { useFormik } from 'formik';
 import { appendOperator } from '@/helpers/HelperUtils';
 import { UserRole } from '@/models';
@@ -123,38 +123,40 @@ export default function UserFilter({ onFilter }: IProps) {
 
             <Form.Group as={Col} md={4} lg={2}>
               <Form.Label className="small fw-semibold text-secondary mb-1">Rol</Form.Label>
-              <Form.Select
-                size="sm"
-                name="role"
-                onChange={(e) => {
-                  formik.handleChange(e);
-                  formik.submitForm();
-                }}
-                value={formik.values.role ?? ''}
-              >
-                <option value="">Tüm Roller</option>
-                <option value="admin">Yönetici</option>
-                <option value="CALL_CENTER">Çağrı Merkezi</option>
-                <option value="user">Kullanıcı</option>
-              </Form.Select>
+              <Dropdown>
+                <Dropdown.Toggle className={`w-100 text-start d-flex justify-content-between align-items-center shadow-none bg-white form-control form-control-sm ${!formik.values.role ? 'text-muted' : 'text-secondary'}`}>
+                  <span className="text-truncate">
+                    {formik.values.role === 'admin' ? 'Yönetici' :
+                     formik.values.role === 'CALL_CENTER' ? 'Çağrı Merkezi' :
+                     formik.values.role === 'user' ? 'Kullanıcı' : 'Tüm Roller'}
+                  </span>
+                </Dropdown.Toggle>
+                <Dropdown.Menu className="w-100 shadow-sm border-0" style={{ fontSize: '0.875rem' }}>
+                  <Dropdown.Item onClick={() => { formik.setFieldValue('role', ''); setTimeout(() => formik.submitForm(), 0); }}>Tüm Roller</Dropdown.Item>
+                  <Dropdown.Item onClick={() => { formik.setFieldValue('role', 'admin'); setTimeout(() => formik.submitForm(), 0); }}>Yönetici</Dropdown.Item>
+                  <Dropdown.Item onClick={() => { formik.setFieldValue('role', 'CALL_CENTER'); setTimeout(() => formik.submitForm(), 0); }}>Çağrı Merkezi</Dropdown.Item>
+                  <Dropdown.Item onClick={() => { formik.setFieldValue('role', 'user'); setTimeout(() => formik.submitForm(), 0); }}>Kullanıcı</Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
             </Form.Group>
 
             <Form.Group as={Col} md={4} lg={2}>
               <Form.Label className="small fw-semibold text-secondary mb-1">Durum</Form.Label>
-              <Form.Select
-                size="sm"
-                name="status"
-                onChange={(e) => {
-                  formik.handleChange(e);
-                  formik.submitForm();
-                }}
-                value={formik.values.status ?? ''}
-              >
-                <option value="">Tüm Durumlar</option>
-                <option value="ACTIVE">Aktif</option>
-                <option value="CLOSED">Kapalı</option>
-                <option value="DISABLED">Pasif</option>
-              </Form.Select>
+              <Dropdown>
+                <Dropdown.Toggle className={`w-100 text-start d-flex justify-content-between align-items-center shadow-none bg-white form-control form-control-sm ${!formik.values.status ? 'text-muted' : 'text-secondary'}`}>
+                  <span className="text-truncate">
+                    {formik.values.status === 'ACTIVE' ? 'Aktif' :
+                     formik.values.status === 'CLOSED' ? 'Kapalı' :
+                     formik.values.status === 'DISABLED' ? 'Pasif' : 'Tüm Durumlar'}
+                  </span>
+                </Dropdown.Toggle>
+                <Dropdown.Menu className="w-100 shadow-sm border-0" style={{ fontSize: '0.875rem' }}>
+                  <Dropdown.Item onClick={() => { formik.setFieldValue('status', ''); setTimeout(() => formik.submitForm(), 0); }}>Tüm Durumlar</Dropdown.Item>
+                  <Dropdown.Item onClick={() => { formik.setFieldValue('status', 'ACTIVE'); setTimeout(() => formik.submitForm(), 0); }}>Aktif</Dropdown.Item>
+                  <Dropdown.Item onClick={() => { formik.setFieldValue('status', 'CLOSED'); setTimeout(() => formik.submitForm(), 0); }}>Kapalı</Dropdown.Item>
+                  <Dropdown.Item onClick={() => { formik.setFieldValue('status', 'DISABLED'); setTimeout(() => formik.submitForm(), 0); }}>Pasif</Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
             </Form.Group>
 
             <Col xs={12} className="d-flex justify-content-end mt-2">

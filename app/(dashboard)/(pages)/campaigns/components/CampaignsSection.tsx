@@ -27,7 +27,7 @@ const headItems = [
   'Fiyat',
   'Geçerlilik Tarihi',
   'Durum',
-  '',
+  'İşlemler',
 ];
 
 const initialValues: CampaignRequest = {
@@ -944,16 +944,16 @@ export default function CampaignsSection() {
         <td>
           <StatusBadge status={campaign.isActive ? 'ACTIVE' : 'INACTIVE'} />
         </td>
-        <td className="text-end">
+        <td className="text-center">
           <Button
             size="sm"
             variant="outline-primary"
-            className="d-inline-flex align-items-center gap-1"
+            className="d-inline-flex align-items-center justify-content-center"
+            style={{ width: '32px', height: '32px', padding: 0 }}
             onClick={() => openCampaignModal(campaign)}
             title="Kampanyayı Düzenle"
           >
             <Edit size={14} />
-            <span>Düzenle</span>
           </Button>
         </td>
       </tr>

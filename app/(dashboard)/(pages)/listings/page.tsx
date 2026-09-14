@@ -274,14 +274,14 @@ export default function Adverts() {
         'Yayın Tarihi',
         'Kategori',
         'Durum',
-        '',
+        'İşlemler',
       ]
     : [
         'İlanı Gönderen',
         'Gönderim Tarihi',
         'Kategori',
         'Durum',
-        '',
+        'İşlemler',
       ];
 
   const activeStatus = (() => {
@@ -372,12 +372,13 @@ export default function Adverts() {
         <td className="text-nowrap">
           <StatusBadge status={advert.status} />
         </td>
-        <td className="text-end text-nowrap">
-          <div className="d-flex gap-1 align-items-center justify-content-end">
+        <td className="text-center text-nowrap">
+          <div className="d-flex gap-1 align-items-center justify-content-center">
             <Button
               size="sm"
               variant="outline-primary"
-              className="p-1 px-2 d-inline-flex align-items-center justify-content-center"
+              className="d-inline-flex align-items-center justify-content-center"
+              style={{ width: '32px', height: '32px', padding: 0 }}
               title="Detay"
               onClick={() => setDetailAdvert(advert)}
             >
@@ -386,7 +387,8 @@ export default function Adverts() {
             <Button
               size="sm"
               variant="outline-secondary"
-              className="p-1 px-2 d-inline-flex align-items-center justify-content-center"
+              className="d-inline-flex align-items-center justify-content-center"
+              style={{ width: '32px', height: '32px', padding: 0 }}
               title="Paket ve İlan Düzenle"
               onClick={() => setPackageAdvert(advert)}
             >

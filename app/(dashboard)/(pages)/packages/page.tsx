@@ -17,7 +17,7 @@ import { packageService, PackageRequest, PackageResponse } from '@/services/pack
 import { PageHeading } from '@/widgets';
 import { toast } from 'react-toastify';
 
-const headItems = ['Ad', 'Fiyat', 'Durum', 'Oluşturulma', ''];
+const headItems = ['Ad', 'Fiyat', 'Durum', 'Oluşturulma', 'İşlemler'];
 
 const initialValues: PackageRequest = {
   displayName: '',
@@ -299,8 +299,8 @@ export default function PackagesPage() {
       <td>{formatMoney(pkg.displayPrice?.amountMinor, pkg.displayPrice?.currency ?? pkg.currencyCode)}</td>
       <td><StatusBadge status={pkg.isActive ? 'ACTIVE' : 'INACTIVE'} /></td>
       <td>{formatDateTimeForText(pkg.createdAt)}</td>
-      <td className="text-nowrap">
-        <div className="d-flex flex-wrap gap-1">
+      <td className="text-center text-nowrap">
+        <div className="d-flex flex-wrap gap-1 justify-content-center align-items-center">
           <Button size="sm" variant="outline-secondary" disabled={reorderBusy || index === 0} onClick={() => void movePackage(index, -1)}>↑</Button>
           <Button size="sm" variant="outline-secondary" disabled={reorderBusy || index === (data?.content?.length ?? 0) - 1} onClick={() => void movePackage(index, 1)}>↓</Button>
           <Button size="sm" variant="outline-primary" onClick={() => openPackageModal(pkg)}>

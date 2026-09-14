@@ -24,7 +24,7 @@ const headItems = [
   'Yerleşim',
   'Durum',
   'Görsel Durumu',
-  ''
+  'İşlemler'
 ];
 
 function parsePlacement(filter?: string): 'HOMEPAGE_HERO' | 'HOMEPAGE_PROMO' | 'HOMEPAGE' | 'LISTING_DETAIL' | 'SEARCH' | null {
@@ -245,19 +245,28 @@ export default function Banners() {
         <td>{getBannerPlacementText(banner.placement)}</td>
         <td><StatusBadge status={banner.status} /></td>
         <td>{getMediaLifecycleText(banner.assetLifecycleStatus)}</td>
-        <td>
-          <a
-            className="font-medium text-cyan-600 me-3 cp"
-            onClick={() => openBannerModal(banner)}>
-            <i className={`fe fe-edit`}></i>
-          </a>
-          <Button
-            size="sm"
-            variant={banner.status === 'ACTIVE' ? 'warning' : 'success'}
-            disabled={statusBusyId === id || reorderBusy || reorderMode}
-            onClick={() => void handleToggleStatus(banner)}>
-            {banner.status === 'ACTIVE' ? 'Pasife Al' : 'Aktifleştir'}
-          </Button>
+        <td className="text-center">
+          <div className="d-flex flex-wrap gap-2 justify-content-center">
+            <Button
+              size="sm"
+              variant="outline-primary"
+              className="d-flex align-items-center justify-content-center"
+              style={{ width: '32px', height: '32px', padding: 0 }}
+              title="Düzenle"
+              onClick={() => openBannerModal(banner)}>
+              <i className="fe fe-edit"></i>
+            </Button>
+            <Button
+              size="sm"
+              variant={banner.status === 'ACTIVE' ? 'outline-warning' : 'outline-success'}
+              className="d-flex align-items-center justify-content-center"
+              style={{ width: '32px', height: '32px', padding: 0 }}
+              title={banner.status === 'ACTIVE' ? 'Pasife Al' : 'Aktifleştir'}
+              disabled={statusBusyId === id || reorderBusy || reorderMode}
+              onClick={() => void handleToggleStatus(banner)}>
+              <i className={banner.status === 'ACTIVE' ? 'fe fe-eye-off' : 'fe fe-eye'}></i>
+            </Button>
+          </div>
         </td>
       </tr>
     );
