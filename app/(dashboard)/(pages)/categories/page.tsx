@@ -3,10 +3,13 @@ import { categoryService } from "@/services";
 import { PageHeading } from "@/widgets";
 import { useState, ReactNode, useEffect, useCallback, useMemo } from "react";
 import { Alert, Col, Form, Row, Container, Button, Pagination, Badge, Modal, Card, Spinner } from "react-bootstrap";
-import SortableTree, {
+import {
+  SortableTreeWithoutDndContext as SortableTree,
   toggleExpandedForAll,
   GetTreeItemChildrenFn,
 } from "@nosferatu500/react-sortable-tree";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
 import { CategoryRequest, CategoryResponse } from "@/models";
 import useApi from "@/hooks/useApi";
 import { SearchParams } from "@/models/common";
@@ -587,102 +590,104 @@ export default function Categories() {
               </div>
             )}
             {!isLoading && !isError && treeData && treeData.length > 0 ? (
-              <SortableTree
-                treeData={treeData}
-                onChange={(nextTreeData) => setTreeData(nextTreeData)}
-                onMoveNode={(movedData) => moveNode(movedData)}
-                searchQuery={searchString}
-                searchFocusOffset={searchFocusIndex}
-                searchFinishCallback={(matches) => {
-                  setSearchFoundCount(matches.length);
-                  setSearchFocusIndex(
-                    matches.length > 0 ? searchFocusIndex % matches.length : 0
-                  );
-                }}
-                searchMethod={({ node, searchQuery }) => {
-                  if (!searchQuery) return false;
-                  const q = searchQuery.toLowerCase().trim();
-                  const nameStr = node.name ? String(node.name).toLowerCase() : "";
-                  const slugStr = node.slug ? String(node.slug).toLowerCase() : "";
-                  return nameStr.includes(q) || slugStr.includes(q);
-                }}
-                canDrag={({ node }) => !moving && !node.dragDisabled}
-                generateNodeProps={(rowInfo) => {
-                  const isDeleted = rowInfo.node.status === EntityStatusEnum.DELETED;
-                  return {
-                    buttons: [
-                      <div key={`${rowInfo.node.identifier ?? rowInfo.treeIndex}-actions`} className="d-flex align-items-center gap-1">
-                        {!isDeleted ? (
-                          <>
+              <DndProvider backend={HTML5Backend}>
+                <SortableTree
+                  treeData={treeData}
+                  onChange={(nextTreeData) => setTreeData(nextTreeData)}
+                  onMoveNode={(movedData) => moveNode(movedData)}
+                  searchQuery={searchString}
+                  searchFocusOffset={searchFocusIndex}
+                  searchFinishCallback={(matches) => {
+                    setSearchFoundCount(matches.length);
+                    setSearchFocusIndex(
+                      matches.length > 0 ? searchFocusIndex % matches.length : 0
+                    );
+                  }}
+                  searchMethod={({ node, searchQuery }) => {
+                    if (!searchQuery) return false;
+                    const q = searchQuery.toLowerCase().trim();
+                    const nameStr = node.name ? String(node.name).toLowerCase() : "";
+                    const slugStr = node.slug ? String(node.slug).toLowerCase() : "";
+                    return nameStr.includes(q) || slugStr.includes(q);
+                  }}
+                  canDrag={({ node }) => !moving && !node.dragDisabled}
+                  generateNodeProps={(rowInfo) => {
+                    const isDeleted = rowInfo.node.status === EntityStatusEnum.DELETED;
+                    return {
+                      buttons: [
+                        <div key={`${rowInfo.node.identifier ?? rowInfo.treeIndex}-actions`} className="d-flex align-items-center gap-1">
+                          {!isDeleted ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="light"
+                                className="p-1 px-2 text-success border-0 bg-light-success rounded-2"
+                                title="Alt Kategori Ekle (+)"
+                                onClick={() => openAddChildModal(rowInfo)}
+                              >
+                                <i className="fe fe-plus-square"></i>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="light"
+                                className="p-1 px-2 text-info border-0 bg-light rounded-2"
+                                title="Özellikler"
+                                onClick={() => setPropertiesNode(rowInfo.node)}
+                              >
+                                <i className="fe fe-list"></i>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="light"
+                                className="p-1 px-2 text-primary border-0 bg-light-primary rounded-2"
+                                title="Düzenle"
+                                onClick={() => openEditModal(rowInfo)}
+                              >
+                                <i className="fe fe-edit"></i>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="light"
+                                className="p-1 px-2 text-danger border-0 bg-light-danger rounded-2"
+                                title="Sil (Pasife Al)"
+                                onClick={() => openDeleteModal(rowInfo)}
+                              >
+                                <i className="fe fe-trash-2"></i>
+                              </Button>
+                            </>
+                          ) : (
                             <Button
                               size="sm"
-                              variant="light"
-                              className="p-1 px-2 text-success border-0 bg-light-success rounded-2"
-                              title="Alt Kategori Ekle (+)"
-                              onClick={() => openAddChildModal(rowInfo)}
+                              variant="success"
+                              className="py-0 px-2 fw-semibold"
+                              title="Tekrar Aktif Et"
+                              onClick={() => restoreNode(rowInfo)}
                             >
-                              <i className="fe fe-plus-square"></i>
+                              <i className="fe fe-refresh-cw me-1"></i> Geri Yükle
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="light"
-                              className="p-1 px-2 text-info border-0 bg-light rounded-2"
-                              title="Özellikler"
-                              onClick={() => setPropertiesNode(rowInfo.node)}
-                            >
-                              <i className="fe fe-list"></i>
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="light"
-                              className="p-1 px-2 text-primary border-0 bg-light-primary rounded-2"
-                              title="Düzenle"
-                              onClick={() => openEditModal(rowInfo)}
-                            >
-                              <i className="fe fe-edit"></i>
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="light"
-                              className="p-1 px-2 text-danger border-0 bg-light-danger rounded-2"
-                              title="Sil (Pasife Al)"
-                              onClick={() => openDeleteModal(rowInfo)}
-                            >
-                              <i className="fe fe-trash-2"></i>
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="success"
-                            className="py-0 px-2 fw-semibold"
-                            title="Tekrar Aktif Et"
-                            onClick={() => restoreNode(rowInfo)}
-                          >
-                            <i className="fe fe-refresh-cw me-1"></i> Geri Yükle
-                          </Button>
-                        )}
-                      </div>,
-                    ],
-                    title: (
-                      <span className="d-flex align-items-center gap-2">
-                        <strong className="text-dark">{rowInfo.node.name}</strong>
-                        {rowInfo.node.slug === 'ortak-alanlar' || rowInfo.node.identifier === 'c1000000-0000-4000-8000-000000000000' ? (
-                          <Badge bg="primary" style={{ fontSize: '10px', padding: '3px 6px' }}>
-                            <i className="fe fe-globe me-1"></i> Tüm İlanlarda Ortak
-                          </Badge>
-                        ) : null}
-                        {isDeleted && <Badge bg="danger" className="ms-2">Silinmiş / Pasif</Badge>}
-                      </span>
-                    ),
-                    subtitle: isDeleted ? 'Pasif kategori' : undefined,
-                    style: {
-                      height: "52px",
-                      opacity: isDeleted ? 0.55 : 1,
-                    },
-                  };
-                }}
-              />
+                          )}
+                        </div>,
+                      ],
+                      title: (
+                        <span className="d-flex align-items-center gap-2">
+                          <strong className="text-dark">{rowInfo.node.name}</strong>
+                          {rowInfo.node.slug === 'ortak-alanlar' || rowInfo.node.identifier === 'c1000000-0000-4000-8000-000000000000' ? (
+                            <Badge bg="primary" style={{ fontSize: '10px', padding: '3px 6px' }}>
+                              <i className="fe fe-globe me-1"></i> Tüm İlanlarda Ortak
+                            </Badge>
+                          ) : null}
+                          {isDeleted && <Badge bg="danger" className="ms-2">Silinmiş / Pasif</Badge>}
+                        </span>
+                      ),
+                      subtitle: isDeleted ? 'Pasif kategori' : undefined,
+                      style: {
+                        height: "52px",
+                        opacity: isDeleted ? 0.55 : 1,
+                      },
+                    };
+                  }}
+                />
+              </DndProvider>
             ) : !isLoading && !isError && (
               <div className="p-5 text-center text-muted border rounded-3 bg-light">
                 <i className="fe fe-folder fs-1 mb-2 d-block text-secondary"></i>

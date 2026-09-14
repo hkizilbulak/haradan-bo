@@ -45,6 +45,8 @@
     "react-bootstrap": "^2.8.0",
     "react-bootstrap-icons": "^1.10.3",
     "react-copy-to-clipboard": "^5.1.0",
+    "react-dnd": "^14.0.4",
+    "react-dnd-html5-backend": "^14.1.0",
     "react-dom": "18.2.0",
     "react-feather": "^2.0.10",
     "react-number-format": "^5.3.1",
