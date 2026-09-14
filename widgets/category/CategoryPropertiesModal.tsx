@@ -18,6 +18,7 @@ import {
   uiMetadataFromForm,
   type PropertyDisplayGroup,
 } from '@/helpers/propertyUiMetadata';
+import { Edit2, Eye, EyeOff, Trash2, Plus, ArrowUp, ArrowDown } from 'react-feather';
 
 const DATA_TYPES: PropertyDataType[] = [
   'STRING',
@@ -394,8 +395,8 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
               <h6 className="mb-0 fw-bold">Bu Kategoriye Özel Alanlar</h6>
               <span className="text-muted small">Bu alt kategoriye doğrudan tanımlanan ve öncelikli olan alanlar</span>
             </div>
-            <Button size="sm" variant="primary" onClick={openCreate} disabled={submitting}>
-              + Yeni Özellik Ekle
+            <Button size="sm" variant="primary" onClick={openCreate} disabled={submitting} title="Yeni Özellik Ekle">
+              <Plus size={16} />
             </Button>
           </div>
 
@@ -456,8 +457,9 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
                         className="me-1"
                         disabled={submitting || originalIndex === 0}
                         onClick={() => void moveProperty(originalIndex, -1)}
+                        title="Yukarı Taşı"
                       >
-                        ↑
+                        <ArrowUp size={16} />
                       </Button>
                       <Button
                         size="sm"
@@ -465,8 +467,9 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
                         className="me-1"
                         disabled={submitting || originalIndex === items.length - 1}
                         onClick={() => void moveProperty(originalIndex, 1)}
+                        title="Aşağı Taşı"
                       >
-                        ↓
+                        <ArrowDown size={16} />
                       </Button>
                       <Button
                         size="sm"
@@ -474,8 +477,9 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
                         className="me-1"
                         disabled={submitting}
                         onClick={() => openEdit(item)}
+                        title="Düzenle"
                       >
-                        Düzenle
+                        <Edit2 size={16} />
                       </Button>
                       <Button
                         size="sm"
@@ -483,16 +487,18 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
                         className="me-1"
                         disabled={submitting}
                         onClick={() => void handleToggleActive(item)}
+                        title={item.isActive ? 'Pasife Al' : 'Aktifleştir'}
                       >
-                        {item.isActive ? 'Pasif' : 'Aktif'}
+                        {item.isActive ? <EyeOff size={16} /> : <Eye size={16} />}
                       </Button>
                       <Button
                         size="sm"
                         variant="outline-danger"
                         disabled={submitting}
                         onClick={() => void handleDelete(item)}
+                        title="Sil"
                       >
-                        Sil
+                        <Trash2 size={16} />
                       </Button>
                     </td>
                   </tr>
