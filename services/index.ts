@@ -12,4 +12,5 @@ export * from './media.service';
 export * from './profile.service';
 export * from './tjk.service';
 export * from './StudFarmService';
+export * from './comment.service';
 export * from './base.service';

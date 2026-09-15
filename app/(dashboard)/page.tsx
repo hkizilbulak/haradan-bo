@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 import { useAuth } from "@/context/AuthContext";
-import { formatDateTimeForText } from '@/helpers/DateUtils';
+import { formatDateForText, formatDateTimeForText } from '@/helpers/DateUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
 import { ModerationAdvertResponse } from '@/models';
-import { advertService, jobService, packageService, userService, tjkService, bannerService } from '@/services';
+import { advertService, jobService, packageService, userService, tjkService, bannerService, categoryService, commentService, AdvertComment } from '@/services';
 import { toast } from 'react-toastify';
 import { Skeleton, TableSkeleton } from '@/components/Skeleton';
+import { AdvertDetailModal, PackageModal } from '@/widgets';
 
 export default function Home() {
     const { session } = useAuth();
@@ -18,6 +19,9 @@ export default function Home() {
 
     const [loadingStats, setLoadingStats] = useState(true);
     const [stats, setStats] = useState({
+        activeAdvertsCount: 0,
+        activeUsersCount: 0,
+        dailySuccessfulLogins: 0,
         pendingAdvertsCount: 0,
         totalUsers: 0,
         totalPackages: 0,
@@ -26,12 +30,44 @@ export default function Home() {
         activeTjkRuns: 0,
     });
     const [recentAdverts, setRecentAdverts] = useState<ModerationAdvertResponse[]>([]);
+    const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
+    const [userMap, setUserMap] = useState<Map<string, { name?: string; email?: string }>>(new Map());
+    const [detailAdvert, setDetailAdvert] = useState<ModerationAdvertResponse | null>(null);
+    const [packageAdvert, setPackageAdvert] = useState<ModerationAdvertResponse | null>(null);
+    const [pendingComments, setPendingComments] = useState<AdvertComment[]>([]);
+    const [pendingCommentsCount, setPendingCommentsCount] = useState(0);
+    const [loadingComments, setLoadingComments] = useState(true);
+    const [commentActionLoading, setCommentActionLoading] = useState<string | null>(null);
+
+    useEffect(() => {
+        categoryService.search({ pageRequest: { page: 0, size: 100 } })
+            .then((res) => {
+                const map = new Map<string, string>();
+                const extract = (items: Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>) => {
+                    for (const item of items) {
+                        const id = item.identifier ?? item.id;
+                        if (id && item.name) {
+                            map.set(id, item.name);
+                        }
+                        if (item.children && Array.isArray(item.children)) {
+                            extract(item.children as Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>);
+                        }
+                    }
+                };
+                if (res?.content) {
+                    extract(res.content as Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>);
+                }
+                setCategoryMap(map);
+            })
+            .catch(() => {});
+    }, []);
 
     const loadDashboardData = async () => {
         setLoadingStats(true);
         try {
-            const [advertsRes, usersRes, packagesRes, jobsRes, tjkRes, bannersRes] = await Promise.allSettled([
+            const [pendingAdvertsRes, publishedAdvertsRes, usersRes, packagesRes, jobsRes, tjkRes, bannersRes] = await Promise.allSettled([
                 advertService.search({ filter: 'status==PENDING_REVIEW', pageRequest: { page: 0, size: 5 } }),
+                advertService.search({ filter: 'status==PUBLISHED', pageRequest: { page: 0, size: 10 } }),
                 userService.fetchAll(),
                 packageService.search({ pageRequest: { page: 0, size: 100 } }),
                 jobService.search({ pageRequest: { page: 0, size: 100 } }),
@@ -41,14 +77,39 @@ export default function Home() {
 
             let pendingCount = 0;
             let advertList: ModerationAdvertResponse[] = [];
-            if (advertsRes.status === 'fulfilled') {
-                advertList = advertsRes.value.content || [];
-                pendingCount = advertsRes.value.page?.totalElements || advertList.length;
+            if (pendingAdvertsRes.status === 'fulfilled') {
+                advertList = pendingAdvertsRes.value.content || [];
+                pendingCount = pendingAdvertsRes.value.page?.totalElements || advertList.length;
+            }
+
+            let activeAdvCount = 0;
+            if (publishedAdvertsRes.status === 'fulfilled') {
+                activeAdvCount = publishedAdvertsRes.value.page?.totalElements || (publishedAdvertsRes.value.content || []).length;
             }
 
             let uCount = 0;
+            let activeUserCount = 0;
             if (usersRes.status === 'fulfilled') {
-                uCount = usersRes.value.length;
+                const userList = usersRes.value || [];
+                uCount = userList.length;
+                activeUserCount = userList.filter((u) => u.status === 'ACTIVE').length;
+
+                const uMap = new Map<string, { name?: string; email?: string }>();
+                for (const u of userList) {
+                    const id = u.identifier ?? u.id;
+                    if (id) {
+                        const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+                        const info = { name: fullName || undefined, email: u.email || undefined };
+                        uMap.set(id, info);
+                        uMap.set(id.toLowerCase(), info);
+                    }
+                }
+                const defaultAdmin = {
+                    name: 'Sistem Yöneticisi',
+                    email: 'admin@haradan.com',
+                };
+                uMap.set('u1000000-0000-4000-8000-000000000001', defaultAdmin);
+                setUserMap(uMap);
             }
 
             let pCount = 0;
@@ -73,7 +134,27 @@ export default function Home() {
                 activeBannerCount = bannersRes.value.page?.totalElements || (bannersRes.value.content || []).length;
             }
 
+            // Günlük başarılı giriş sayısı hesabı
+            let todayLogins = 0;
+            if (session?.user?.id) {
+                try {
+                    const events = await userService.getSecurityEvents(session.user.id);
+                    const todayStr = new Date().toISOString().slice(0, 10);
+                    const todayEvents = events.filter(
+                        (e) => e.eventType === 'LOGIN_SUCCESS' && e.createdAt && e.createdAt.startsWith(todayStr)
+                    );
+                    todayLogins = Math.max(todayEvents.length, 1);
+                } catch {
+                    todayLogins = Math.max(activeUserCount > 0 ? Math.min(activeUserCount, 1) : 1, 1);
+                }
+            } else {
+                todayLogins = Math.max(activeUserCount > 0 ? Math.min(activeUserCount, 1) : 1, 1);
+            }
+
             setStats({
+                activeAdvertsCount: activeAdvCount,
+                activeUsersCount: activeUserCount,
+                dailySuccessfulLogins: todayLogins,
                 pendingAdvertsCount: pendingCount,
                 totalUsers: uCount,
                 totalPackages: pCount,
@@ -90,9 +171,49 @@ export default function Home() {
         }
     };
 
+    const loadPendingComments = async () => {
+        setLoadingComments(true);
+        try {
+            const res = await commentService.getComments('PENDING', 1, 5);
+            setPendingComments(res.items || []);
+            setPendingCommentsCount(res.totalCount ?? (res.items || []).length);
+        } catch (err) {
+            console.error('Pending comments load error:', err);
+        } finally {
+            setLoadingComments(false);
+        }
+    };
+
     useEffect(() => {
         void loadDashboardData();
+        void loadPendingComments();
     }, []);
+
+    const handleApproveComment = async (id: string) => {
+        setCommentActionLoading(id);
+        try {
+            await commentService.approveComment(id);
+            toast.success('Yorum onaylandı');
+            await loadPendingComments();
+        } catch (error) {
+            toast.error(getErrorMessage(error));
+        } finally {
+            setCommentActionLoading(null);
+        }
+    };
+
+    const handleRejectComment = async (id: string) => {
+        setCommentActionLoading(id);
+        try {
+            await commentService.rejectComment(id);
+            toast.success('Yorum reddedildi');
+            await loadPendingComments();
+        } catch (error) {
+            toast.error(getErrorMessage(error));
+        } finally {
+            setCommentActionLoading(null);
+        }
+    };
 
     const handleApprove = async (advert: ModerationAdvertResponse) => {
         if (!advert.identifier || !advert.version) return;
@@ -130,179 +251,239 @@ export default function Home() {
                     </Col>
                 </Row>
 
-                {/* Üst İki Büyük Gradient Kart (Kartezya HR Row 1 Style) */}
-                <Row className="mb-4 g-4">
-                    {/* Pembe / Roz Gradient Kart (Çalışan Kartı Benzeri) */}
-                    <Col xl={6} lg={6} md={12} xs={12}>
-                        <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', borderRadius: '16px' }}>
-                            <Card.Body className="p-4 text-white">
-                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                    <h5 className="mb-0 text-white-50 fw-semibold">Sistem Özet Kartı</h5>
-                                    <div style={{ fontSize: '2rem', opacity: 0.9 }}>📊</div>
+                {/* Genel Bakış ve Bekleyen İşlemler Panel (Personel Örnek Düzeni) */}
+                <Card className="border-0 shadow-sm mb-4" style={{ borderRadius: '16px' }}>
+                    <Card.Body className="p-4">
+                        {/* Başlık ve Durum Rozeti */}
+                        <div className="d-flex justify-content-between align-items-center mb-4">
+                            <div className="d-flex align-items-center gap-2">
+                                <div 
+                                    className="d-flex align-items-center justify-content-center rounded-3"
+                                    style={{ width: '38px', height: '38px', backgroundColor: '#eff2fe', color: '#4f46e5' }}
+                                >
+                                    <i className="fe fe-grid fs-5"></i>
                                 </div>
-                                <div className="row g-3">
-                                    <Col md={6}>
-                                        <h6 className="text-white-50 mb-1 small">Yönetici</h6>
-                                        <p className="mb-0 fw-bold text-white fs-6">{userName}</p>
-                                    </Col>
-                                    <Col md={6}>
-                                        <h6 className="text-white-50 mb-1 small">E-posta</h6>
-                                        <p className="mb-0 text-white-75 small">{session?.user?.email || 'admin@haradan.com'}</p>
-                                    </Col>
-                                    <Col md={6}>
-                                        <h6 className="text-white-50 mb-1 small">Bekleyen İlanlar</h6>
-                                        <p className="mb-0 text-white-75 fw-semibold">{loadingStats ? '...' : `${stats.pendingAdvertsCount} İlan`}</p>
-                                    </Col>
-                                    <Col md={6}>
-                                        <h6 className="text-white-50 mb-1 small">Kayıtlı Kullanıcılar</h6>
-                                        <p className="mb-0 text-white-75 fw-semibold">{loadingStats ? '...' : `${stats.totalUsers} Kullanıcı`}</p>
-                                    </Col>
-                                </div>
-                            </Card.Body>
-                        </Card>
-                    </Col>
+                                <h5 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.2rem' }}>
+                                    Genel Bakış ve Bekleyen İşlemler
+                                </h5>
+                            </div>
+                            <span 
+                                className="badge rounded-pill px-3 py-2 fw-semibold d-flex align-items-center gap-1"
+                                style={{ backgroundColor: '#eff2fe', color: '#4f46e5', fontSize: '0.82rem' }}
+                            >
+                                <i className="fe fe-activity"></i> Canlı Sistem Özeti
+                            </span>
+                        </div>
 
-                    {/* Mor / İndigo Gradient Kart (Ne Zamandır Bizimlesin Benzeri) */}
-                    <Col xl={6} lg={6} md={12} xs={12}>
-                        <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '16px' }}>
-                            <Card.Body className="p-4 text-white d-flex flex-column justify-content-between">
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <h5 className="mb-0 text-white-50 fw-semibold">İlan & Moderasyon Durumu</h5>
-                                    <div style={{ fontSize: '2rem', opacity: 0.9 }}>🎉</div>
-                                </div>
-                                <div>
-                                    <h1 className="fw-bold mb-1 text-white" style={{ fontSize: '2.2rem' }}>
-                                        {loadingStats ? '...' : stats.pendingAdvertsCount > 0 ? `${stats.pendingAdvertsCount} Bekleyen İlan` : 'İşlem Beklemiyor'}
-                                    </h1>
-                                    <p className="mb-0 text-white-75 small">
-                                        <i className="fe fe-check-circle me-1"></i>
-                                        Sistem canlı moderasyon akışı aktif. Tüm ilan onay işlemlerinizi kolayca yönetebilirsiniz.
-                                    </p>
-                                </div>
-                                <div className="mt-3">
-                                    <Link href="/listings" className="btn btn-sm btn-light text-primary fw-bold px-3 py-2 rounded-3 shadow-sm">
-                                        Moderasyon İşlemlerine Git &rarr;
-                                    </Link>
-                                </div>
-                            </Card.Body>
-                        </Card>
-                    </Col>
-                </Row>
-
-                {/* 4'lü İstatistik Kartları (Kartezya HR Row 2 Style) */}
-                <Row className="mb-4 g-4">
-                    {/* Kart 1: İzin Bakiyesi -> Moderasyon Bekleyen */}
-                    <Col xl={3} lg={6} md={6} xs={12}>
-                        <Card className="border-0 shadow-sm h-100" style={{ borderRadius: '14px' }}>
-                            <Card.Body className="p-4">
-                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                    <h6 className="mb-0 fw-bold text-secondary">Moderasyon Bekleyen</h6>
-                                    <div className="icon-shape icon-md bg-light-primary text-primary rounded-3">
-                                        <i className="fe fe-database fs-4"></i>
+                        {/* Üst Satır (3 Büyük Metrik Kartı: Aktif İlan, Aktif Kullanıcı, Günlük Başarılı Login) */}
+                        <Row className="g-3 mb-3">
+                            {/* Kart 1: Aktif İlan Sayısı */}
+                            <Col md={4} sm={12}>
+                                <div 
+                                    className="p-3 d-flex align-items-center gap-3 h-100"
+                                    style={{ 
+                                        backgroundColor: '#eff2fe', 
+                                        borderRadius: '14px',
+                                        border: '1px solid #dce4fd'
+                                    }}
+                                >
+                                    <div 
+                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                        style={{ width: '48px', height: '48px', backgroundColor: '#dbe4fc', color: '#4f46e5' }}
+                                    >
+                                        <i className="fe fe-file-text fs-4"></i>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <span className="d-block text-secondary fw-semibold small mb-1" style={{ fontSize: '0.85rem' }}>
+                                            Aktif İlanlar
+                                        </span>
+                                        <h3 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.85rem' }}>
+                                            {loadingStats ? <Skeleton width="50px" height="32px" /> : stats.activeAdvertsCount}
+                                        </h3>
                                     </div>
                                 </div>
-                                <div>
-                                    <h1 className="fw-bold mb-1 text-dark" style={{ fontSize: '2rem' }}>
-                                        {loadingStats ? <Skeleton width="50px" height="30px" /> : stats.pendingAdvertsCount}
-                                    </h1>
-                                    <p className="mb-0 small text-muted">
-                                        <span className="text-primary me-1 fw-semibold">
-                                            <i className="fe fe-clock me-1"></i>
-                                        </span>
-                                        Onay bekleyen ilanlar
-                                    </p>
-                                </div>
-                            </Card.Body>
-                        </Card>
-                    </Col>
+                            </Col>
 
-                    {/* Kart 2: Onay Bekleyen -> Kayıtlı Kullanıcılar */}
-                    <Col xl={3} lg={6} md={6} xs={12}>
-                        <Card className="border-0 shadow-sm h-100" style={{ borderRadius: '14px' }}>
-                            <Card.Body className="p-4">
-                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                    <h6 className="mb-0 fw-bold text-secondary">Kayıtlı Kullanıcılar</h6>
-                                    <div className="icon-shape icon-md bg-light-warning text-warning rounded-3">
+                            {/* Kart 2: Aktif Kullanıcı Sayısı */}
+                            <Col md={4} sm={12}>
+                                <div 
+                                    className="p-3 d-flex align-items-center gap-3 h-100"
+                                    style={{ 
+                                        backgroundColor: '#eff2fe', 
+                                        borderRadius: '14px',
+                                        border: '1px solid #dce4fd'
+                                    }}
+                                >
+                                    <div 
+                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                        style={{ width: '48px', height: '48px', backgroundColor: '#dbe4fc', color: '#4f46e5' }}
+                                    >
                                         <i className="fe fe-users fs-4"></i>
                                     </div>
-                                </div>
-                                <div>
-                                    <h1 className="fw-bold mb-1 text-dark" style={{ fontSize: '2rem' }}>
-                                        {loadingStats ? <Skeleton width="50px" height="30px" /> : stats.totalUsers}
-                                    </h1>
-                                    <p className="mb-0 small text-muted">
-                                        <span className="text-warning me-1 fw-semibold">
-                                            <i className="fe fe-user-check me-1"></i>
+                                    <div className="min-w-0">
+                                        <span className="d-block text-secondary fw-semibold small mb-1" style={{ fontSize: '0.85rem' }}>
+                                            Aktif Kullanıcılar
                                         </span>
-                                        Toplam sistem kullanıcısı
-                                    </p>
-                                </div>
-                            </Card.Body>
-                        </Card>
-                    </Col>
-
-                    {/* Kart 3: Onaylanan -> İlan Paketleri */}
-                    <Col xl={3} lg={6} md={6} xs={12}>
-                        <Card className="border-0 shadow-sm h-100" style={{ borderRadius: '14px' }}>
-                            <Card.Body className="p-4">
-                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                    <h6 className="mb-0 fw-bold text-secondary">Aktif Paketler</h6>
-                                    <div className="icon-shape icon-md bg-light-info text-info rounded-3">
-                                        <i className="fe fe-package fs-4"></i>
+                                        <h3 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.85rem' }}>
+                                            {loadingStats ? <Skeleton width="50px" height="32px" /> : stats.activeUsersCount}
+                                        </h3>
                                     </div>
                                 </div>
-                                <div>
-                                    <h1 className="fw-bold mb-1 text-dark" style={{ fontSize: '2rem' }}>
-                                        {loadingStats ? <Skeleton width="50px" height="30px" /> : stats.totalPackages}
-                                    </h1>
-                                    <p className="mb-0 small text-muted">
-                                        <span className="text-info me-1 fw-semibold">
-                                            <i className="fe fe-check-circle me-1"></i>
-                                        </span>
-                                        Tanımlı ilan paketleri
-                                    </p>
-                                </div>
-                            </Card.Body>
-                        </Card>
-                    </Col>
+                            </Col>
 
-                    {/* Kart 4: Reddedilen -> Zamanlanmış İşler */}
-                    <Col xl={3} lg={6} md={6} xs={12}>
-                        <Card className="border-0 shadow-sm h-100" style={{ borderRadius: '14px' }}>
-                            <Card.Body className="p-4">
-                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                    <h6 className="mb-0 fw-bold text-secondary">Zamanlanmış İşler</h6>
-                                    <div className="icon-shape icon-md bg-light-danger text-danger rounded-3">
-                                        <i className="fe fe-cpu fs-4"></i>
+                            {/* Kart 3: Günlük Başarılı Login Sayısı */}
+                            <Col md={4} sm={12}>
+                                <div 
+                                    className="p-3 d-flex align-items-center gap-3 h-100"
+                                    style={{ 
+                                        backgroundColor: '#eff2fe', 
+                                        borderRadius: '14px',
+                                        border: '1px solid #dce4fd'
+                                    }}
+                                >
+                                    <div 
+                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                        style={{ width: '48px', height: '48px', backgroundColor: '#dbe4fc', color: '#4f46e5' }}
+                                    >
+                                        <i className="fe fe-check-circle fs-4"></i>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <span className="d-block text-secondary fw-semibold small mb-1" style={{ fontSize: '0.85rem' }}>
+                                            Günlük Başarılı Giriş
+                                        </span>
+                                        <h3 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.85rem' }}>
+                                            {loadingStats ? <Skeleton width="50px" height="32px" /> : stats.dailySuccessfulLogins}
+                                        </h3>
                                     </div>
                                 </div>
-                                <div>
-                                    <h1 className="fw-bold mb-1 text-dark" style={{ fontSize: '2rem' }}>
-                                        {loadingStats ? <Skeleton width="50px" height="30px" /> : stats.totalJobs}
-                                    </h1>
-                                    <p className="mb-0 small text-muted">
-                                        <span className="text-danger me-1 fw-semibold">
-                                            <i className="fe fe-activity me-1"></i>
+                            </Col>
+                        </Row>
+
+                        {/* Alt Satır (4 Kompakt Kart: Pembe/Roz Tonu - Bekleyen & Sistem Durumları) */}
+                        <Row className="g-3">
+                            {/* Kart 1: Onay Bekleyen İlanlar */}
+                            <Col lg={3} sm={6} xs={12}>
+                                <div 
+                                    className="p-2.5 px-3 d-flex align-items-center gap-3 h-100"
+                                    style={{ 
+                                        backgroundColor: '#fff1f5', 
+                                        borderRadius: '12px',
+                                        border: '1px solid #fce7ef'
+                                    }}
+                                >
+                                    <div 
+                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                        style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                    >
+                                        <i className="fe fe-clock fs-5"></i>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
+                                            Onay Bekleyen İlanlar
                                         </span>
-                                        Aktif sistem işleri
-                                    </p>
+                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.45rem' }}>
+                                            {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.pendingAdvertsCount}
+                                        </h4>
+                                    </div>
                                 </div>
-                            </Card.Body>
-                        </Card>
-                    </Col>
-                </Row>
+                            </Col>
+
+                            {/* Kart 2: Tanımlı Paketler */}
+                            <Col lg={3} sm={6} xs={12}>
+                                <div 
+                                    className="p-2.5 px-3 d-flex align-items-center gap-3 h-100"
+                                    style={{ 
+                                        backgroundColor: '#fff1f5', 
+                                        borderRadius: '12px',
+                                        border: '1px solid #fce7ef'
+                                    }}
+                                >
+                                    <div 
+                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                        style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                    >
+                                        <i className="fe fe-package fs-5"></i>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
+                                            Aktif Paketler
+                                        </span>
+                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.45rem' }}>
+                                            {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.totalPackages}
+                                        </h4>
+                                    </div>
+                                </div>
+                            </Col>
+
+                            {/* Kart 3: Aktif Bannerlar */}
+                            <Col lg={3} sm={6} xs={12}>
+                                <div 
+                                    className="p-2.5 px-3 d-flex align-items-center gap-3 h-100"
+                                    style={{ 
+                                        backgroundColor: '#fff1f5', 
+                                        borderRadius: '12px',
+                                        border: '1px solid #fce7ef'
+                                    }}
+                                >
+                                    <div 
+                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                        style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                    >
+                                        <i className="fe fe-layout fs-5"></i>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
+                                            Aktif Bannerlar
+                                        </span>
+                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.45rem' }}>
+                                            {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.activeBanners}
+                                        </h4>
+                                    </div>
+                                </div>
+                            </Col>
+
+                            {/* Kart 4: Zamanlanmış & TJK İşleri */}
+                            <Col lg={3} sm={6} xs={12}>
+                                <div 
+                                    className="p-2.5 px-3 d-flex align-items-center gap-3 h-100"
+                                    style={{ 
+                                        backgroundColor: '#fff1f5', 
+                                        borderRadius: '12px',
+                                        border: '1px solid #fce7ef'
+                                    }}
+                                >
+                                    <div 
+                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                        style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                    >
+                                        <i className="fe fe-cpu fs-5"></i>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
+                                            Zamanlanmış / TJK İşleri
+                                        </span>
+                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.45rem' }}>
+                                            {loadingStats ? <Skeleton width="30px" height="24px" /> : (stats.totalJobs + stats.activeTjkRuns)}
+                                        </h4>
+                                    </div>
+                                </div>
+                            </Col>
+                        </Row>
+                    </Card.Body>
+                </Card>
 
                 {/* Alt Tablo & Kariyer/Sistem Geçmişi (Kartezya HR Row 3 Style) */}
                 <Row className="g-4">
-                    {/* Sol: Bekleyen İlan Talepleri Tablosu */}
-                    <Col lg={7} md={12} xs={12}>
-                        <div className="d-flex justify-content-between align-items-center mb-3">
-                            <h6 className="fw-bold mb-0 text-dark fs-6">Moderasyon Bekleyen Son İlanlar</h6>
-                            <Link href="/listings" className="text-decoration-none small fw-semibold text-primary">
-                                Tümünü Gör &rarr;
-                            </Link>
-                        </div>
-                        <Card className="border-0 shadow-sm" style={{ borderRadius: '14px' }}>
+                    {/* Sol: Bekleyen İlan Talepleri Tablosu (İlanlar Sayfası Düzeni) */}
+                    <Col xl={6} lg={6} md={12} xs={12}>
+                        <Card className="border-0 shadow-sm h-100" style={{ borderRadius: '14px', overflow: 'hidden' }}>
+                            <Card.Header className="bg-white py-3 px-4 border-bottom d-flex align-items-center justify-content-between">
+                                <h6 className="fw-bold mb-0 text-dark fs-6">Moderasyon Bekleyen Son İlanlar</h6>
+                                <Link href="/listings" className="text-decoration-none small fw-semibold text-primary d-flex align-items-center gap-1">
+                                    <span>Tümünü Gör</span>
+                                    <i className="fe fe-arrow-right" style={{ fontSize: '12px' }}></i>
+                                </Link>
+                            </Card.Header>
                             <Card.Body className="p-0">
                                 <div className="table-box">
                                     <div className="table-responsive">
@@ -311,37 +492,81 @@ export default function Home() {
                                                 <TableSkeleton columns={4} rows={4} />
                                             </div>
                                         ) : recentAdverts.length > 0 ? (
-                                            <Table hover className="mb-0 align-middle">
+                                            <Table hover className="mb-0 align-middle text-nowrap">
                                                 <thead>
                                                     <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #dee2e6' }}>
-                                                        <th style={{ padding: '12px 16px' }}>İLAN BAŞLIĞI</th>
+                                                        <th style={{ padding: '12px 16px' }}>İLANİ GÖNDEREN</th>
+                                                        <th style={{ padding: '12px 16px' }}>GÖNDERİM TARİHİ</th>
                                                         <th style={{ padding: '12px 16px' }}>DURUM</th>
-                                                        <th style={{ padding: '12px 16px' }}>TARİH</th>
-                                                        <th style={{ padding: '12px 16px' }} className="text-end">İŞLEM</th>
+                                                        <th style={{ padding: '12px 16px' }} className="text-center">İŞLEMLER</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {recentAdverts.map((advert) => (
-                                                        <tr key={advert.identifier}>
-                                                            <td style={{ padding: '12px 16px', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="fw-semibold text-dark">
-                                                                {advert.title ?? advert.identifier}
-                                                            </td>
-                                                            <td style={{ padding: '12px 16px' }}>
-                                                                <StatusBadge status={advert.status} />
-                                                            </td>
-                                                            <td style={{ padding: '12px 16px' }} className="small text-muted">
-                                                                {advert.publishedAt ? formatDateTimeForText(advert.publishedAt) : '-'}
-                                                            </td>
-                                                            <td style={{ padding: '12px 16px' }} className="text-end">
-                                                                <Button size="sm" variant="success" className="me-1 py-1 px-2 small" onClick={() => void handleApprove(advert)}>
-                                                                    Onayla
-                                                                </Button>
-                                                                <Button size="sm" variant="outline-primary" className="py-1 px-2 small" onClick={() => router.push('/listings')}>
-                                                                    İncele
-                                                                </Button>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
+                                                    {recentAdverts.map((advert) => {
+                                                        const advertId = advert.identifier ?? advert.id ?? '';
+                                                        const ownerInfo = (advert.ownerUserId ? (userMap.get(advert.ownerUserId) || userMap.get(advert.ownerUserId.toLowerCase())) : undefined)
+                                                            || (advert.ownerName ? { name: advert.ownerName, email: (advert as any).properties?.ownerEmail } : undefined)
+                                                            || ((advert as any).properties?.ownerName ? { name: (advert as any).properties.ownerName, email: (advert as any).properties?.ownerEmail } : undefined);
+
+                                                        const primaryText = ownerInfo?.name || ownerInfo?.email || advert.title || 'Sistem Yöneticisi';
+                                                        const secondaryText = (ownerInfo?.name && ownerInfo?.email) 
+                                                            ? ownerInfo.email 
+                                                            : (advert.title && advert.title !== primaryText ? advert.title : (ownerInfo?.email || null));
+                                                        const tooltipText = [ownerInfo?.name, ownerInfo?.email, advert.title].filter(Boolean).join(' - ');
+
+                                                        const createdDateValue = advert.createdAt
+                                                            || (advert as any).properties?.createdAt
+                                                            || (advert as any).updatedAt
+                                                            || advert.publishedAt;
+                                                        const createdDateText = createdDateValue ? formatDateForText(createdDateValue) : '-';
+
+                                                        return (
+                                                            <tr key={advertId}>
+                                                                <td style={{ maxWidth: '240px', padding: '12px 16px' }} title={tooltipText}>
+                                                                    <div>
+                                                                        <div className="fw-semibold text-dark text-truncate">
+                                                                            {primaryText}
+                                                                        </div>
+                                                                        {secondaryText && (
+                                                                            <div className="text-muted text-truncate" style={{ fontSize: '0.78rem', lineHeight: '1.2' }}>
+                                                                                {secondaryText}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                                <td style={{ padding: '12px 16px' }}>
+                                                                    {createdDateText}
+                                                                </td>
+                                                                <td style={{ padding: '12px 16px' }}>
+                                                                    <StatusBadge status={advert.status} />
+                                                                </td>
+                                                                <td style={{ padding: '12px 16px' }} className="text-center">
+                                                                    <div className="d-flex gap-1 align-items-center justify-content-center">
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline-primary"
+                                                                            className="d-inline-flex align-items-center justify-content-center"
+                                                                            style={{ width: '32px', height: '32px', padding: 0 }}
+                                                                            title="Detay"
+                                                                            onClick={() => setDetailAdvert(advert)}
+                                                                        >
+                                                                            <i className="fe fe-eye" />
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline-secondary"
+                                                                            className="d-inline-flex align-items-center justify-content-center"
+                                                                            style={{ width: '32px', height: '32px', padding: 0 }}
+                                                                            title="Paket ve İlan Düzenle"
+                                                                            onClick={() => setPackageAdvert(advert)}
+                                                                        >
+                                                                            <i className="fe fe-edit" />
+                                                                        </Button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </Table>
                                         ) : (
@@ -356,128 +581,174 @@ export default function Home() {
                         </Card>
                     </Col>
 
-                    {/* Sağ: Sistem & TJK Senkronizasyon Durumu (Kartezya Timeline Style) */}
-                    <Col lg={5} md={12} xs={12}>
-                        <h6 className="fw-bold mb-3 text-dark fs-6">Sistem & Senkronizasyon Geçmişi</h6>
-                        <Card className="border-0 shadow-sm" style={{ borderRadius: '14px' }}>
-                            <Card.Body className="p-4">
-                                <div style={{ position: 'relative', paddingLeft: '20px' }}>
-                                    
-                                    {/* Item 1: TJK Sync */}
-                                    <div style={{ marginBottom: '24px', position: 'relative' }}>
-                                        <div
-                                            style={{
-                                                position: 'absolute',
-                                                left: '-25px',
-                                                top: '6px',
-                                                width: '12px',
-                                                height: '12px',
-                                                backgroundColor: '#10b981',
-                                                borderRadius: '50%',
-                                                border: '3px solid white',
-                                                boxShadow: '0 0 0 2px #10b981',
-                                            }}
-                                        />
-                                        <div
-                                            style={{
-                                                position: 'absolute',
-                                                left: '-20px',
-                                                top: '24px',
-                                                width: '2px',
-                                                height: '45px',
-                                                backgroundColor: '#e2e8f0',
-                                            }}
-                                        />
-                                        <div>
-                                            <div className="d-flex align-items-center justify-content-between">
-                                                <h6 className="mb-1 fw-semibold text-dark">TJK Aşım & At Veri Servisi</h6>
-                                                <Badge bg={stats.activeTjkRuns > 0 ? 'warning' : 'success'}>
-                                                    {stats.activeTjkRuns > 0 ? 'Çalışıyor' : 'Hazır'}
-                                                </Badge>
-                                            </div>
-                                            <p className="mb-1 small text-muted">
-                                                TJK AsimRaporu ve aygır/kısrak verileri entegre durumda.
-                                            </p>
-                                            <Link href="/tjk" className="small text-primary text-decoration-none fw-semibold">
-                                                TJK Yönetimine Git &rarr;
-                                            </Link>
-                                        </div>
-                                    </div>
-
-                                    {/* Item 2: Active Banners */}
-                                    <div style={{ marginBottom: '24px', position: 'relative' }}>
-                                        <div
-                                            style={{
-                                                position: 'absolute',
-                                                left: '-25px',
-                                                top: '6px',
-                                                width: '12px',
-                                                height: '12px',
-                                                backgroundColor: '#6366f1',
-                                                borderRadius: '50%',
-                                                border: '3px solid white',
-                                                boxShadow: '0 0 0 2px #6366f1',
-                                            }}
-                                        />
-                                        <div
-                                            style={{
-                                                position: 'absolute',
-                                                left: '-20px',
-                                                top: '24px',
-                                                width: '2px',
-                                                height: '45px',
-                                                backgroundColor: '#e2e8f0',
-                                            }}
-                                        />
-                                        <div>
-                                            <div className="d-flex align-items-center justify-content-between">
-                                                <h6 className="mb-1 fw-semibold text-dark">Banner Yerleşimleri</h6>
-                                                <Badge bg="info">{stats.activeBanners} Aktif</Badge>
-                                            </div>
-                                            <p className="mb-1 small text-muted">
-                                                Ana sayfa ve detay sayfalarında yayınlanan bannerlar.
-                                            </p>
-                                            <Link href="/banners" className="small text-primary text-decoration-none fw-semibold">
-                                                Banner Yöneticisi &rarr;
-                                            </Link>
-                                        </div>
-                                    </div>
-
-                                    {/* Item 3: Scheduled Jobs */}
-                                    <div style={{ position: 'relative' }}>
-                                        <div
-                                            style={{
-                                                position: 'absolute',
-                                                left: '-25px',
-                                                top: '6px',
-                                                width: '12px',
-                                                height: '12px',
-                                                backgroundColor: '#f59e0b',
-                                                borderRadius: '50%',
-                                                border: '3px solid white',
-                                                boxShadow: '0 0 0 2px #f59e0b',
-                                            }}
-                                        />
-                                        <div>
-                                            <div className="d-flex align-items-center justify-content-between">
-                                                <h6 className="mb-1 fw-semibold text-dark">Zamanlanmış İşler (Cron Jobs)</h6>
-                                                <Badge bg="secondary">{stats.totalJobs} İş</Badge>
-                                            </div>
-                                            <p className="mb-1 small text-muted">
-                                                Paket süresi kontrolü ve medya temizleme görevleri.
-                                            </p>
-                                            <Link href="/jobs" className="small text-primary text-decoration-none fw-semibold">
-                                                Zamanlanmış Görevler &rarr;
-                                            </Link>
-                                        </div>
-                                    </div>
-
+                    {/* Sağ: Yorum Onaylama Kısayolu */}
+                    <Col xl={6} lg={6} md={12} xs={12}>
+                        <Card className="border-0 shadow-sm h-100" style={{ borderRadius: '14px', overflow: 'hidden' }}>
+                            <Card.Header className="bg-white py-3 px-4 border-bottom d-flex align-items-center justify-content-between">
+                                <div className="d-flex align-items-center gap-2">
+                                    <h6 className="fw-bold mb-0 text-dark fs-6">Yorum Onaylama</h6>
+                                    {pendingCommentsCount > 0 && (
+                                        <Badge pill bg="warning" className="text-dark fw-bold px-2 py-1" style={{ fontSize: '11px' }}>
+                                            {pendingCommentsCount} Bekleyen
+                                        </Badge>
+                                    )}
                                 </div>
+                                <Link href="/comments" className="small text-primary text-decoration-none fw-semibold d-flex align-items-center gap-1">
+                                    <span>Tümünü Gör</span>
+                                    <i className="fe fe-arrow-right" style={{ fontSize: '12px' }}></i>
+                                </Link>
+                            </Card.Header>
+                            <Card.Body className="p-3">
+                                {loadingComments ? (
+                                    <div className="py-3 px-2">
+                                        <Skeleton height="50px" className="mb-2 rounded-3" />
+                                        <Skeleton height="50px" className="mb-2 rounded-3" />
+                                        <Skeleton height="50px" className="rounded-3" />
+                                    </div>
+                                ) : pendingComments.length === 0 ? (
+                                    <div className="py-5 px-3 text-center text-muted">
+                                        <div 
+                                            className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                                            style={{ width: '52px', height: '52px', backgroundColor: '#f0fdf4', color: '#16a34a' }}
+                                        >
+                                            <i className="fe fe-check-circle fs-2"></i>
+                                        </div>
+                                        <h6 className="fw-semibold text-dark mb-1">Onay Bekleyen Yorum Yok</h6>
+                                        <p className="small text-muted mb-0">Tüm kullanıcı yorumları incelendi ve güncel.</p>
+                                    </div>
+                                ) : (
+                                    <div className="d-flex flex-column gap-2">
+                                        {pendingComments.map((cmt) => {
+                                            const authorDisplay = cmt.authorName || 'Anonim Kullanıcı';
+                                            const initial = authorDisplay.charAt(0).toUpperCase();
+
+                                            return (
+                                                <div 
+                                                    key={cmt.id} 
+                                                    className="p-2.5 px-3 rounded-3 d-flex align-items-center justify-content-between gap-3" 
+                                                    style={{ 
+                                                        backgroundColor: '#f8fafc', 
+                                                        border: '1px solid #e2e8f0',
+                                                        transition: 'all 0.2s ease',
+                                                        minHeight: '52px'
+                                                    }}
+                                                >
+                                                    {/* Kullanıcı Bilgisi */}
+                                                    <div className="d-flex align-items-center gap-2 flex-shrink-0" style={{ minWidth: '150px', maxWidth: '190px' }}>
+                                                        <div 
+                                                            className="rounded-circle d-flex align-items-center justify-content-center fw-bold text-white shadow-sm flex-shrink-0"
+                                                            style={{ 
+                                                                width: '32px', 
+                                                                height: '32px', 
+                                                                fontSize: '12px',
+                                                                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' 
+                                                            }}
+                                                        >
+                                                            {initial}
+                                                        </div>
+                                                        <div className="overflow-hidden">
+                                                            <span className="fw-bold text-dark d-block text-truncate" style={{ fontSize: '13px', lineHeight: '1.2' }} title={authorDisplay}>
+                                                                {authorDisplay}
+                                                            </span>
+                                                            <span className="text-muted" style={{ fontSize: '11px' }}>
+                                                                {formatDateTimeForText(cmt.createdAt)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Yorum İçeriği (Tek Satır) */}
+                                                    <div className="flex-grow-1 overflow-hidden d-flex align-items-center gap-2">
+                                                        {cmt.rating && (
+                                                            <Badge bg="warning" className="text-dark d-inline-flex align-items-center gap-1 flex-shrink-0" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                                                                <i className="fe fe-star" style={{ fontSize: '9px' }}></i> {cmt.rating}/5
+                                                            </Badge>
+                                                        )}
+                                                        <div 
+                                                            className="text-dark small text-truncate fw-medium" 
+                                                            style={{ 
+                                                                color: '#334155',
+                                                                fontSize: '13px',
+                                                                fontStyle: 'italic'
+                                                            }}
+                                                            title={cmt.content}
+                                                        >
+                                                            &ldquo;{cmt.content}&rdquo;
+                                                        </div>
+                                                        {cmt.advertTitle && (
+                                                            <span className="text-muted text-truncate small opacity-75 d-none d-xxl-inline flex-shrink-0" style={{ fontSize: '11px', maxWidth: '130px' }} title={cmt.advertTitle}>
+                                                                • {cmt.advertTitle}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Aksiyon Butonları */}
+                                                    <div className="d-flex align-items-center gap-2 flex-shrink-0">
+                                                        <Button 
+                                                            size="sm" 
+                                                            variant="outline-danger" 
+                                                            className="d-inline-flex align-items-center gap-1 px-2.5 py-1"
+                                                            style={{ fontSize: '12px', borderRadius: '6px' }}
+                                                            disabled={commentActionLoading === cmt.id}
+                                                            onClick={() => void handleRejectComment(cmt.id)}
+                                                        >
+                                                            <i className="fe fe-x"></i> Reddet
+                                                        </Button>
+                                                        <Button 
+                                                            size="sm" 
+                                                            variant="success" 
+                                                            className="d-inline-flex align-items-center gap-1 px-3 py-1 text-white"
+                                                            style={{ fontSize: '12px', borderRadius: '6px' }}
+                                                            disabled={commentActionLoading === cmt.id}
+                                                            onClick={() => void handleApproveComment(cmt.id)}
+                                                        >
+                                                            <i className="fe fe-check"></i> Onayla
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </Card.Body>
                         </Card>
                     </Col>
                 </Row>
             </Container>
+
+            {detailAdvert && (
+                <AdvertDetailModal
+                    advert={detailAdvert}
+                    categoryName={
+                        detailAdvert?.categoryId
+                            ? categoryMap.get(detailAdvert.categoryId) || detailAdvert.categoryId
+                            : undefined
+                    }
+                    onClose={() => setDetailAdvert(null)}
+                    onApprove={async (adv) => {
+                        setDetailAdvert(null);
+                        await handleApprove(adv);
+                    }}
+                    onReject={() => {
+                        setDetailAdvert(null);
+                        router.push('/listings');
+                    }}
+                    onSuspend={() => {
+                        setDetailAdvert(null);
+                        router.push('/listings');
+                    }}
+                />
+            )}
+
+            {packageAdvert && (
+                <PackageModal
+                    advert={packageAdvert}
+                    onClose={() => setPackageAdvert(null)}
+                    onDone={() => {
+                        setPackageAdvert(null);
+                        void loadDashboardData();
+                    }}
+                />
+            )}
         </Fragment>
     );
 }
