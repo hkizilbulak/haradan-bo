@@ -19,6 +19,14 @@ type OwnerAdvertItem = {
     ownerName?: string | null;
     properties?: Record<string, any>;
     rejectionReason?: string | null;
+    price?: { amountMinor?: number; amount?: number; currency: string } | null;
+    districtId?: string | number | null;
+    provinceId?: string | number | null;
+    provinceName?: string | null;
+    districtName?: string | null;
+    locationName?: string | null;
+    location?: { districtId?: string; districtName?: string; provinceId?: string; provinceName?: string; name?: string } | null;
+    sellerPhone?: string | null;
     media?: Array<{
         assetId: string;
         displayOrder: number;
@@ -148,6 +156,14 @@ function toModerationAdvert(item: any): ModerationAdvertResponse {
         || item.createdDate
         || item.createDate
         || item.publishedAt;
+
+    const loc = item.location;
+    const districtId = item.districtId ?? loc?.districtId ?? item.properties?.districtId;
+    const provinceId = item.provinceId ?? loc?.provinceId ?? item.properties?.provinceId;
+    const districtName = item.districtName ?? loc?.districtName ?? item.properties?.districtName ?? item.properties?.ilce ?? item.properties?.district;
+    const provinceName = item.provinceName ?? loc?.provinceName ?? item.properties?.provinceName ?? item.properties?.sehir ?? item.properties?.il;
+    const locationName = item.locationName ?? loc?.locationName ?? loc?.name ?? (provinceName && districtName ? `${provinceName} / ${districtName}` : provinceName || districtName);
+
     return {
         ...mapped,
         identifier: mapped.id,
@@ -162,6 +178,14 @@ function toModerationAdvert(item: any): ModerationAdvertResponse {
         ownerUserId: item.ownerUserId ?? item.owner_user_id ?? undefined,
         ownerName: item.ownerName ?? item.properties?.ownerName ?? undefined,
         properties: item.properties ?? undefined,
+        price: item.price ?? (item.properties?.fiyat ? { amount: item.properties.fiyat, currency: 'TRY' } : undefined),
+        districtId: districtId ?? undefined,
+        provinceId: provinceId ?? undefined,
+        districtName: districtName ?? undefined,
+        provinceName: provinceName ?? undefined,
+        locationName: locationName ?? undefined,
+        location: loc ?? (provinceName || districtName ? { districtId, districtName, provinceId, provinceName, name: locationName } : undefined),
+        sellerPhone: item.sellerPhone ?? item.properties?.sellerPhone ?? item.properties?.phone ?? undefined,
     };
 }
 
@@ -236,6 +260,21 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         mediaVersion: 1,
         categoryId: 'c1000000-0000-4000-8000-000000000023',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+        ownerName: 'Admin Kullanıcı',
+        price: { amountMinor: 2500000, currency: 'TRY' },
+        provinceId: '47ff002c-f6f2-5c01-81a9-460b23ba9712',
+        provinceName: 'Bursa',
+        districtName: 'Osmangazi',
+        locationName: 'Bursa / Osmangazi',
+        properties: {
+            ownerName: 'Admin Kullanıcı',
+            ownerEmail: 'admin@haradan.com',
+            sehir: 'Bursa',
+            ilce: 'Osmangazi',
+            fiyat: '25.000 TL',
+            sellerPhone: '0532 123 45 67',
+            phone: '0532 123 45 67',
+        },
         media: DEFAULT_MOCK_MEDIA['adv-nalbant-001'],
     },
     {
@@ -249,6 +288,21 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         mediaVersion: 1,
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+        ownerName: 'Admin Kullanıcı',
+        price: { amountMinor: 125000000, currency: 'TRY' },
+        provinceId: '2436cf3e-a250-511c-aa39-c5cd1c8a3f71',
+        provinceName: 'Ankara',
+        districtName: 'Çankaya',
+        locationName: 'Ankara / Çankaya',
+        properties: {
+            ownerName: 'Admin Kullanıcı',
+            ownerEmail: 'admin@haradan.com',
+            sehir: 'Ankara',
+            ilce: 'Çankaya',
+            fiyat: '1.250.000 TL',
+            sellerPhone: '0532 123 45 67',
+            phone: '0532 123 45 67',
+        },
         media: DEFAULT_MOCK_MEDIA['adv-abacan-002'],
     },
     {
@@ -262,6 +316,21 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         mediaVersion: 1,
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
+        ownerName: 'Admin Kullanıcı',
+        price: { amountMinor: 75000000, currency: 'TRY' },
+        provinceId: 'c029c5bf-570e-5eb2-9d0f-0437fa131ff1',
+        provinceName: 'İstanbul',
+        districtName: 'Kadıköy',
+        locationName: 'İstanbul / Kadıköy',
+        properties: {
+            ownerName: 'Admin Kullanıcı',
+            ownerEmail: 'admin@haradan.com',
+            sehir: 'İstanbul',
+            ilce: 'Kadıköy',
+            fiyat: '750.000 TL',
+            sellerPhone: '0532 123 45 67',
+            phone: '0532 123 45 67',
+        },
         media: DEFAULT_MOCK_MEDIA['adv-deneme-003'],
     },
     {
@@ -276,7 +345,20 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com' },
+        price: { amountMinor: 48000000, currency: 'TRY' },
+        provinceId: '64f1681f-bd67-5b6d-a0fb-cb67e70dda74',
+        provinceName: 'İzmir',
+        districtName: 'Urla',
+        locationName: 'İzmir / Urla',
+        properties: {
+            ownerName: 'Admin Kullanıcı',
+            ownerEmail: 'admin@haradan.com',
+            sehir: 'İzmir',
+            ilce: 'Urla',
+            fiyat: '480.000 TL',
+            sellerPhone: '0532 123 45 67',
+            phone: '0532 123 45 67',
+        },
         media: DEFAULT_MOCK_MEDIA['adv-deneme-ilan-004'],
     },
     {
@@ -291,7 +373,12 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sellerPhone: '0532 111 22 33', phone: '0532 111 22 33' },
+        price: { amountMinor: 35000000, currency: 'TRY' },
+        provinceId: 'c029c5bf-570e-5eb2-9d0f-0437fa131ff1',
+        provinceName: 'İstanbul',
+        districtName: 'Bakırköy',
+        locationName: 'İstanbul / Bakırköy',
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sehir: 'İstanbul', ilce: 'Bakırköy', fiyat: '350.000 TL', sellerPhone: '0532 111 22 33', phone: '0532 111 22 33' },
         media: DEFAULT_MOCK_MEDIA['adv-001'],
     },
     {
@@ -306,7 +393,12 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sellerPhone: '0533 222 33 44', phone: '0533 222 33 44' },
+        price: { amountMinor: 50000000, currency: 'TRY' },
+        provinceId: '99307140-598f-59c3-b219-892878bd5e7d',
+        provinceName: 'Kocaeli',
+        districtName: 'Kartepe',
+        locationName: 'Kocaeli / Kartepe',
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sehir: 'Kocaeli', ilce: 'Kartepe', fiyat: '500.000 TL', sellerPhone: '0533 222 33 44', phone: '0533 222 33 44' },
         media: DEFAULT_MOCK_MEDIA['adv-002'],
     },
     {
@@ -321,7 +413,12 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sellerPhone: '0532 123 45 67', phone: '0532 123 45 67' },
+        price: { amountMinor: 28000000, currency: 'TRY' },
+        provinceId: '802aa4c5-68d5-56e3-b5d8-c98b5d7f7874',
+        provinceName: 'Adana',
+        districtName: 'Seyhan',
+        locationName: 'Adana / Seyhan',
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sehir: 'Adana', ilce: 'Seyhan', fiyat: '280.000 TL', sellerPhone: '0532 123 45 67', phone: '0532 123 45 67' },
         media: DEFAULT_MOCK_MEDIA['adv-003'],
     },
     {
@@ -336,7 +433,12 @@ const fallbackMockAdverts: OwnerAdvertItem[] = [
         categoryId: 'c1000000-0000-4000-8000-000000000011',
         ownerUserId: 'u1000000-0000-4000-8000-000000000001',
         ownerName: 'Admin Kullanıcı',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sellerPhone: '0535 333 44 55', phone: '0535 333 44 55' },
+        price: { amountMinor: 60000000, currency: 'TRY' },
+        provinceId: 'f99e4649-2d13-539a-92e1-12b7c6d03b12',
+        provinceName: 'Eskişehir',
+        districtName: 'Tepebaşı',
+        locationName: 'Eskişehir / Tepebaşı',
+        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sehir: 'Eskişehir', ilce: 'Tepebaşı', fiyat: '600.000 TL', sellerPhone: '0535 333 44 55', phone: '0535 333 44 55' },
         media: DEFAULT_MOCK_MEDIA['adv-suspend-001'],
     },
 ];
@@ -535,14 +637,37 @@ class AdvertService {
                     : DEFAULT_MOCK_MEDIA[advertId]
                     || ((mock as any).cover?.publicUrl ? [{ assetId: (mock as any).cover.publicUrl, displayOrder: 0, isCover: true }] : [])
                     || [{ assetId: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true }];
+                const mockPrice = (mock as any).price || { amountMinor: 75000000, currency: 'TRY' };
+                const mockProvince = (mock as any).provinceName || (mock as any).properties?.sehir || 'İstanbul';
+                const mockDistrict = (mock as any).districtName || (mock as any).properties?.ilce || 'Kadıköy';
+                const mockLocName = (mock as any).locationName || `${mockProvince} / ${mockDistrict}`;
+                const mockProvinceId = (mock as any).provinceId || 'c029c5bf-570e-5eb2-9d0f-0437fa131ff1';
+                const mockDistrictId = (mock as any).districtId || 'dist-06-can';
+
                 return {
                     ...mock,
+                    price: mockPrice,
+                    provinceName: mockProvince,
+                    districtName: mockDistrict,
+                    locationName: mockLocName,
+                    provinceId: mockProvinceId,
+                    districtId: mockDistrictId,
+                    location: {
+                        provinceId: mockProvinceId,
+                        provinceName: mockProvince,
+                        districtId: mockDistrictId,
+                        districtName: mockDistrict,
+                        name: mockLocName,
+                    },
                     sellerPhone: mockPhone,
                     ownerUserId: mock.ownerUserId || 'u1000000-0000-4000-8000-000000000001',
                     description: `${mock.title} - Detay açıklaması`,
                     media: mockMedia,
                     rejectionReason: mockReason,
                     properties: {
+                        sehir: mockProvince,
+                        ilce: mockDistrict,
+                        fiyat: typeof mockPrice === 'object' && mockPrice.amountMinor ? `${(mockPrice.amountMinor / 100).toLocaleString('tr-TR')} TL` : '750.000 TL',
                         ...(mock.properties || {}),
                         sellerPhone: mockPhone,
                         phone: mockPhone,

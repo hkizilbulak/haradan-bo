@@ -139,14 +139,22 @@ export async function ensureDistrictFetched(districtId: string): Promise<void> {
   } catch {}
 }
 
-export function useResolvedLocation(detail: any): string {
+export function useResolvedLocation(detail?: any, advert?: any): string {
   const [, setTick] = useState(0);
+
+  const districtId =
+    detail?.districtId ||
+    detail?.location?.districtId ||
+    advert?.districtId ||
+    advert?.location?.districtId ||
+    detail?.properties?.districtId ||
+    advert?.properties?.districtId;
 
   useEffect(() => {
     const listener = () => setTick((t) => t + 1);
     listeners.add(listener);
 
-    const dId = detail?.districtId ? String(detail.districtId) : '';
+    const dId = districtId ? String(districtId) : '';
     if (dId && dId.includes('-') && !districtNameCache.has(dId.toLowerCase().trim())) {
       void ensureDistrictFetched(dId);
     }
@@ -154,17 +162,36 @@ export function useResolvedLocation(detail: any): string {
     return () => {
       listeners.delete(listener);
     };
-  }, [detail?.districtId]);
+  }, [districtId]);
 
-  if (!detail) return 'Konum Belirtilmedi';
+  const target = detail || advert;
+  if (!target) return 'Konum Belirtilmedi';
 
   // 1. Direct location name if available
-  if (detail.locationName && typeof detail.locationName === 'string' && detail.locationName.trim()) {
-    return detail.locationName.trim();
+  const directLocName =
+    detail?.locationName ||
+    advert?.locationName ||
+    detail?.location?.locationName ||
+    advert?.location?.locationName ||
+    detail?.location?.name ||
+    advert?.location?.name ||
+    detail?.properties?.locationName ||
+    advert?.properties?.locationName ||
+    detail?.properties?.konum ||
+    advert?.properties?.konum ||
+    detail?.properties?.location ||
+    advert?.properties?.location;
+
+  if (directLocName && typeof directLocName === 'string' && directLocName.trim()) {
+    return directLocName.trim();
   }
 
-  // 2. Direct province/district names on detail or properties
-  const props = (detail.properties || {}) as Record<string, any>;
+  // 2. Direct province/district names on detail, advert, location object or properties
+  const props = {
+    ...(advert?.properties || {}),
+    ...(detail?.properties || {}),
+  } as Record<string, any>;
+
   const norm = (s: string) => (s || '').toLowerCase().replace(/[-_\s]/g, '').replace(/ı/g, 'i');
 
   let propCity = '';
@@ -173,16 +200,31 @@ export function useResolvedLocation(detail: any): string {
   for (const [k, v] of Object.entries(props)) {
     if (!v) continue;
     const nk = norm(k);
-    if (['sehir', 'il', 'city', 'province', 'iladi', 'sehiradi'].includes(nk)) {
+    if (['sehir', 'il', 'city', 'province', 'iladi', 'sehiradi', 'ilname', 'sehirname'].includes(nk)) {
       propCity = String(v).trim();
     }
-    if (['ilce', 'district', 'town', 'ilceadi'].includes(nk)) {
+    if (['ilce', 'district', 'town', 'ilceadi', 'ilcename'].includes(nk)) {
       propDistrict = String(v).trim();
     }
   }
 
-  const prov = detail.provinceName || propCity;
-  const dist = detail.districtName || propDistrict;
+  const prov =
+    detail?.provinceName ||
+    advert?.provinceName ||
+    detail?.location?.provinceName ||
+    advert?.location?.provinceName ||
+    detail?.location?.city ||
+    advert?.location?.city ||
+    propCity;
+
+  const dist =
+    detail?.districtName ||
+    advert?.districtName ||
+    detail?.location?.districtName ||
+    advert?.location?.districtName ||
+    detail?.location?.district ||
+    advert?.location?.district ||
+    propDistrict;
 
   if (prov && dist) {
     if (prov.toLowerCase() === dist.toLowerCase()) return prov;
@@ -192,10 +234,18 @@ export function useResolvedLocation(detail: any): string {
   if (dist) return dist;
 
   // 3. Fallback to UUID lookups
-  const dId = detail.districtId ? String(detail.districtId).toLowerCase().trim() : '';
-  const pId = detail.provinceId ? String(detail.provinceId).toLowerCase().trim() : '';
+  const pId =
+    detail?.provinceId ||
+    advert?.provinceId ||
+    detail?.location?.provinceId ||
+    advert?.location?.provinceId ||
+    props.provinceId ||
+    props.sehirId ||
+    props.ilId;
 
-  const lookedUpProv = pId ? getProvinceNameByUuid(pId) : '';
+  const dId = districtId ? String(districtId).toLowerCase().trim() : '';
+
+  const lookedUpProv = pId ? getProvinceNameByUuid(String(pId)) : '';
   const cachedDist = dId ? districtNameCache.get(dId) : null;
   const lookedUpDist = cachedDist?.name || '';
   const finalProv = lookedUpProv || cachedDist?.provinceName || '';

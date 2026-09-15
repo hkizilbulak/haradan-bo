@@ -24,4 +24,13 @@ export interface ModerationAdvertResponse extends BaseResponse {
   properties?: Record<string, any>;
   mediaVersion?: number;
   rejectionReason?: string | null;
+  price?: { amountMinor?: number; amount?: number; currency?: string } | null;
+  districtId?: string | number | null;
+  provinceId?: string | number | null;
+  provinceName?: string | null;
+  districtName?: string | null;
+  locationName?: string | null;
+  location?: { districtId?: string; districtName?: string; provinceId?: string; provinceName?: string; name?: string } | null;
+  sellerPhone?: string | null;
 }
+

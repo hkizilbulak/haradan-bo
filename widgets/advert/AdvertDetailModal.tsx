@@ -191,7 +191,12 @@ export default function AdvertDetailModal({
     return '';
   };
 
-  const properties = (detail?.properties || {}) as Record<string, any>;
+  const properties = useMemo(() => {
+    return {
+      ...((advert as any)?.properties || {}),
+      ...((detail as any)?.properties || {}),
+    } as Record<string, any>;
+  }, [detail, advert]);
 
   const normText = (s: string) =>
     (s || '')
@@ -226,16 +231,53 @@ export default function AdvertDetailModal({
   };
 
   const resolvedCategory = categoryName || detail?.categoryId || advert?.categoryId || 'Kategori Belirtilmemiş';
-  const rawPriceAmount = (detail?.price as any)?.amountMinor ?? (detail?.price as any)?.amount;
-  const priceFormatted = rawPriceAmount != null
-    ? formatMoney(rawPriceAmount, detail?.price?.currency || 'TRY')
-    : (() => {
-        const propPrice = getProp(['fiyat', 'price', 'ucret', 'bedel']);
-        if (propPrice) return propPrice;
-        return 'Fiyat Belirtilmemiş';
-      })();
 
-  const resolvedLocation = useResolvedLocation(detail);
+  const priceFormatted = useMemo(() => {
+    const priceObj = detail?.price || (advert as any)?.price;
+    const currency = priceObj?.currency || 'TRY';
+
+    if (priceObj != null) {
+      if (typeof priceObj === 'number') {
+        return new Intl.NumberFormat('tr-TR', { style: 'currency', currency, maximumFractionDigits: 0 }).format(priceObj);
+      }
+      if (priceObj.amountMinor != null && !isNaN(Number(priceObj.amountMinor))) {
+        return formatMoney(Number(priceObj.amountMinor), currency);
+      }
+      if (priceObj.amount != null && !isNaN(Number(priceObj.amount))) {
+        const amt = Number(priceObj.amount);
+        return new Intl.NumberFormat('tr-TR', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amt);
+      }
+    }
+
+    // Check properties from detail or advert
+    const propPrice = getProp([
+      'fiyat',
+      'price',
+      'ucret',
+      'bedel',
+      'fiyatminor',
+      'amountminor',
+      'amount',
+      'satisfiyati',
+      'ucreti',
+    ]);
+
+    if (propPrice) {
+      if (propPrice.includes('₺') || /tl/i.test(propPrice)) {
+        return propPrice;
+      }
+      const numOnly = propPrice.replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.');
+      const parsedNum = parseFloat(numOnly);
+      if (!isNaN(parsedNum) && parsedNum > 0) {
+        return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(parsedNum);
+      }
+      return `${propPrice} TL`;
+    }
+
+    return 'Fiyat Belirtilmemiş';
+  }, [detail, advert, properties]);
+
+  const resolvedLocation = useResolvedLocation(detail, advert);
 
   // Seller & Contact info for bottom section
   const ownerName =
