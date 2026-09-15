@@ -8,11 +8,12 @@ import { commentService, AdvertComment, CommentStatus } from '@/services/comment
 import { PageHeading } from '@/widgets';
 import { toast } from 'react-toastify';
 import { getErrorMessage } from '@/helpers/HelperUtils';
+import CommentFilter, { ICommentFilterForm } from '@/widgets/comment/CommentFilter';
 
-const headItems = ['Tarih', 'Kullanıcı', 'Yorum', 'Durum', 'İşlemler'];
+const headItems = ['Tarih', 'Kullanıcı', 'İlan', 'Yorum', 'Durum', 'İşlemler'];
 
 export default function CommentsPage() {
-  const [activeTab, setActiveTab] = useState<CommentStatus>('PENDING');
+  const [filter, setFilter] = useState<ICommentFilterForm>({});
   const [comments, setComments] = useState<AdvertComment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -20,10 +21,10 @@ export default function CommentsPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
 
-  const fetchComments = useCallback(async (status: CommentStatus, pageIndex: number, limit: number) => {
+  const fetchComments = useCallback(async (currentFilter: ICommentFilterForm, pageIndex: number, limit: number) => {
     setIsLoading(true);
     try {
-      const data = await commentService.getComments(status, pageIndex + 1, limit);
+      const data = await commentService.getComments(currentFilter, pageIndex + 1, limit);
       setComments(data.items || []);
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -33,14 +34,14 @@ export default function CommentsPage() {
   }, []);
 
   useEffect(() => {
-    fetchComments(activeTab, 0, 50);
-  }, [activeTab, fetchComments]);
+    fetchComments(filter, 0, 50);
+  }, [filter, fetchComments]);
 
   const handleApprove = async (id: string) => {
     try {
       await commentService.approveComment(id);
       toast.success('Yorum onaylandı');
-      fetchComments(activeTab, 0, 50);
+      fetchComments(filter, 0, 50);
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -50,7 +51,7 @@ export default function CommentsPage() {
     try {
       await commentService.rejectComment(id);
       toast.success('Yorum reddedildi');
-      fetchComments(activeTab, 0, 50);
+      fetchComments(filter, 0, 50);
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -66,7 +67,7 @@ export default function CommentsPage() {
     try {
       await commentService.deleteComment(commentToDelete);
       toast.success('Yorum silindi');
-      fetchComments(activeTab, 0, 50);
+      fetchComments(filter, 0, 50);
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
@@ -79,6 +80,7 @@ export default function CommentsPage() {
     <tr key={cmt.id}>
       <td>{formatDateTimeForText(cmt.createdAt)}</td>
       <td>{cmt.authorName || 'Bilinmiyor'}</td>
+      <td>{cmt.advertTitle || 'Bilinmiyor'}</td>
       <td style={{ maxWidth: '300px', whiteSpace: 'normal' }}>
         {cmt.content}
         {cmt.rating && <div><Badge bg="secondary">Puan: {cmt.rating}/5</Badge></div>}
@@ -92,11 +94,25 @@ export default function CommentsPage() {
         <div className="d-flex flex-wrap gap-2 justify-content-center align-items-center">
           {cmt.status === 'PENDING' && (
             <>
-              <Button size="sm" variant="outline-success" onClick={() => handleApprove(cmt.id)}>
-                Onayla
+              <Button 
+                size="sm" 
+                variant="outline-success" 
+                className="d-flex align-items-center justify-content-center"
+                style={{ width: '32px', height: '32px', padding: 0 }}
+                title="Onayla"
+                onClick={() => handleApprove(cmt.id)}
+              >
+                <i className="fe fe-check"></i>
               </Button>
-              <Button size="sm" variant="outline-danger" onClick={() => handleReject(cmt.id)}>
-                Reddet
+              <Button 
+                size="sm" 
+                variant="outline-danger" 
+                className="d-flex align-items-center justify-content-center"
+                style={{ width: '32px', height: '32px', padding: 0 }}
+                title="Reddet"
+                onClick={() => handleReject(cmt.id)}
+              >
+                <i className="fe fe-x"></i>
               </Button>
             </>
           )}
@@ -125,15 +141,7 @@ export default function CommentsPage() {
 
       <Row className="mb-3">
         <Col>
-          <Tabs
-            activeKey={activeTab}
-            onSelect={(k) => setActiveTab((k as CommentStatus) || 'PENDING')}
-            className="mb-3"
-          >
-            <Tab eventKey="PENDING" title="Onay Bekleyenler" />
-            <Tab eventKey="PUBLISHED" title="Onaylananlar" />
-            <Tab eventKey="REJECTED" title="Reddedilenler" />
-          </Tabs>
+          <CommentFilter onFilter={setFilter} />
         </Col>
       </Row>
 

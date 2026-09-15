@@ -36,9 +36,16 @@ function getDevUrl(path: string) {
   return path;
 }
 
+export interface CommentFilterParams {
+  statuses?: string[];
+  advertTitle?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
 export const commentService = {
   getComments: async (
-    status?: CommentStatus,
+    filters: CommentFilterParams = {},
     page: number = 1,
     limit: number = 20
   ): Promise<ListCommentsResponse> => {
@@ -47,9 +54,20 @@ export const commentService = {
       limit: limit.toString(),
       offset: offset.toString(),
     });
-    if (status) {
-      params.append('status', status);
+    
+    if (filters.statuses && filters.statuses.length > 0) {
+      filters.statuses.forEach(status => params.append('statuses', status));
     }
+    if (filters.advertTitle) {
+      params.append('advertTitle', filters.advertTitle);
+    }
+    if (filters.startDate) {
+      params.append('startDate', filters.startDate);
+    }
+    if (filters.endDate) {
+      params.append('endDate', filters.endDate);
+    }
+
     const response = await apiClient.get<any>(
       getDevUrl(`/api/v1/admin/comments?${params.toString()}`)
     );
