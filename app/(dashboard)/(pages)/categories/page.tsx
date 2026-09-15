@@ -590,6 +590,7 @@ export default function Categories() {
               </div>
             )}
             {!isLoading && !isError && treeData && treeData.length > 0 ? (
+              // @ts-expect-error react-dnd type definitions lack children in some versions with React 18
               <DndProvider backend={HTML5Backend}>
                 <SortableTree
                   treeData={treeData}

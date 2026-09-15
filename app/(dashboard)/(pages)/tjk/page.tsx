@@ -282,7 +282,7 @@ export default function TjkPage() {
       return;
     }
     const id = window.setInterval(() => {
-      refetch({ silent: true });
+      refetch();
     }, 5000);
     return () => window.clearInterval(id);
   }, [hasActiveRun, refetch]);

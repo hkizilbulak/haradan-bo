@@ -53,7 +53,7 @@ export default function StudFarms() {
             await studFarmService.deleteStudFarm(deleteStudFarmId);
             toast.success("Hara başarıyla silindi.");
             setDeleteStudFarmId(null);
-            refetch({ silent: true });
+            refetch();
         } catch (error) {
             toast.error("Hara silinirken bir hata oluştu.");
         }
@@ -223,7 +223,7 @@ export default function StudFarms() {
                                                                             refreshTrigger={notesRefreshTrigger}
                                                                             onNoteDeleted={() => {
                                                                                 setNotesRefreshTrigger(prev => prev + 1);
-                                                                                refetch({ silent: true });
+                                                                                refetch();
                                                                             }}
                                                                         />
                                                                     </div>
@@ -278,7 +278,7 @@ export default function StudFarms() {
             <AddStudFarmModal 
                 show={showAddModal} 
                 onHide={() => { setShowAddModal(false); setEditStudFarm(null); }} 
-                onSuccess={() => refetch({ silent: true })} 
+                onSuccess={() => refetch()} 
                 existingStudFarm={editStudFarm}
             />
             {selectedStudFarmId && (
@@ -291,7 +291,7 @@ export default function StudFarms() {
                     studFarmId={selectedStudFarmId}
                     onSuccess={() => {
                         setNotesRefreshTrigger(prev => prev + 1);
-                        refetch({ silent: true });
+                        refetch();
                     }} 
                 />
             )}
