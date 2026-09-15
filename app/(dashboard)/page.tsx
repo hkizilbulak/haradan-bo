@@ -59,7 +59,7 @@ export default function Home() {
                 }
                 setCategoryMap(map);
             })
-            .catch(() => {});
+            .catch(() => { });
     }, []);
 
     const loadDashboardData = async () => {
@@ -240,9 +240,9 @@ export default function Home() {
                         <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.4rem' }}>
                             Hoş geldiniz, {userName}! 👋
                         </h4>
-                        <Button 
-                            variant="light" 
-                            size="sm" 
+                        <Button
+                            variant="light"
+                            size="sm"
                             className="border shadow-sm d-flex align-items-center gap-2 fw-semibold text-secondary"
                             onClick={() => void loadDashboardData()}
                         >
@@ -257,7 +257,7 @@ export default function Home() {
                         {/* Başlık ve Durum Rozeti */}
                         <div className="d-flex justify-content-between align-items-center mb-4">
                             <div className="d-flex align-items-center gap-2">
-                                <div 
+                                <div
                                     className="d-flex align-items-center justify-content-center rounded-3"
                                     style={{ width: '38px', height: '38px', backgroundColor: '#eff2fe', color: '#4f46e5' }}
                                 >
@@ -267,7 +267,7 @@ export default function Home() {
                                     Genel Bakış ve Bekleyen İşlemler
                                 </h5>
                             </div>
-                            <span 
+                            <span
                                 className="badge rounded-pill px-3 py-2 fw-semibold d-flex align-items-center gap-1"
                                 style={{ backgroundColor: '#eff2fe', color: '#4f46e5', fontSize: '0.82rem' }}
                             >
@@ -279,15 +279,15 @@ export default function Home() {
                         <Row className="g-3 mb-3">
                             {/* Kart 1: Aktif İlan Sayısı */}
                             <Col md={4} sm={12}>
-                                <div 
+                                <div
                                     className="p-3 d-flex align-items-center gap-3 h-100"
-                                    style={{ 
-                                        backgroundColor: '#eff2fe', 
+                                    style={{
+                                        backgroundColor: '#eff2fe',
                                         borderRadius: '14px',
                                         border: '1px solid #dce4fd'
                                     }}
                                 >
-                                    <div 
+                                    <div
                                         className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
                                         style={{ width: '48px', height: '48px', backgroundColor: '#dbe4fc', color: '#4f46e5' }}
                                     >
@@ -306,15 +306,15 @@ export default function Home() {
 
                             {/* Kart 2: Aktif Kullanıcı Sayısı */}
                             <Col md={4} sm={12}>
-                                <div 
+                                <div
                                     className="p-3 d-flex align-items-center gap-3 h-100"
-                                    style={{ 
-                                        backgroundColor: '#eff2fe', 
+                                    style={{
+                                        backgroundColor: '#eff2fe',
                                         borderRadius: '14px',
                                         border: '1px solid #dce4fd'
                                     }}
                                 >
-                                    <div 
+                                    <div
                                         className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
                                         style={{ width: '48px', height: '48px', backgroundColor: '#dbe4fc', color: '#4f46e5' }}
                                     >
@@ -333,15 +333,15 @@ export default function Home() {
 
                             {/* Kart 3: Günlük Başarılı Login Sayısı */}
                             <Col md={4} sm={12}>
-                                <div 
+                                <div
                                     className="p-3 d-flex align-items-center gap-3 h-100"
-                                    style={{ 
-                                        backgroundColor: '#eff2fe', 
+                                    style={{
+                                        backgroundColor: '#eff2fe',
                                         borderRadius: '14px',
                                         border: '1px solid #dce4fd'
                                     }}
                                 >
-                                    <div 
+                                    <div
                                         className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
                                         style={{ width: '48px', height: '48px', backgroundColor: '#dbe4fc', color: '#4f46e5' }}
                                     >
@@ -364,11 +364,13 @@ export default function Home() {
                             {/* Kart 1: Onay Bekleyen İlanlar */}
                             <Col lg={3} sm={6} xs={12}>
                                 <div 
-                                    className="p-2.5 px-3 d-flex align-items-center gap-3 h-100"
+                                    className="d-flex align-items-center gap-3 h-100"
                                     style={{ 
                                         backgroundColor: '#fff1f5', 
                                         borderRadius: '12px',
-                                        border: '1px solid #fce7ef'
+                                        border: '1px solid #fce7ef',
+                                        minHeight: '68px',
+                                        padding: '14px 18px'
                                     }}
                                 >
                                     <div 
@@ -381,7 +383,7 @@ export default function Home() {
                                         <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
                                             Onay Bekleyen İlanlar
                                         </span>
-                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.45rem' }}>
+                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
                                             {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.pendingAdvertsCount}
                                         </h4>
                                     </div>
@@ -391,11 +393,13 @@ export default function Home() {
                             {/* Kart 2: Tanımlı Paketler */}
                             <Col lg={3} sm={6} xs={12}>
                                 <div 
-                                    className="p-2.5 px-3 d-flex align-items-center gap-3 h-100"
+                                    className="d-flex align-items-center gap-3 h-100"
                                     style={{ 
                                         backgroundColor: '#fff1f5', 
                                         borderRadius: '12px',
-                                        border: '1px solid #fce7ef'
+                                        border: '1px solid #fce7ef',
+                                        minHeight: '68px',
+                                        padding: '14px 18px'
                                     }}
                                 >
                                     <div 
@@ -408,7 +412,7 @@ export default function Home() {
                                         <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
                                             Aktif Paketler
                                         </span>
-                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.45rem' }}>
+                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
                                             {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.totalPackages}
                                         </h4>
                                     </div>
@@ -418,11 +422,13 @@ export default function Home() {
                             {/* Kart 3: Aktif Bannerlar */}
                             <Col lg={3} sm={6} xs={12}>
                                 <div 
-                                    className="p-2.5 px-3 d-flex align-items-center gap-3 h-100"
+                                    className="d-flex align-items-center gap-3 h-100"
                                     style={{ 
                                         backgroundColor: '#fff1f5', 
                                         borderRadius: '12px',
-                                        border: '1px solid #fce7ef'
+                                        border: '1px solid #fce7ef',
+                                        minHeight: '68px',
+                                        padding: '14px 18px'
                                     }}
                                 >
                                     <div 
@@ -435,7 +441,7 @@ export default function Home() {
                                         <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
                                             Aktif Bannerlar
                                         </span>
-                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.45rem' }}>
+                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
                                             {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.activeBanners}
                                         </h4>
                                     </div>
@@ -445,11 +451,13 @@ export default function Home() {
                             {/* Kart 4: Zamanlanmış & TJK İşleri */}
                             <Col lg={3} sm={6} xs={12}>
                                 <div 
-                                    className="p-2.5 px-3 d-flex align-items-center gap-3 h-100"
+                                    className="d-flex align-items-center gap-3 h-100"
                                     style={{ 
                                         backgroundColor: '#fff1f5', 
                                         borderRadius: '12px',
-                                        border: '1px solid #fce7ef'
+                                        border: '1px solid #fce7ef',
+                                        minHeight: '68px',
+                                        padding: '14px 18px'
                                     }}
                                 >
                                     <div 
@@ -462,7 +470,7 @@ export default function Home() {
                                         <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
                                             Zamanlanmış / TJK İşleri
                                         </span>
-                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.45rem' }}>
+                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
                                             {loadingStats ? <Skeleton width="30px" height="24px" /> : (stats.totalJobs + stats.activeTjkRuns)}
                                         </h4>
                                     </div>
@@ -509,8 +517,8 @@ export default function Home() {
                                                             || ((advert as any).properties?.ownerName ? { name: (advert as any).properties.ownerName, email: (advert as any).properties?.ownerEmail } : undefined);
 
                                                         const primaryText = ownerInfo?.name || ownerInfo?.email || advert.title || 'Sistem Yöneticisi';
-                                                        const secondaryText = (ownerInfo?.name && ownerInfo?.email) 
-                                                            ? ownerInfo.email 
+                                                        const secondaryText = (ownerInfo?.name && ownerInfo?.email)
+                                                            ? ownerInfo.email
                                                             : (advert.title && advert.title !== primaryText ? advert.title : (ownerInfo?.email || null));
                                                         const tooltipText = [ownerInfo?.name, ownerInfo?.email, advert.title].filter(Boolean).join(' - ');
 
@@ -585,14 +593,7 @@ export default function Home() {
                     <Col xl={6} lg={6} md={12} xs={12}>
                         <Card className="border-0 shadow-sm h-100" style={{ borderRadius: '14px', overflow: 'hidden' }}>
                             <Card.Header className="bg-white py-3 px-4 border-bottom d-flex align-items-center justify-content-between">
-                                <div className="d-flex align-items-center gap-2">
-                                    <h6 className="fw-bold mb-0 text-dark fs-6">Yorum Onaylama</h6>
-                                    {pendingCommentsCount > 0 && (
-                                        <Badge pill bg="warning" className="text-dark fw-bold px-2 py-1" style={{ fontSize: '11px' }}>
-                                            {pendingCommentsCount} Bekleyen
-                                        </Badge>
-                                    )}
-                                </div>
+                                <h6 className="fw-bold mb-0 text-dark fs-6">Yorum Onaylama</h6>
                                 <Link href="/comments" className="small text-primary text-decoration-none fw-semibold d-flex align-items-center gap-1">
                                     <span>Tümünü Gör</span>
                                     <i className="fe fe-arrow-right" style={{ fontSize: '12px' }}></i>
@@ -607,7 +608,7 @@ export default function Home() {
                                     </div>
                                 ) : pendingComments.length === 0 ? (
                                     <div className="py-5 px-3 text-center text-muted">
-                                        <div 
+                                        <div
                                             className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
                                             style={{ width: '52px', height: '52px', backgroundColor: '#f0fdf4', color: '#16a34a' }}
                                         >
@@ -623,11 +624,11 @@ export default function Home() {
                                             const initial = authorDisplay.charAt(0).toUpperCase();
 
                                             return (
-                                                <div 
-                                                    key={cmt.id} 
-                                                    className="p-2.5 px-3 rounded-3 d-flex align-items-center justify-content-between gap-3" 
-                                                    style={{ 
-                                                        backgroundColor: '#f8fafc', 
+                                                <div
+                                                    key={cmt.id}
+                                                    className="p-2.5 px-3 rounded-3 d-flex align-items-center justify-content-between gap-3"
+                                                    style={{
+                                                        backgroundColor: '#f8fafc',
                                                         border: '1px solid #e2e8f0',
                                                         transition: 'all 0.2s ease',
                                                         minHeight: '52px'
@@ -635,13 +636,13 @@ export default function Home() {
                                                 >
                                                     {/* Kullanıcı Bilgisi */}
                                                     <div className="d-flex align-items-center gap-2 flex-shrink-0" style={{ minWidth: '150px', maxWidth: '190px' }}>
-                                                        <div 
+                                                        <div
                                                             className="rounded-circle d-flex align-items-center justify-content-center fw-bold text-white shadow-sm flex-shrink-0"
-                                                            style={{ 
-                                                                width: '32px', 
-                                                                height: '32px', 
+                                                            style={{
+                                                                width: '32px',
+                                                                height: '32px',
                                                                 fontSize: '12px',
-                                                                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' 
+                                                                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'
                                                             }}
                                                         >
                                                             {initial}
@@ -663,9 +664,9 @@ export default function Home() {
                                                                 <i className="fe fe-star" style={{ fontSize: '9px' }}></i> {cmt.rating}/5
                                                             </Badge>
                                                         )}
-                                                        <div 
-                                                            className="text-dark small text-truncate fw-medium" 
-                                                            style={{ 
+                                                        <div
+                                                            className="text-dark small text-truncate fw-medium"
+                                                            style={{
                                                                 color: '#334155',
                                                                 fontSize: '13px',
                                                                 fontStyle: 'italic'
@@ -683,9 +684,9 @@ export default function Home() {
 
                                                     {/* Aksiyon Butonları */}
                                                     <div className="d-flex align-items-center gap-2 flex-shrink-0">
-                                                        <Button 
-                                                            size="sm" 
-                                                            variant="outline-danger" 
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline-danger"
                                                             className="d-inline-flex align-items-center gap-1 px-2.5 py-1"
                                                             style={{ fontSize: '12px', borderRadius: '6px' }}
                                                             disabled={commentActionLoading === cmt.id}
@@ -693,9 +694,9 @@ export default function Home() {
                                                         >
                                                             <i className="fe fe-x"></i> Reddet
                                                         </Button>
-                                                        <Button 
-                                                            size="sm" 
-                                                            variant="success" 
+                                                        <Button
+                                                            size="sm"
+                                                            variant="success"
                                                             className="d-inline-flex align-items-center gap-1 px-3 py-1 text-white"
                                                             style={{ fontSize: '12px', borderRadius: '6px' }}
                                                             disabled={commentActionLoading === cmt.id}
