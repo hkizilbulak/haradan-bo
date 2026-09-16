@@ -174,7 +174,7 @@ export default function Home() {
     const loadPendingComments = async () => {
         setLoadingComments(true);
         try {
-            const res = await commentService.getComments('PENDING', 1, 5);
+            const res = await commentService.getComments({ statuses: ['PENDING'] }, 1, 5);
             setPendingComments(res.items || []);
             setPendingCommentsCount(res.totalCount ?? (res.items || []).length);
         } catch (err) {
