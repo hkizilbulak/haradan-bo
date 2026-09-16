@@ -15,6 +15,7 @@ export interface ModerationAdvertResponse extends BaseResponse {
   title?: string | null;
   publishedAt?: string | null;
   createdAt?: string | null;
+  updatedAt?: string | null;
   deletedAt?: string | null;
   status: ModerationAdvertStatus;
   version?: number;

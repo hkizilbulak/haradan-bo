@@ -157,6 +157,10 @@ function toModerationAdvert(item: any): ModerationAdvertResponse {
         || item.createDate
         || item.publishedAt;
 
+    const rawUpdated = item.updatedAt
+        || item.updated_at
+        || item.properties?.updatedAt;
+
     const loc = item.location;
     const districtId = item.districtId ?? loc?.districtId ?? item.properties?.districtId;
     const provinceId = item.provinceId ?? loc?.provinceId ?? item.properties?.provinceId;
@@ -170,6 +174,7 @@ function toModerationAdvert(item: any): ModerationAdvertResponse {
         title: item.title ?? undefined,
         publishedAt: item.publishedAt ?? undefined,
         createdAt: rawCreated ?? undefined,
+        updatedAt: rawUpdated ?? undefined,
         deletedAt: item.deletedAt ?? undefined,
         status: item.status,
         version: item.version,
@@ -579,16 +584,29 @@ class AdvertService {
                 rawItems = rawItems.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED');
             }
 
-            const localAdverts = getLocalMockAdverts().filter((a) => {
-                if (!status) return true;
-                if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED' || a.status === 'SUSPENDED';
-                return a.status === status;
-            });
-            for (const localAdv of localAdverts) {
-                if (!rawItems.some((r) => r.id === localAdv.id || (localAdv.title && r.title === localAdv.title))) {
-                    rawItems.unshift(localAdv);
-                }
+            if (rawItems.length === 0) {
+                const localAdverts = getLocalMockAdverts().filter((a) => {
+                    if (!status) return true;
+                    if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED' || a.status === 'SUSPENDED';
+                    return a.status === status;
+                });
+                rawItems.push(...localAdverts);
             }
+            const STATUS_PRIORITY: Record<string, number> = {
+                'PENDING_REVIEW': 1,
+                'SUSPENDED': 2,
+                'REJECTED': 3,
+            };
+            rawItems.sort((a, b) => {
+                const priorityA = STATUS_PRIORITY[a.status] ?? 99;
+                const priorityB = STATUS_PRIORITY[b.status] ?? 99;
+                if (priorityA !== priorityB) {
+                    return priorityA - priorityB;
+                }
+                const dateA = new Date(a.createdAt || 0).getTime();
+                const dateB = new Date(b.createdAt || 0).getTime();
+                return dateB - dateA;
+            });
             rawItems = rawItems.slice(0, limit);
 
             const content = rawItems.map(toModerationAdvert);
@@ -609,6 +627,29 @@ class AdvertService {
 
         const items = await this.fetchAll(status);
         const filtered = this.applyFilter(items, params.filter);
+
+        const STATUS_PRIORITY: Record<string, number> = {
+            'PENDING_REVIEW': 1,
+            'SUSPENDED': 2,
+            'REJECTED': 3,
+        };
+
+        const sortParam = params.pageRequest.sort?.[0];
+        filtered.sort((a, b) => {
+            const priorityA = STATUS_PRIORITY[a.status] ?? 99;
+            const priorityB = STATUS_PRIORITY[b.status] ?? 99;
+            if (priorityA !== priorityB) {
+                return priorityA - priorityB;
+            }
+
+            const dateA = new Date(a.createdAt || 0).getTime();
+            const dateB = new Date(b.createdAt || 0).getTime();
+            if (sortParam?.direction === 'ASC') {
+                return dateA - dateB;
+            }
+            return dateB - dateA;
+        });
+
         return this.toPagedResponse(filtered, params.pageRequest);
     }
 
@@ -863,15 +904,13 @@ class AdvertService {
             filteredBackendItems = items.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED');
         }
 
-        const localAdverts = getLocalMockAdverts().filter((a) => {
-            if (!status) return true;
-            if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED' || a.status === 'SUSPENDED';
-            return a.status === status;
-        });
-        for (const localAdv of localAdverts) {
-            if (!filteredBackendItems.some((r) => r.id === localAdv.id || (localAdv.title && r.title === localAdv.title))) {
-                filteredBackendItems.unshift(localAdv);
-            }
+        if (filteredBackendItems.length === 0) {
+            const localAdverts = getLocalMockAdverts().filter((a) => {
+                if (!status) return true;
+                if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED' || a.status === 'SUSPENDED';
+                return a.status === status;
+            });
+            filteredBackendItems.push(...localAdverts);
         }
 
         return filteredBackendItems.map(toModerationAdvert);
