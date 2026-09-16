@@ -103,7 +103,12 @@ func run() error {
 
 	server := &appServer{
 		backendURL: resolveBackendURL(),
-		client:     &http.Client{Timeout: 30 * time.Second},
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 		fileServer: http.FileServer(http.FS(subFS)),
 		subFS:      subFS,
 	}
@@ -701,8 +706,10 @@ func isSecureRequest(r *http.Request) bool {
 }
 
 func writeBackendResponse(w http.ResponseWriter, response *http.Response, responseBody []byte) {
-	if contentType := response.Header.Get("Content-Type"); contentType != "" {
-		w.Header().Set("Content-Type", contentType)
+	for k, vv := range response.Header {
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
 	}
 	w.WriteHeader(response.StatusCode)
 	_, _ = w.Write(responseBody)

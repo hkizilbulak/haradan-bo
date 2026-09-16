@@ -15,11 +15,11 @@ process.env.NEXT_PUBLIC_FRONTEND_URL = 'https://example.com/';
 
 assert(getFrontendBaseUrl() === 'https://example.com', 'trailing slash trimmed from frontend base');
 assert(
-  buildAdvertDetailUrl(42) === 'https://example.com/advert/42',
+  buildAdvertDetailUrl(42) === 'https://example.com/advert/42?id=42',
   'numeric advert id encoded in detail path',
 );
 assert(
-  buildAdvertDetailUrl(' 99 ') === 'https://example.com/advert/99',
+  buildAdvertDetailUrl(' 99 ') === 'https://example.com/advert/99?id=99',
   'string advert id trimmed',
 );
 

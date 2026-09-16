@@ -130,7 +130,7 @@ function assert(cond: unknown, msg: string): asserts cond {
   assert(labels.includes('Kiralık mı'), 'has Kiralık mı');
 
   const sireRow = rows.find((r) => r.label === 'Baba (Sire)');
-  assert(sireRow?.isClickable && sireRow.href?.includes('AtSorgula'), 'sire is clickable TJK link');
+  assert(sireRow?.isClickable && (sireRow.href?.includes('/api/v1/tjk/redirect') || sireRow.href?.includes('AtKosuBilgileri')), 'sire is clickable TJK link');
 
   console.log('✓ Race Horse category test passed');
 }

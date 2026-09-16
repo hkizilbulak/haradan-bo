@@ -1,5 +1,6 @@
 import { formatDateForText, formatDateTimeForText } from './DateUtils';
 import { buildAdvertDetailUrl } from '@/contants/urls';
+import { getTjkHorseUrl } from './tjkLinks';
 import { ModerationAdvertResponse } from '@/models';
 import { ModerationAdvertDetail } from '@/services/advert.service';
 
@@ -560,35 +561,47 @@ export function buildModerationAdvertSpecRows(
     list.push({ label: 'Hizmet', value: 'At Nakliyesi & Taşımacılık' });
   } else if (categoryKind === 'stud') {
     const studName = getProp(['registeredName', 'atAdi', 'aygirAdi', 'isim', 'horseName', 'studHorseName', 'studHorse']) || detail?.title || advert?.title || '-';
-    if (studName && studName !== '-') list.push({ label: 'Aygır Adı', value: studName });
+    if (studName && studName !== '-') {
+      const atId = (detail as any)?.horse?.tjkNumber || (advert as any)?.horse?.tjkNumber || (properties as any)?.tjkNumber;
+      const href = getTjkHorseUrl(studName, atId);
+      list.push({
+        label: 'Aygır Adı',
+        value: studName,
+        isClickable: Boolean(href),
+        href: href || undefined,
+      });
+    }
 
     const sire = getProp(['baba', 'sire', 'babaAdi', 'studSire', 'babaSire']);
     if (sire && sire !== '-') {
+      const href = getTjkHorseUrl(sire);
       list.push({
         label: 'Baba (Sire)',
         value: sire,
-        isClickable: true,
-        href: `https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(sire)}`,
+        isClickable: Boolean(href),
+        href: href || undefined,
       });
     }
 
     const dam = getProp(['anne', 'dam', 'anneAdi', 'studDam', 'anneDam']);
     if (dam && dam !== '-') {
+      const href = getTjkHorseUrl(dam);
       list.push({
         label: 'Anne (Dam)',
         value: dam,
-        isClickable: true,
-        href: `https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(dam)}`,
+        isClickable: Boolean(href),
+        href: href || undefined,
       });
     }
 
     const damsire = getProp(['damsire', 'anneBabasi', 'kisrakBabasi', 'annesininBabasi', 'studDamSire', 'studDamsire']);
     if (damsire && damsire !== '-') {
+      const href = getTjkHorseUrl(damsire);
       list.push({
         label: 'Anne Babası (Damsire)',
         value: damsire,
-        isClickable: true,
-        href: `https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(damsire)}`,
+        isClickable: Boolean(href),
+        href: href || undefined,
       });
     }
 
@@ -629,35 +642,47 @@ export function buildModerationAdvertSpecRows(
   } else {
     // Horse adverts (Satılık Yarış Atı, Satılık Kısrak, Satılık Aygır, Satılık Binek Atı, Satılık Pony)
     const horseName = getProp(['registeredName', 'atAdi', 'isim', 'horseName', 'studHorse', 'studHorseName']) || detail?.title || advert?.title || '-';
-    if (horseName && horseName !== '-') list.push({ label: 'At Adı', value: horseName });
+    if (horseName && horseName !== '-') {
+      const atId = (detail as any)?.horse?.tjkNumber || (advert as any)?.horse?.tjkNumber || (properties as any)?.tjkNumber;
+      const href = getTjkHorseUrl(horseName, atId);
+      list.push({
+        label: 'At Adı',
+        value: horseName,
+        isClickable: Boolean(href),
+        href: href || undefined,
+      });
+    }
 
     const sire = getProp(['baba', 'sire', 'babaAdi', 'babaSire', 'studSire']);
     if (sire && sire !== '-') {
+      const href = getTjkHorseUrl(sire);
       list.push({
         label: 'Baba (Sire)',
         value: sire,
-        isClickable: true,
-        href: `https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(sire)}`,
+        isClickable: Boolean(href),
+        href: href || undefined,
       });
     }
 
     const dam = getProp(['anne', 'dam', 'anneAdi', 'anneDam', 'studDam']);
     if (dam && dam !== '-') {
+      const href = getTjkHorseUrl(dam);
       list.push({
         label: 'Anne (Dam)',
         value: dam,
-        isClickable: true,
-        href: `https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(dam)}`,
+        isClickable: Boolean(href),
+        href: href || undefined,
       });
     }
 
     const damsire = getProp(['damsire', 'anneBabasi', 'kisrakBabasi', 'annesininBabasi', 'studDamSire', 'studDamsire']);
     if (damsire && damsire !== '-') {
+      const href = getTjkHorseUrl(damsire);
       list.push({
         label: 'Anne Babası (Damsire)',
         value: damsire,
-        isClickable: true,
-        href: `https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(damsire)}`,
+        isClickable: Boolean(href),
+        href: href || undefined,
       });
     }
 
@@ -710,11 +735,12 @@ export function buildModerationAdvertSpecRows(
       if (isPregnant === 'Evet') {
         const coveringStallion = getProp(['COVERING_STALLION', 'coveringStallion', 'gebeOlduguAygir', 'aygir', 'aygır']);
         if (coveringStallion && coveringStallion !== '-') {
+          const href = getTjkHorseUrl(coveringStallion);
           list.push({
             label: 'Gebe Olduğu Aygır',
             value: coveringStallion,
-            isClickable: true,
-            href: `https://www.tjk.org/TR/YarisSever/Info/Sehir/AtSorgula?AtAdi=${encodeURIComponent(coveringStallion)}`,
+            isClickable: Boolean(href),
+            href: href || undefined,
           });
         }
 
