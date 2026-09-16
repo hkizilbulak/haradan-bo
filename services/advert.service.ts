@@ -104,8 +104,18 @@ export type AdvertPackageAssignment = {
 
 export type AdvertPackageHistoryPage = {
     items: AdvertPackageAssignment[];
-    nextCursor?: string | null;
-    hasMore: boolean;
+    nextCursor?: string;
+    hasMore?: boolean;
+};
+
+export type AdminAdvertPaymentResponse = {
+    id: string;
+    packageCode: string;
+    status: string;
+    paymentMethod: string;
+    amountMinor: number;
+    currencyCode: string;
+    createdAt: string;
 };
 
 export type AssignPackageRequest = {
@@ -833,14 +843,24 @@ class AdvertService {
                 const rawItems = response?.items ?? [];
                 items.push(...rawItems);
                 if (!response?.hasMore || !response?.nextCursor) {
-                    return items;
+                    break;
                 }
                 cursor = response.nextCursor;
-            } catch {
-                return items;
+            } catch (err) {
+                break;
             }
         }
+        return items;
     }
+
+    async getPayments(advertId: string): Promise<AdminAdvertPaymentResponse[]> {
+        const response = await apiRequest<{ payments: AdminAdvertPaymentResponse[] }>(
+            'GET',
+            `${moderationRootUrl}/${advertId}/payments`
+        );
+        return response?.payments || [];
+    }
+
 
     async getUrgent(advertId: string): Promise<{ advertId: string; isUrgent: boolean }> {
         return apiRequest('GET', `${publicAdvertUrl}/${advertId}/urgent`);

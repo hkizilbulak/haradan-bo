@@ -17,6 +17,7 @@ import {
   packageService,
   PackageResponse,
   ModerationAdvertDetail,
+  AdminAdvertPaymentResponse,
 } from '@/services';
 
 interface PackageModalProps {
@@ -27,13 +28,15 @@ interface PackageModalProps {
 
 export default function PackageModal({ advert, onClose, onDone }: PackageModalProps) {
   const advertId = advert.identifier ?? advert.id;
-  const [tab, setTab] = useState<'manage' | 'card' | 'history'>('manage');
+  const [tab, setTab] = useState<'manage' | 'card' | 'history' | 'payments'>('manage');
   const [packages, setPackages] = useState<PackageResponse[]>([]);
   const [currentPackage, setCurrentPackage] = useState<AdvertPackageAssignment | null>(null);
   const [selectedPackageCode, setSelectedPackageCode] = useState('');
   const [assignReason, setAssignReason] = useState('');
   const [history, setHistory] = useState<AdvertPackageAssignment[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [payments, setPayments] = useState<AdminAdvertPaymentResponse[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [loadingCurrent, setLoadingCurrent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [detail, setDetail] = useState<ModerationAdvertDetail | null>(null);
@@ -82,11 +85,23 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
       .finally(() => setHistoryLoading(false));
   }, [advertId]);
 
+  const loadPayments = useCallback(() => {
+    if (!advertId) return;
+    setPaymentsLoading(true);
+    advertService
+      .getPayments(advertId)
+      .then(setPayments)
+      .catch((err) => toast.error(getErrorMessage(err)))
+      .finally(() => setPaymentsLoading(false));
+  }, [advertId]);
+
   useEffect(() => {
     if (tab === 'history') {
       loadHistory();
+    } else if (tab === 'payments') {
+      loadPayments();
     }
-  }, [tab, loadHistory]);
+  }, [tab, loadHistory, loadPayments]);
 
   const handleAssign = async (targetCode?: string, customReason?: string) => {
     const codeToAssign = (targetCode ?? selectedPackageCode).trim();
@@ -274,6 +289,19 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
             {history.length > 0 && (
               <Badge bg={tab === 'history' ? 'light' : 'secondary'} text={tab === 'history' ? 'dark' : 'white'} pill>
                 {history.length}
+              </Badge>
+            )}
+          </Button>
+          <Button
+            variant={tab === 'payments' ? 'primary' : 'light'}
+            size="sm"
+            className="rounded-2 fw-semibold d-flex align-items-center gap-2 border-0"
+            onClick={() => setTab('payments')}
+          >
+            <i className="fe fe-dollar-sign" /> Ödemeler
+            {payments.length > 0 && (
+              <Badge bg={tab === 'payments' ? 'light' : 'secondary'} text={tab === 'payments' ? 'dark' : 'white'} pill>
+                {payments.length}
               </Badge>
             )}
           </Button>
@@ -787,6 +815,73 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
                                 </Badge>
                               </td>
                               <td className="text-muted">{item.reason ?? '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    </div>
+                  )}
+                </Card.Body>
+              </Card>
+            )}
+
+            {/* TAB 4: ÖDEMELER */}
+            {tab === 'payments' && (
+              <Card className="border-0 shadow-sm rounded-3 bg-white">
+                <Card.Header className="bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
+                  <h6 className="mb-0 fw-bold text-dark">Ödeme Geçmişi</h6>
+                  <Badge bg="secondary" pill>
+                    {payments.length} Kayıt
+                  </Badge>
+                </Card.Header>
+                <Card.Body className="p-0">
+                  {paymentsLoading && (
+                    <div className="text-center py-4">
+                      <Spinner animation="border" size="sm" variant="primary" />
+                      <div className="small text-muted mt-1">Ödemeler yükleniyor...</div>
+                    </div>
+                  )}
+
+                  {!paymentsLoading && payments.length === 0 && (
+                    <div className="text-center py-4 text-muted">Ödeme kaydı bulunamadı.</div>
+                  )}
+
+                  {!paymentsLoading && payments.length > 0 && (
+                    <div className="table-responsive">
+                      <Table hover className="align-middle mb-0 small">
+                        <thead className="table-light">
+                          <tr>
+                            <th>ID</th>
+                            <th>Paket</th>
+                            <th>Yöntem</th>
+                            <th>Tutar</th>
+                            <th>Durum</th>
+                            <th>Tarih</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {payments.map((item) => (
+                            <tr key={item.id}>
+                              <td className="text-muted" style={{ fontSize: '11px' }}>
+                                {item.id.split('-')[0]}
+                              </td>
+                              <td>
+                                <span className="fw-bold text-dark">{item.packageCode}</span>
+                              </td>
+                              <td>
+                                <Badge bg="info">{item.paymentMethod}</Badge>
+                              </td>
+                              <td>
+                                <span className="fw-semibold">
+                                  {formatMoney(item.amountMinor, item.currencyCode)}
+                                </span>
+                              </td>
+                              <td>
+                                <Badge bg={item.status === 'SUCCEEDED' ? 'success' : item.status === 'PENDING' ? 'warning' : 'danger'}>
+                                  {item.status}
+                                </Badge>
+                              </td>
+                              <td>{formatDateTimeForText(item.createdAt)}</td>
                             </tr>
                           ))}
                         </tbody>
