@@ -19,6 +19,7 @@ import {
   type PropertyDisplayGroup,
 } from '@/helpers/propertyUiMetadata';
 import { Edit2, Eye, EyeOff, Trash2, Plus, ArrowUp, ArrowDown } from 'react-feather';
+import ConfirmModal from '@/components/ConfirmModal';
 
 const DATA_TYPES: PropertyDataType[] = [
   'STRING',
@@ -140,6 +141,7 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
   const [submitting, setSubmitting] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CategoryProperty | null>(null);
+  const [deletePropertyTarget, setDeletePropertyTarget] = useState<CategoryProperty | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
 
   const load = useCallback(async () => {
@@ -301,18 +303,17 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
     }
   };
 
-  const handleDelete = async (property: CategoryProperty) => {
-    if (submitting) {
+  const handleDeleteConfirm = async () => {
+    if (!deletePropertyTarget || submitting) {
       return;
     }
-    if (!window.confirm(`"${property.title}" özelliğini silmek istediğinize emin misiniz?`)) {
-      return;
-    }
+    const property = deletePropertyTarget;
     setSubmitting(true);
     try {
       await categoryService.deleteProperty(categoryId, property.id, property.version);
       setItems((prev) => prev.filter((p) => p.id !== property.id));
       toast.success('Özellik silindi');
+      setDeletePropertyTarget(null);
     } catch (error) {
       toast.error(getErrorMessage(error));
       await load();
@@ -495,7 +496,7 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
                         size="sm"
                         variant="outline-danger"
                         disabled={submitting}
-                        onClick={() => void handleDelete(item)}
+                        onClick={() => setDeletePropertyTarget(item)}
                         title="Sil"
                       >
                         <Trash2 size={16} />
@@ -758,6 +759,30 @@ export default function CategoryPropertiesModal({ categoryId, categoryName, pare
           </Button>
         </Modal.Footer>
       </Modal>
+
+      <ConfirmModal
+        show={Boolean(deletePropertyTarget)}
+        onHide={() => !submitting && setDeletePropertyTarget(null)}
+        onConfirm={() => void handleDeleteConfirm()}
+        title="Özelliği Sil"
+        message={
+          deletePropertyTarget ? (
+            <div>
+              <p className="mb-2 text-dark">
+                <strong>&quot;{deletePropertyTarget.title}&quot;</strong> özelliğini silmek istediğinize emin misiniz?
+              </p>
+              <div className="p-2 rounded bg-danger-subtle text-danger small text-start border border-danger-subtle">
+                <i className="fe fe-alert-triangle me-1 fw-bold" />
+                Bu kategoriye ve altındaki ilanlara bağlı özellik tanımı silinecektir.
+              </div>
+            </div>
+          ) : null
+        }
+        confirmText="Evet, Sil"
+        cancelText="Vazgeç"
+        type="danger"
+        isLoading={submitting}
+      />
     </>
   );
 }

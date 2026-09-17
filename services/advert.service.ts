@@ -557,6 +557,26 @@ function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem> & { r
     }
 }
 
+function removeLocalMockAdvert(id: string) {
+    const targetIdStr = String(id).trim();
+    const idx = fallbackMockAdverts.findIndex((m) => String(m.id).trim() === targetIdStr || String((m as any).identifier).trim() === targetIdStr);
+    if (idx !== -1) {
+        fallbackMockAdverts.splice(idx, 1);
+    }
+    if (typeof window !== 'undefined') {
+        try {
+            const raw = localStorage.getItem('haradan.mockMyListings.items');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    const filtered = parsed.filter((x: any) => String(x.id).trim() !== targetIdStr && String(x.identifier).trim() !== targetIdStr);
+                    localStorage.setItem('haradan.mockMyListings.items', JSON.stringify(filtered));
+                }
+            }
+        } catch { }
+    }
+}
+
 function isLocalEnvironment(): boolean {
     if (typeof window === 'undefined') {
         return false;
@@ -833,6 +853,12 @@ class AdvertService {
             });
             return;
         }
+    }
+
+    async delete(advertId: string | number): Promise<void> {
+        const idStr = String(advertId).trim();
+        await apiRequest('DELETE', `${moderationRootUrl}/${idStr}`);
+        removeLocalMockAdvert(idStr);
     }
 
     async getPackage(advertId: string): Promise<AdvertPackageAssignment | null> {

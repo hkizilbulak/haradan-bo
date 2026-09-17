@@ -6,6 +6,7 @@ import { buildMediaUrl } from '@/contants/urls';
 import { formatDateForText, formatDateTimeForText } from '@/helpers/DateUtils';
 
 import { formatMoney, getErrorMessage } from '@/helpers/HelperUtils';
+import ConfirmModal from '@/components/ConfirmModal';
 import { ModerationAdvertResponse } from '@/models';
 import {
   advertService,
@@ -36,6 +37,7 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [loadingCurrent, setLoadingCurrent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [detail, setDetail] = useState<ModerationAdvertDetail | null>(null);
   const [isUrgentActive, setIsUrgentActive] = useState<boolean>(false);
   // Pending değişiklikler — null = değişiklik yok
@@ -209,6 +211,27 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
       setSubmitting(false);
     }
   };
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleDeleteConfirm = async () => {
+    if (!advertId || deleting) return;
+    setDeleting(true);
+    try {
+      await advertService.delete(advertId);
+      toast.success('İlan başarıyla veritabanından silindi');
+      setShowDeleteConfirm(false);
+      onDone();
+      onClose();
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const currentAdvStatus = ((detail?.status || advert?.status) ?? '').toUpperCase();
+  const canDelete = currentAdvStatus === 'SUSPENDED' || currentAdvStatus === 'ARCHIVED' || currentAdvStatus === 'REJECTED';
 
   const selectedPkgObj = packages.find((p) => p.code === selectedPackageCode);
   const currentPkgObj = packages.find((p) => p.code === currentPackage?.packageCode);
@@ -538,7 +561,8 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
   };
 
   return (
-    <Modal show onHide={onClose} size="lg" centered backdrop="static">
+    <>
+      <Modal show onHide={onClose} size="lg" centered backdrop="static">
       {/* Header */}
       <Modal.Header closeButton className="border-bottom bg-white py-3 px-4">
         <div className="d-flex align-items-center gap-2 flex-wrap">
@@ -1134,40 +1158,78 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
 
       {/* Footer */}
       <Modal.Footer className="bg-white border-top px-4 py-3 d-flex justify-content-between align-items-center">
-        <Button variant="secondary" size="sm" className="px-4" onClick={onClose}>
+        <Button variant="secondary" size="sm" className="px-4" onClick={onClose} disabled={deleting}>
           Kapat
         </Button>
 
-        {/* İlan Kartı sekmesinde kaydet butonu */}
-        {tab === 'card' && (
-          <div className="d-flex align-items-center gap-3">
-            {hasCardChanges && (
-              <span className="small text-warning fw-semibold d-flex align-items-center gap-1">
-                <i className="fe fe-alert-circle" /> Kaydedilmemiş değişiklikler var
-              </span>
-            )}
-            <Button
-              variant={hasCardChanges ? 'primary' : 'secondary'}
-              size="sm"
-              className="px-4 d-flex align-items-center gap-2 fw-semibold"
-              disabled={!hasCardChanges || submitting}
-              onClick={() => void handleCardSave()}
-              style={{
-                opacity: hasCardChanges ? 1 : 0.35,
-                cursor: hasCardChanges ? 'pointer' : 'not-allowed',
-                transition: 'all 0.25s ease',
-                boxShadow: hasCardChanges ? '0 2px 8px rgba(79, 70, 229, 0.3)' : 'none',
-              }}
-            >
-              {submitting ? (
-                <><Spinner size="sm" animation="border" /> Kaydediliyor...</>
-              ) : (
-                <><i className="fe fe-save" /> Değişiklikleri Kaydet</>
+        <div className="d-flex align-items-center gap-2">
+          {/* İlan Kartı sekmesinde kaydet butonu */}
+          {tab === 'card' && (
+            <div className="d-flex align-items-center gap-3">
+              {hasCardChanges && (
+                <span className="small text-warning fw-semibold d-flex align-items-center gap-1">
+                  <i className="fe fe-alert-circle" /> Kaydedilmemiş değişiklikler var
+                </span>
               )}
+              <Button
+                variant={hasCardChanges ? 'primary' : 'secondary'}
+                size="sm"
+                className="px-4 d-flex align-items-center gap-2 fw-semibold"
+                disabled={!hasCardChanges || submitting || deleting}
+                onClick={() => void handleCardSave()}
+                style={{
+                  opacity: hasCardChanges ? 1 : 0.35,
+                  cursor: hasCardChanges ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.25s ease',
+                  boxShadow: hasCardChanges ? '0 2px 8px rgba(79, 70, 229, 0.3)' : 'none',
+                }}
+              >
+                {submitting ? (
+                  <><Spinner size="sm" animation="border" /> Kaydediliyor...</>
+                ) : (
+                  <><i className="fe fe-save" /> Değişiklikleri Kaydet</>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {canDelete && (
+            <Button
+              variant="outline-danger"
+              size="sm"
+              className="d-flex align-items-center gap-1 px-3 fw-semibold shadow-sm"
+              disabled={deleting || submitting}
+              onClick={() => setShowDeleteConfirm(true)}
+              title="İlanı veritabanından tamamen sil"
+            >
+              <i className="fe fe-trash-2" /> Sil
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </Modal.Footer>
     </Modal>
-  );
+
+    <ConfirmModal
+      show={showDeleteConfirm}
+      onHide={() => !deleting && setShowDeleteConfirm(false)}
+      onConfirm={() => void handleDeleteConfirm()}
+      title="İlanı Kalıcı Olarak Sil"
+      message={
+        <div>
+          <p className="mb-2 text-dark">
+            Bu ilanı veritabanından kalıcı olarak silmek istediğinize emin misiniz?
+          </p>
+          <div className="p-2 rounded bg-danger-subtle text-danger small text-start border border-danger-subtle">
+            <i className="fe fe-alert-triangle me-1 fw-bold" />
+            <strong>Dikkat:</strong> Bu işlem geri alınamaz ve ilana ait tüm veriler (medyalar, geçmiş, ödemeler vs.) tamamen silinecektir.
+          </div>
+        </div>
+      }
+      confirmText="Evet, Kalıcı Olarak Sil"
+      cancelText="Vazgeç"
+      type="danger"
+      isLoading={deleting}
+    />
+  </>
+);
 }
