@@ -515,7 +515,8 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
 }
 
 function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem> & { rejectionReason?: string | null; reason?: string | null }) {
-    const idx = fallbackMockAdverts.findIndex((m) => m.id === id);
+    const targetIdStr = String(id).trim();
+    const idx = fallbackMockAdverts.findIndex((m) => String(m.id).trim() === targetIdStr || String((m as any).identifier).trim() === targetIdStr);
     if (idx !== -1) {
         Object.assign(fallbackMockAdverts[idx], patch);
         if (patch.rejectionReason || patch.reason) {
@@ -528,11 +529,20 @@ function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem> & { r
             if (raw) {
                 const parsed = JSON.parse(raw);
                 if (Array.isArray(parsed)) {
-                    const itemIdx = parsed.findIndex((x: any) => x.id === id);
+                    const itemIdx = parsed.findIndex((x: any) => String(x.id).trim() === targetIdStr || String(x.identifier).trim() === targetIdStr);
                     if (itemIdx !== -1) {
                         if (patch.status) {
                             parsed[itemIdx].backendStatus = patch.status;
-                            parsed[itemIdx].status = patch.status === 'PUBLISHED' ? 'published' : patch.status === 'REJECTED' ? 'rejected' : patch.status === 'ARCHIVED' ? 'archived' : patch.status === 'SUSPENDED' ? 'suspended' : 'pending';
+                            parsed[itemIdx].status =
+                                patch.status === 'PUBLISHED'
+                                    ? 'published'
+                                    : patch.status === 'REJECTED'
+                                    ? 'rejected'
+                                    : (patch.status === 'ARCHIVED' || patch.status === 'SUSPENDED' || patch.status === 'SOLD')
+                                    ? 'sold'
+                                    : patch.status === 'PENDING_REVIEW'
+                                    ? 'pending'
+                                    : 'draft';
                         }
                         if (patch.version) parsed[itemIdx].version = patch.version;
                         if (patch.publishedAt) parsed[itemIdx].publishedAt = patch.publishedAt;
@@ -756,6 +766,11 @@ class AdvertService {
             await apiRequest('POST', `${moderationRootUrl}/${advertId}/approve`, {
                 expectedVersion,
             });
+            updateLocalMockAdvert(advertId, {
+                status: 'PUBLISHED',
+                version: expectedVersion + 1,
+                publishedAt: new Date().toISOString(),
+            });
         } catch (err) {
             updateLocalMockAdvert(advertId, {
                 status: 'PUBLISHED',
@@ -769,6 +784,11 @@ class AdvertService {
     async reject(advertId: string, request: ModerationReasonRequest) {
         try {
             await apiRequest('POST', `${moderationRootUrl}/${advertId}/reject`, request);
+            updateLocalMockAdvert(advertId, {
+                status: 'REJECTED',
+                version: request.expectedVersion + 1,
+                rejectionReason: request.reason,
+            });
         } catch (err) {
             updateLocalMockAdvert(advertId, {
                 status: 'REJECTED',
@@ -782,10 +802,16 @@ class AdvertService {
     async suspend(advertId: string, request: ModerationReasonRequest) {
         try {
             await apiRequest('POST', `${moderationRootUrl}/${advertId}/suspend`, request);
+            updateLocalMockAdvert(advertId, {
+                status: 'SUSPENDED',
+                version: request.expectedVersion + 1,
+                reason: request.reason,
+            });
         } catch (err) {
             updateLocalMockAdvert(advertId, {
                 status: 'SUSPENDED',
                 version: request.expectedVersion + 1,
+                reason: request.reason,
             });
             return;
         }
@@ -794,10 +820,16 @@ class AdvertService {
     async requestChanges(advertId: string, request: ModerationReasonRequest) {
         try {
             await apiRequest('POST', `${moderationRootUrl}/${advertId}/request-changes`, request);
+            updateLocalMockAdvert(advertId, {
+                status: 'CHANGES_REQUESTED',
+                version: request.expectedVersion + 1,
+                reason: request.reason,
+            });
         } catch (err) {
             updateLocalMockAdvert(advertId, {
                 status: 'CHANGES_REQUESTED',
                 version: request.expectedVersion + 1,
+                reason: request.reason,
             });
             return;
         }
