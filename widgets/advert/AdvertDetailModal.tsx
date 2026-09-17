@@ -9,7 +9,7 @@ import { looksLikeHtml, sanitizeRichHtml } from '@/helpers/sanitizeHtml';
 import { canModerationAction } from '@/helpers/moderationActions';
 import { useResolvedLocation } from '@/helpers/location';
 import { ModerationAdvertResponse } from '@/models';
-import { advertService, ModerationAdvertDetail, DEFAULT_MOCK_MEDIA } from '@/services/advert.service';
+import { advertService, ModerationAdvertDetail, AdvertPackageAssignment, DEFAULT_MOCK_MEDIA } from '@/services/advert.service';
 import { buildModerationAdvertSpecRows, resolveDisplayAdvertNo, SpecRow } from '@/helpers/advertCategoryHelper';
 
 interface AdvertDetailModalProps {
@@ -31,6 +31,7 @@ export default function AdvertDetailModal({
 }: AdvertDetailModalProps) {
   const advertId = advert?.identifier ?? advert?.id;
   const [detail, setDetail] = useState<ModerationAdvertDetail | null>(null);
+  const [packageAssignment, setPackageAssignment] = useState<AdvertPackageAssignment | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeMediaIndex, setActiveMediaIndex] = useState<number>(0);
@@ -42,8 +43,12 @@ export default function AdvertDetailModal({
     setLoading(true);
     setError(null);
     try {
-      const res = await advertService.getDetail(advertId);
+      const [res, pkg] = await Promise.all([
+        advertService.getDetail(advertId),
+        advertService.getPackage(advertId).catch(() => null),
+      ]);
       setDetail(res);
+      setPackageAssignment(pkg);
       if (res.media && res.media.length > 0) {
         const coverIdx = res.media.findIndex((m) => m.isCover);
         setActiveMediaIndex(coverIdx >= 0 ? coverIdx : 0);
@@ -62,6 +67,7 @@ export default function AdvertDetailModal({
       void fetchDetail();
     } else {
       setDetail(null);
+      setPackageAssignment(null);
       setError(null);
     }
   }, [advertId]);
@@ -81,6 +87,7 @@ export default function AdvertDetailModal({
 
     let reason: string | null = (detail as any)?.suspensionReason || (advert as any)?.suspensionReason || (detail as any)?.reason || null;
     let createdAt: string | null = null;
+    let isSystemSuspended = false;
 
     if (detail?.statusHistory && detail.statusHistory.length > 0) {
       const historyReversed = [...detail.statusHistory].reverse();
@@ -94,7 +101,36 @@ export default function AdvertDetailModal({
         if (suspendedEntry.createdAt) {
           createdAt = suspendedEntry.createdAt;
         }
+        if (suspendedEntry.isSystem) {
+          isSystemSuspended = true;
+        }
       }
+    }
+
+    // Check if advert was automatically unlisted/suspended due to package/duration expiration
+    const isPackageExpired =
+      packageAssignment?.status === 'EXPIRED' ||
+      (packageAssignment?.endsAt ? new Date(packageAssignment.endsAt).getTime() <= Date.now() : false) ||
+      Boolean(
+        (detail as any)?.isExpired ||
+        (advert as any)?.isExpired ||
+        (detail as any)?.packageExpired ||
+        (advert as any)?.packageExpired
+      );
+
+    const normReason = (reason || '').trim().toLowerCase();
+    const isExplicitPackageExpiredReason =
+      normReason === 'package_expired' ||
+      normReason === 'paket_expired' ||
+      normReason.includes('paket süresi') ||
+      normReason.includes('paket suresi');
+
+    if (
+      isExplicitPackageExpiredReason ||
+      isSystemSuspended ||
+      (isPackageExpired && (!reason || normReason === 'yayından kaldırılma gerekçesi belirtilmemiş.'))
+    ) {
+      reason = 'Paket süresi bitmiştir';
     }
 
     if (!reason && !isSuspended) {
@@ -104,8 +140,10 @@ export default function AdvertDetailModal({
     return {
       reason: reason?.trim() || 'Yayından kaldırılma gerekçesi belirtilmemiş.',
       createdAt: createdAt ? formatDateTimeForText(createdAt) : null,
+      isAutoExpired: reason?.trim() === 'Paket süresi bitmiştir',
     };
-  }, [detail, advert, isSuspended]);
+  }, [detail, advert, isSuspended, packageAssignment]);
+
 
   const rejectionInfo = useMemo(() => {
     if (!isRejected && !detail?.rejectionReason && !advert?.rejectionReason) {

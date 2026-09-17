@@ -1,21 +1,19 @@
 'use client'
 import { Fragment, useState, useEffect } from "react";
-import { Container, Row, Col, Card, Table, Button, Badge } from "react-bootstrap";
-import { useRouter } from 'next/navigation';
+import { Container, Row, Col, Card, Table, Button, Badge, Modal, Form } from "react-bootstrap";
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 import { useAuth } from "@/context/AuthContext";
 import { formatDateForText, formatDateTimeForText } from '@/helpers/DateUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
 import { ModerationAdvertResponse } from '@/models';
-import { advertService, jobService, packageService, userService, tjkService, bannerService, categoryService, commentService, AdvertComment } from '@/services';
+import { advertService, jobService, packageService, userService, tjkService, bannerService, categoryService, commentService, AdvertComment, ModerationReasonRequest } from '@/services';
 import { toast } from 'react-toastify';
 import { Skeleton, TableSkeleton } from '@/components/Skeleton';
 import { AdvertDetailModal, PackageModal } from '@/widgets';
 
 export default function Home() {
     const { session } = useAuth();
-    const router = useRouter();
 
     const [loadingStats, setLoadingStats] = useState(true);
     const [stats, setStats] = useState({
@@ -34,6 +32,12 @@ export default function Home() {
     const [userMap, setUserMap] = useState<Map<string, { name?: string; email?: string }>>(new Map());
     const [detailAdvert, setDetailAdvert] = useState<ModerationAdvertResponse | null>(null);
     const [packageAdvert, setPackageAdvert] = useState<ModerationAdvertResponse | null>(null);
+    const [pendingAction, setPendingAction] = useState<{
+        advert: ModerationAdvertResponse;
+        action: 'reject' | 'suspend';
+    } | null>(null);
+    const [reason, setReason] = useState('');
+    const [actionBusy, setActionBusy] = useState(false);
     const [pendingComments, setPendingComments] = useState<AdvertComment[]>([]);
     const [pendingCommentsCount, setPendingCommentsCount] = useState(0);
     const [loadingComments, setLoadingComments] = useState(true);
@@ -223,6 +227,50 @@ export default function Home() {
             void loadDashboardData();
         } catch (error) {
             toast.error(getErrorMessage(error));
+        }
+    };
+
+    const closeActionModal = () => {
+        setPendingAction(null);
+        setReason('');
+    };
+
+    const openActionModal = (advert: ModerationAdvertResponse, action: 'reject' | 'suspend') => {
+        setPendingAction({ advert, action });
+        setReason('');
+    };
+
+    const handleReasonedAction = async () => {
+        const advertId = pendingAction?.advert.identifier ?? pendingAction?.advert.id;
+        if (!advertId || !pendingAction?.advert.version || actionBusy) {
+            return;
+        }
+
+        if (reason.trim().length === 0) {
+            toast.error('Gerekçe zorunludur');
+            return;
+        }
+
+        const payload: ModerationReasonRequest = {
+            expectedVersion: pendingAction.advert.version,
+            reason: reason.trim(),
+        };
+
+        setActionBusy(true);
+        try {
+            if (pendingAction.action === 'reject') {
+                await advertService.reject(advertId, payload);
+                toast.success('İlan reddedildi');
+            } else {
+                await advertService.suspend(advertId, payload);
+                toast.success('İlan yayından kaldırıldı');
+            }
+            closeActionModal();
+            void loadDashboardData();
+        } catch (error) {
+            toast.error(getErrorMessage(error));
+        } finally {
+            setActionBusy(false);
         }
     };
 
@@ -729,16 +777,102 @@ export default function Home() {
                         setDetailAdvert(null);
                         await handleApprove(adv);
                     }}
-                    onReject={() => {
+                    onReject={(adv) => {
                         setDetailAdvert(null);
-                        router.push('/listings');
+                        openActionModal(adv, 'reject');
                     }}
-                    onSuspend={() => {
+                    onSuspend={(adv) => {
                         setDetailAdvert(null);
-                        router.push('/listings');
+                        openActionModal(adv, 'suspend');
                     }}
                 />
             )}
+
+            {/* Moderasyon İşlemi Açılan Penceresi (Modal) */}
+            <Modal show={pendingAction !== null} onHide={closeActionModal} centered backdrop="static">
+                <Modal.Header closeButton={!actionBusy} className="border-bottom-0 pb-1">
+                    <div className="d-flex align-items-center gap-3">
+                        <div
+                            className={`rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${
+                                pendingAction?.action === 'reject'
+                                    ? 'bg-danger-subtle text-danger'
+                                    : 'bg-secondary-subtle text-secondary'
+                            }`}
+                            style={{ width: '44px', height: '44px' }}
+                        >
+                            <i
+                                className={`fs-4 fe ${
+                                    pendingAction?.action === 'reject'
+                                        ? 'fe-x-circle'
+                                        : 'fe-pause-circle'
+                                }`}
+                            />
+                        </div>
+                        <div>
+                            <Modal.Title className="h5 mb-0 fw-bold">
+                                {pendingAction?.action === 'reject'
+                                    ? 'İlanı Reddet'
+                                    : 'Yayından Kaldır'}
+                            </Modal.Title>
+                            <small className="text-muted">
+                                {pendingAction?.action === 'reject'
+                                    ? 'İlanın reddedilme gerekçesini belirtiniz.'
+                                    : 'İlanın yayından kaldırılma gerekçesini belirtiniz.'}
+                            </small>
+                        </div>
+                    </div>
+                </Modal.Header>
+                <Modal.Body className="pt-3">
+                    {pendingAction?.advert && (
+                        <div className="p-3 bg-light rounded-3 mb-3 border">
+                            <div className="text-muted small mb-1">İşlem Yapılan İlan:</div>
+                            <div className="fw-semibold text-dark text-truncate">
+                                {pendingAction.advert.title || 'Başlıksız İlan'}
+                            </div>
+                        </div>
+                    )}
+                    <Form.Group>
+                        <Form.Label className="small fw-semibold text-secondary">
+                            Gerekçe <span className="text-danger">*</span>
+                        </Form.Label>
+                        <Form.Control
+                            as="textarea"
+                            rows={4}
+                            value={reason}
+                            placeholder={
+                                pendingAction?.action === 'reject'
+                                    ? 'İlanın neden reddedildiğini detaylıca açıklayınız (kullanıcıya gösterilecektir)...'
+                                    : 'Gerekçe açıklamasını giriniz...'
+                            }
+                            className="rounded-3 shadow-none"
+                            onChange={(event) => setReason(event.target.value)}
+                            autoFocus
+                        />
+                    </Form.Group>
+                </Modal.Body>
+                <Modal.Footer className="border-top-0 pt-1">
+                    <Button variant="outline-secondary" className="rounded-3 px-3" onClick={closeActionModal} disabled={actionBusy}>
+                        Vazgeç
+                    </Button>
+                    <Button
+                        variant={pendingAction?.action === 'reject' ? 'danger' : 'secondary'}
+                        className="rounded-3 px-4 fw-semibold text-white"
+                        disabled={reason.trim().length === 0 || actionBusy}
+                        onClick={() => void handleReasonedAction()}
+                    >
+                        {actionBusy ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
+                                İşleniyor...
+                            </>
+                        ) : pendingAction?.action === 'reject' ? (
+                            'İlanı Reddet'
+                        ) : (
+                            'Yayından Kaldır'
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
 
             {packageAdvert && (
                 <PackageModal

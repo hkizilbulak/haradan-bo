@@ -727,8 +727,12 @@ class AdvertService {
                         {
                             fromStatus: 'DRAFT',
                             toStatus: mock.status,
-                            reason: mock.status === 'REJECTED' ? (mockReason || 'İlan kriterlere uygun bulunmadı.') : 'İlan onaya gönderildi',
-                            isSystem: false,
+                            reason: mock.status === 'REJECTED'
+                                ? (mockReason || 'İlan kriterlere uygun bulunmadı.')
+                                : mock.status === 'SUSPENDED'
+                                ? (mockReason || 'Paket süresi bitmiştir')
+                                : 'İlan onaya gönderildi',
+                            isSystem: mock.status === 'SUSPENDED' && !mockReason,
                             createdAt: new Date().toISOString(),
                         },
                     ],
