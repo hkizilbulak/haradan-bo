@@ -3,11 +3,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, Button, Form, Badge, Table, Alert, Row, Col, Card, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import { buildMediaUrl } from '@/contants/urls';
-import { formatDateTimeForText } from '@/helpers/DateUtils';
-import {
-  getPackageAssignmentSourceText,
-  getPackageAssignmentStatusText,
-} from '@/helpers/EnumUtils';
+import { formatDateForText, formatDateTimeForText } from '@/helpers/DateUtils';
+
 import { formatMoney, getErrorMessage } from '@/helpers/HelperUtils';
 import { ModerationAdvertResponse } from '@/models';
 import {
@@ -78,9 +75,16 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
   const loadHistory = useCallback(() => {
     if (!advertId) return;
     setHistoryLoading(true);
-    advertService
-      .getPackageHistory(advertId)
-      .then(setHistory)
+    Promise.all([
+      advertService.getPackageHistory(advertId).catch(() => []),
+      advertService.getDetail(advertId).catch(() => null),
+    ])
+      .then(([pkgHist, advDetail]) => {
+        setHistory(pkgHist);
+        if (advDetail) {
+          setDetail(advDetail);
+        }
+      })
       .catch((err) => toast.error(getErrorMessage(err)))
       .finally(() => setHistoryLoading(false));
   }, [advertId]);
@@ -217,6 +221,221 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
     }
   };
 
+  interface UnifiedHistoryRow {
+    id: string;
+    packageCode: string;
+    statusText: string;
+    statusVariant: string;
+    startDate: string;
+    endDate: string;
+    reason: string;
+    sortTime: number;
+    isCurrent?: boolean;
+  }
+
+  const unifiedHistory = React.useMemo<UnifiedHistoryRow[]>(() => {
+    const rows: UnifiedHistoryRow[] = [];
+    const statusHist = detail?.statusHistory || [];
+    const currentAdvStatus = detail?.status || advert?.status;
+    const activePkgCode = currentPackage?.packageCode || (advert as any)?.packageCode || (detail as any)?.packageCode || (packages[0]?.code) || 'STANDART';
+
+    // DRAFT iç durumdur, admin/ilan geçmişinde gösterilmez
+    const meaningfulStatusHist = statusHist.filter((s) => s.toStatus && s.toStatus !== 'DRAFT');
+
+    // 1. İlan Durum Geçmişi Kayıtları (Status History) - Eskiden yeniye sıralı
+    const sortedStatusHist = [...meaningfulStatusHist].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    sortedStatusHist.forEach((sh, idx) => {
+      const isLast = idx === sortedStatusHist.length - 1;
+      const nextItem = !isLast ? sortedStatusHist[idx + 1] : null;
+
+      const shTime = new Date(sh.createdAt).getTime();
+      const matchingPkg = history.find((p) => {
+        const pTime = new Date(p.startsAt || p.assignedAt || p.createdAt).getTime();
+        return pTime <= shTime;
+      });
+      const rowPkgCode = matchingPkg?.packageCode || activePkgCode;
+
+      let stText = 'Durum Güncellendi';
+      let stVariant = 'secondary';
+      let defaultReason = '';
+
+      const prevStatuses = sortedStatusHist.slice(0, idx).map((s) => s.toStatus);
+
+      switch (sh.toStatus) {
+        case 'PUBLISHED':
+          if (prevStatuses.includes('SUSPENDED') || prevStatuses.includes('ARCHIVED')) {
+            stText = 'Tekrar Yayında';
+            defaultReason = 'İlan tekrar yayına alındı';
+          } else if (prevStatuses.includes('REJECTED')) {
+            stText = 'Onaylandı (Yayında)';
+            defaultReason = 'İlan onaylanarak yayına alındı';
+          } else {
+            stText = 'Yayında';
+            defaultReason = 'İlan onaylandı';
+          }
+          stVariant = 'success';
+          break;
+        case 'SUSPENDED':
+          stText = 'Yayından Kaldırıldı';
+          stVariant = 'warning';
+          defaultReason = 'İlan yayından kaldırıldı';
+          break;
+        case 'REJECTED':
+          stText = 'Reddedildi';
+          stVariant = 'danger';
+          defaultReason = 'İlan kriterlere uygun bulunmadı';
+          break;
+        case 'PENDING_REVIEW':
+          if (prevStatuses.includes('REJECTED') || prevStatuses.includes('CHANGES_REQUESTED')) {
+            stText = 'Yeniden İnceleme Bekliyor';
+            defaultReason = 'Düzenlendi, tekrar incelemeye gönderildi';
+          } else {
+            stText = 'İnceleme Bekliyor';
+            defaultReason = 'İlan onaya gönderildi';
+          }
+          stVariant = 'info';
+          break;
+        case 'CHANGES_REQUESTED':
+          stText = 'Düzeltme İstendi';
+          stVariant = 'warning';
+          defaultReason = 'İlanda revizyon talep edildi';
+          break;
+        case 'SOLD':
+          stText = 'Satıldı';
+          stVariant = 'dark';
+          defaultReason = 'İlan satıldı olarak işaretlendi';
+          break;
+        case 'ARCHIVED':
+          stText = 'Arşivlendi';
+          stVariant = 'secondary';
+          defaultReason = 'İlan arşivlendi';
+          break;
+        default:
+          stText = sh.toStatus;
+          stVariant = 'secondary';
+      }
+
+      const startDateStr = sh.createdAt ? formatDateForText(sh.createdAt) : '-';
+      let endDateStr = '-';
+      if (nextItem && nextItem.createdAt) {
+        endDateStr = formatDateForText(nextItem.createdAt);
+      } else if (isLast && sh.toStatus === currentAdvStatus) {
+        if (sh.toStatus === 'PUBLISHED' && currentPackage?.endsAt) {
+          endDateStr = formatDateForText(currentPackage.endsAt);
+        } else {
+          endDateStr = 'Devam Ediyor';
+        }
+      }
+
+      rows.push({
+        id: `sh-${idx}-${sh.createdAt}`,
+        packageCode: rowPkgCode,
+        statusText: stText,
+        statusVariant: stVariant,
+        startDate: startDateStr,
+        endDate: endDateStr,
+        reason: sh.reason || defaultReason || '-',
+        sortTime: shTime,
+      });
+    });
+
+    // 2. Paket Değişikliği Kayıtları:
+    // Sadece paket gerçekten sonradan değiştirilmişse (history.length > 1) ekle.
+    // İlk oluşturulma paketi ayrı bir satır olarak basılmaz çünkü durum satırında zaten yer alır.
+    if (history.length > 1) {
+      history.forEach((pkg, idx) => {
+        // En eski ilk paket atamasını atla (o ilanın başlangıç paketidir)
+        if (idx === history.length - 1 && pkg.status === 'SUPERSEDED') {
+          return;
+        }
+        rows.push({
+          id: `pkg-${pkg.id || idx}`,
+          packageCode: pkg.packageCode || activePkgCode,
+          statusText: 'Paket Değiştirildi',
+          statusVariant: pkg.status === 'ACTIVE' ? 'primary' : 'secondary',
+          startDate: pkg.startsAt ? formatDateForText(pkg.startsAt) : '-',
+          endDate: pkg.endsAt ? formatDateForText(pkg.endsAt) : 'Süresiz',
+          reason: pkg.reason || 'Paket güncellendi',
+          sortTime: new Date(pkg.assignedAt || pkg.startsAt || pkg.createdAt || 0).getTime(),
+        });
+      });
+    }
+
+
+
+    // 4. Durum Kaydı Olmaması veya En Son Durumun Eksik Olması Hali:
+    const latestStatusInHist = sortedStatusHist.length > 0 ? sortedStatusHist[sortedStatusHist.length - 1].toStatus : null;
+    const needsCurrentRow = !latestStatusInHist || latestStatusInHist !== currentAdvStatus;
+
+    if (needsCurrentRow && currentAdvStatus && currentAdvStatus !== 'DRAFT') {
+      let curText = 'Mevcut Durum';
+      let curVariant = 'secondary';
+      let curReason = (detail as any)?.rejectionReason || (advert as any)?.rejectionReason || '';
+
+      switch (currentAdvStatus) {
+        case 'PUBLISHED':
+          curText = 'Yayında';
+          curVariant = 'success';
+          if (!curReason) curReason = 'İlan onaylandı';
+          break;
+        case 'SUSPENDED':
+          curText = 'Yayından Kaldırıldı';
+          curVariant = 'warning';
+          if (!curReason) curReason = 'İlan yayından kaldırıldı';
+          break;
+        case 'REJECTED':
+          curText = 'Reddedildi';
+          curVariant = 'danger';
+          if (!curReason) curReason = 'İlan kriterlere uygun bulunmadı';
+          break;
+        case 'PENDING_REVIEW':
+          curText = 'İnceleme Bekliyor';
+          curVariant = 'info';
+          if (!curReason) curReason = 'İlan onaya gönderildi';
+          break;
+        case 'CHANGES_REQUESTED':
+          curText = 'Düzeltme İstendi';
+          curVariant = 'warning';
+          break;
+        case 'SOLD':
+          curText = 'Satıldı';
+          curVariant = 'dark';
+          break;
+        case 'ARCHIVED':
+          curText = 'Arşivlendi';
+          curVariant = 'secondary';
+          break;
+        default:
+          curText = currentAdvStatus;
+      }
+
+      rows.push({
+        id: 'current-state-head',
+        packageCode: activePkgCode,
+        statusText: curText,
+        statusVariant: curVariant,
+        startDate: advert?.updatedAt ? formatDateForText(advert.updatedAt) : (advert?.publishedAt ? formatDateForText(advert.publishedAt) : (advert?.createdAt ? formatDateForText(advert.createdAt) : '-')),
+        endDate: currentAdvStatus === 'PUBLISHED' && currentPackage?.endsAt ? formatDateForText(currentPackage.endsAt) : 'Devam Ediyor',
+        reason: curReason || '-',
+        sortTime: Date.now() + 100000,
+        isCurrent: true,
+      });
+    }
+
+    // Sıralama: En yeni en üstte
+    rows.sort((a, b) => b.sortTime - a.sortTime);
+
+    // En üstteki ilk satırı "Şu Anki Hali" olarak işaretle
+    if (rows.length > 0 && !rows.some((r) => r.isCurrent)) {
+      rows[0].isCurrent = true;
+    }
+
+    return rows;
+  }, [detail, advert, history, currentPackage, packages]);
+
   const isSamePackage = Boolean(
     currentPackage && selectedPackageCode === currentPackage.packageCode
   );
@@ -286,9 +505,9 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
             onClick={() => setTab('history')}
           >
             <i className="fe fe-clock" /> Geçmiş
-            {history.length > 0 && (
+            {unifiedHistory.length > 0 && (
               <Badge bg={tab === 'history' ? 'light' : 'secondary'} text={tab === 'history' ? 'dark' : 'white'} pill>
-                {history.length}
+                {unifiedHistory.length}
               </Badge>
             )}
           </Button>
@@ -766,9 +985,14 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
             {tab === 'history' && (
               <Card className="border-0 shadow-sm rounded-3 bg-white">
                 <Card.Header className="bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
-                  <h6 className="mb-0 fw-bold text-dark">Paket Atama & Değişiklik Geçmişi</h6>
+                  <div>
+                    <h6 className="mb-0 fw-bold text-dark">İlan & Paket Güncelleme Geçmişi</h6>
+                    <small className="text-muted" style={{ fontSize: '11px' }}>
+                      İlanın durum ve paket değişiklikleri (en güncel durum en üstte)
+                    </small>
+                  </div>
                   <Badge bg="secondary" pill>
-                    {history.length} Kayıt
+                    {unifiedHistory.length} Kayıt
                   </Badge>
                 </Card.Header>
                 <Card.Body className="p-0">
@@ -779,42 +1003,60 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
                     </div>
                   )}
 
-                  {!historyLoading && history.length === 0 && (
-                    <div className="text-center py-4 text-muted">Paket geçmişi kaydı bulunamadı.</div>
+                  {!historyLoading && unifiedHistory.length === 0 && (
+                    <div className="text-center py-4 text-muted">Geçmiş kaydı bulunamadı.</div>
                   )}
 
-                  {!historyLoading && history.length > 0 && (
+                  {!historyLoading && unifiedHistory.length > 0 && (
                     <div className="table-responsive">
                       <Table hover className="align-middle mb-0 small">
                         <thead className="table-light">
                           <tr>
-                            <th>Paket</th>
-                            <th>Durum</th>
-                            <th>Başlangıç</th>
-                            <th>Bitiş</th>
-                            <th>Kaynak</th>
+                            <th style={{ minWidth: '130px' }}>Paket</th>
+                            <th style={{ minWidth: '130px' }}>Durum</th>
+                            <th style={{ minWidth: '105px' }}>Başlangıç</th>
+                            <th style={{ minWidth: '105px' }}>Bitiş</th>
                             <th>Gerekçe</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {history.map((item) => (
-                            <tr key={item.id}>
+                          {unifiedHistory.map((item) => (
+                            <tr
+                              key={item.id}
+                              style={{
+                                backgroundColor: item.isCurrent ? '#f8faff' : undefined,
+                              }}
+                            >
                               <td>
-                                <span className="fw-bold text-dark">{item.packageCode}</span>
+                                <div className="d-flex align-items-center gap-1.5 flex-wrap">
+                                  <span className="fw-bold text-dark">{item.packageCode}</span>
+                                  {item.isCurrent && (
+                                    <span
+                                      className="badge rounded-pill border"
+                                      style={{
+                                        backgroundColor: '#eef2ff',
+                                        color: '#4338ca',
+                                        borderColor: '#c7d2fe',
+                                        fontSize: '9px',
+                                        fontWeight: 600,
+                                        padding: '2px 6px',
+                                      }}
+                                    >
+                                      Şu Anki Hali
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td>
-                                <Badge bg={statusVariant(item.status)}>
-                                  {getPackageAssignmentStatusText(item.status)}
+                                <Badge bg={item.statusVariant as any}>
+                                  {item.statusText}
                                 </Badge>
                               </td>
-                              <td>{formatDateTimeForText(item.startsAt)}</td>
-                              <td>{item.endsAt ? formatDateTimeForText(item.endsAt) : 'Süresiz'}</td>
-                              <td>
-                                <Badge bg="light" text="dark" className="border">
-                                  {getPackageAssignmentSourceText(item.source)}
-                                </Badge>
+                              <td className="text-dark fw-medium">{item.startDate}</td>
+                              <td className="text-dark fw-medium">{item.endDate}</td>
+                              <td className="text-muted" style={{ maxWidth: '320px', wordBreak: 'break-word' }}>
+                                {item.reason}
                               </td>
-                              <td className="text-muted">{item.reason ?? '-'}</td>
                             </tr>
                           ))}
                         </tbody>
