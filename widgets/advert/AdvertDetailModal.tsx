@@ -74,7 +74,7 @@ export default function AdvertDetailModal({
 
   const currentStatus = detail?.status ?? advert?.status ?? 'PENDING_REVIEW';
   const isRejected = currentStatus === 'REJECTED';
-  const isSuspended = currentStatus === 'SUSPENDED';
+  const isSuspended = currentStatus === 'SUSPENDED' || currentStatus === 'ARCHIVED';
   const isPublished = currentStatus === 'PUBLISHED' || advert?.status === 'PUBLISHED';
   const canApprove = advert ? (canModerationAction(currentStatus, 'approve') || isSuspended) : false;
   const canReject = advert ? canModerationAction(currentStatus, 'reject') : false;
@@ -88,23 +88,38 @@ export default function AdvertDetailModal({
     let reason: string | null = (detail as any)?.suspensionReason || (advert as any)?.suspensionReason || (detail as any)?.reason || null;
     let createdAt: string | null = null;
     let isSystemSuspended = false;
+    let isUserUnpublished = currentStatus === 'ARCHIVED';
 
     if (detail?.statusHistory && detail.statusHistory.length > 0) {
       const historyReversed = [...detail.statusHistory].reverse();
-      const suspendedEntry = historyReversed.find(
-        (h) => h.toStatus?.toUpperCase() === 'SUSPENDED'
+      const unpublishEntry = historyReversed.find(
+        (h) => h.toStatus?.toUpperCase() === 'SUSPENDED' || h.toStatus?.toUpperCase() === 'ARCHIVED'
       );
-      if (suspendedEntry) {
-        if (!reason && suspendedEntry.reason) {
-          reason = suspendedEntry.reason;
+      if (unpublishEntry) {
+        if (!reason && unpublishEntry.reason) {
+          reason = unpublishEntry.reason;
         }
-        if (suspendedEntry.createdAt) {
-          createdAt = suspendedEntry.createdAt;
+        if (unpublishEntry.createdAt) {
+          createdAt = unpublishEntry.createdAt;
         }
-        if (suspendedEntry.isSystem) {
+        if (unpublishEntry.isSystem) {
           isSystemSuspended = true;
         }
+        const isOwnerAction =
+          unpublishEntry.toStatus?.toUpperCase() === 'ARCHIVED' ||
+          (!unpublishEntry.isSystem &&
+            Boolean(unpublishEntry.actorUserId) &&
+            Boolean(detail?.ownerUserId || advert?.ownerUserId) &&
+            unpublishEntry.actorUserId?.toLowerCase() === (detail?.ownerUserId || advert?.ownerUserId)?.toLowerCase());
+        if (isOwnerAction) {
+          isUserUnpublished = true;
+        }
       }
+    }
+
+    // Also check detail.rejectionReason if status is ARCHIVED / SUSPENDED
+    if (!reason && (detail as any)?.rejectionReason) {
+      reason = (detail as any).rejectionReason;
     }
 
     // Check if advert was automatically unlisted/suspended due to package/duration expiration
@@ -125,12 +140,25 @@ export default function AdvertDetailModal({
       normReason.includes('paket süresi') ||
       normReason.includes('paket suresi');
 
+    const isExplicitUserUnpublishedReason =
+      normReason.includes('kullanıcı') ||
+      normReason.includes('kullanici') ||
+      normReason === 'archived' ||
+      normReason === 'user_unpublished' ||
+      normReason === 'owner_unpublished';
+
     if (
       isExplicitPackageExpiredReason ||
-      isSystemSuspended ||
-      (isPackageExpired && (!reason || normReason === 'yayından kaldırılma gerekçesi belirtilmemiş.'))
+      (isSystemSuspended && !isUserUnpublished) ||
+      (!isUserUnpublished && isPackageExpired && (!reason || normReason === 'yayından kaldırılma gerekçesi belirtilmemiş.'))
     ) {
       reason = 'Paket süresi bitmiştir';
+    } else if (
+      isExplicitUserUnpublishedReason ||
+      isUserUnpublished ||
+      currentStatus === 'ARCHIVED'
+    ) {
+      reason = 'Kullanıcı kendi kaldırmıştır';
     }
 
     if (!reason && !isSuspended) {
@@ -141,8 +169,9 @@ export default function AdvertDetailModal({
       reason: reason?.trim() || 'Yayından kaldırılma gerekçesi belirtilmemiş.',
       createdAt: createdAt ? formatDateTimeForText(createdAt) : null,
       isAutoExpired: reason?.trim() === 'Paket süresi bitmiştir',
+      isUserUnpublished: reason?.trim() === 'Kullanıcı kendi kaldırmıştır',
     };
-  }, [detail, advert, isSuspended, packageAssignment]);
+  }, [detail, advert, isSuspended, currentStatus, packageAssignment]);
 
 
   const rejectionInfo = useMemo(() => {

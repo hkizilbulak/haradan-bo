@@ -10,6 +10,7 @@ export function allowedModerationActions(status: ModerationAdvertStatus | string
     case 'PUBLISHED':
       return ['suspend'];
     case 'SUSPENDED':
+    case 'ARCHIVED':
       return ['approve'];
     default:
       return [];

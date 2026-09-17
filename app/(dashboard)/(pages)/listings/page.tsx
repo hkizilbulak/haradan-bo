@@ -221,7 +221,7 @@ export default function Adverts() {
     setActionBusy(true);
     try {
       await advertService.approve(advertId, advert.version);
-      toast.success(advert.status === 'SUSPENDED' ? 'İlan yayınlandı' : 'İlan onaylandı');
+      toast.success(advert.status === 'SUSPENDED' || advert.status === 'ARCHIVED' ? 'İlan yayınlandı' : 'İlan onaylandı');
       setPendingApprove(null);
       refetch();
     } catch (error) {
@@ -302,9 +302,13 @@ export default function Adverts() {
     if (tab === 'unpublished') {
       if (advert.status === 'CHANGES_REQUESTED') return false;
       if (activeStatus && activeStatus !== 'UNPUBLISHED') {
-        if (advert.status !== activeStatus) return false;
+        if (activeStatus === 'SUSPENDED') {
+          if (advert.status !== 'SUSPENDED' && advert.status !== 'ARCHIVED') return false;
+        } else if (advert.status !== activeStatus) {
+          return false;
+        }
       } else {
-        if (advert.status !== 'PENDING_REVIEW' && advert.status !== 'REJECTED' && advert.status !== 'SUSPENDED') {
+        if (advert.status !== 'PENDING_REVIEW' && advert.status !== 'REJECTED' && advert.status !== 'SUSPENDED' && advert.status !== 'ARCHIVED') {
           return false;
         }
       }
@@ -569,10 +573,10 @@ export default function Adverts() {
             </div>
             <div>
               <Modal.Title className="h5 mb-0 fw-bold">
-                {pendingApprove?.status === 'SUSPENDED' ? 'İlanı Yayınla' : 'İlanı Onayla'}
+                {pendingApprove?.status === 'SUSPENDED' || pendingApprove?.status === 'ARCHIVED' ? 'İlanı Yayınla' : 'İlanı Onayla'}
               </Modal.Title>
               <small className="text-muted">
-                {pendingApprove?.status === 'SUSPENDED'
+                {pendingApprove?.status === 'SUSPENDED' || pendingApprove?.status === 'ARCHIVED'
                   ? 'İlanı tekrar yayına almak üzeresiniz.'
                   : 'İlanı onaylayıp yayına almak üzeresiniz.'}
               </small>
@@ -589,7 +593,7 @@ export default function Adverts() {
             </div>
           )}
           <p className="text-muted mb-0" style={{ fontSize: '14.5px', lineHeight: '1.5' }}>
-            {pendingApprove?.status === 'SUSPENDED'
+            {pendingApprove?.status === 'SUSPENDED' || pendingApprove?.status === 'ARCHIVED'
               ? 'Bu ilanı tekrar yayına almak istediğinize emin misiniz?'
               : 'Bu ilanı onaylayıp yayına almak istediğinize emin misiniz?'}
           </p>
@@ -617,7 +621,7 @@ export default function Adverts() {
             ) : (
               <>
                 <i className="fe fe-check" />
-                {pendingApprove?.status === 'SUSPENDED' ? 'Evet, Yayınla' : 'Evet, Onayla'}
+                {pendingApprove?.status === 'SUSPENDED' || pendingApprove?.status === 'ARCHIVED' ? 'Evet, Yayınla' : 'Evet, Onayla'}
               </>
             )}
           </Button>

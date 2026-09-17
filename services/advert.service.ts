@@ -492,12 +492,12 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
                                 publishedAt: item.publishedAt || null,
                                 createdAt: item.createdAt || item.updatedAt || item.createdDate || item.submittedAt || null,
                                 deletedAt: null,
-                                status: item.backendStatus || (item.status === 'pending' ? 'PENDING_REVIEW' : item.status === 'published' ? 'PUBLISHED' : item.status === 'suspended' ? 'SUSPENDED' : item.status === 'rejected' ? 'REJECTED' : 'PENDING_REVIEW'),
+                                status: item.backendStatus || (item.status === 'pending' ? 'PENDING_REVIEW' : item.status === 'published' ? 'PUBLISHED' : item.status === 'suspended' ? 'SUSPENDED' : item.status === 'rejected' ? 'REJECTED' : item.status === 'archived' ? 'ARCHIVED' : item.status === 'sold' ? 'SOLD' : 'PENDING_REVIEW'),
                                 version: item.version || 1,
                                 mediaVersion: 1,
                                 categoryId: item.categoryId || 'c1000000-0000-4000-8000-000000000011',
                                 ownerUserId: item.sellerId || 'u1000000-0000-4000-8000-000000000001',
-                                rejectionReason: item.rejectionReason || null,
+                                rejectionReason: item.rejectionReason || (item.backendStatus === 'ARCHIVED' ? 'Kullanıcı kendi kaldırmıştır' : null),
                                 media: itemMedia,
                                 cover: item.cover || null,
                                 properties: {
@@ -532,7 +532,7 @@ function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem> & { r
                     if (itemIdx !== -1) {
                         if (patch.status) {
                             parsed[itemIdx].backendStatus = patch.status;
-                            parsed[itemIdx].status = patch.status === 'PUBLISHED' ? 'published' : patch.status === 'REJECTED' ? 'rejected' : 'pending';
+                            parsed[itemIdx].status = patch.status === 'PUBLISHED' ? 'published' : patch.status === 'REJECTED' ? 'rejected' : patch.status === 'ARCHIVED' ? 'archived' : patch.status === 'SUSPENDED' ? 'suspended' : 'pending';
                         }
                         if (patch.version) parsed[itemIdx].version = patch.version;
                         if (patch.publishedAt) parsed[itemIdx].publishedAt = patch.publishedAt;
@@ -589,15 +589,20 @@ class AdvertService {
             }
 
             if (status && status !== 'UNPUBLISHED') {
-                rawItems = rawItems.filter((item) => item.status === status);
+                if (status === 'SUSPENDED') {
+                    rawItems = rawItems.filter((item) => item.status === 'SUSPENDED' || item.status === 'ARCHIVED');
+                } else {
+                    rawItems = rawItems.filter((item) => item.status === status);
+                }
             } else if (status === 'UNPUBLISHED') {
-                rawItems = rawItems.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED');
+                rawItems = rawItems.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED' || item.status === 'ARCHIVED');
             }
 
             if (rawItems.length === 0) {
                 const localAdverts = getLocalMockAdverts().filter((a) => {
                     if (!status) return true;
-                    if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED' || a.status === 'SUSPENDED';
+                    if (status === 'SUSPENDED') return a.status === 'SUSPENDED' || a.status === 'ARCHIVED';
+                    if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED' || a.status === 'SUSPENDED' || a.status === 'ARCHIVED';
                     return a.status === status;
                 });
                 rawItems.push(...localAdverts);
@@ -605,6 +610,7 @@ class AdvertService {
             const STATUS_PRIORITY: Record<string, number> = {
                 'PENDING_REVIEW': 1,
                 'SUSPENDED': 2,
+                'ARCHIVED': 2,
                 'REJECTED': 3,
             };
             rawItems.sort((a, b) => {
@@ -641,6 +647,7 @@ class AdvertService {
         const STATUS_PRIORITY: Record<string, number> = {
             'PENDING_REVIEW': 1,
             'SUSPENDED': 2,
+            'ARCHIVED': 2,
             'REJECTED': 3,
         };
 
@@ -729,6 +736,8 @@ class AdvertService {
                             toStatus: mock.status,
                             reason: mock.status === 'REJECTED'
                                 ? (mockReason || 'İlan kriterlere uygun bulunmadı.')
+                                : mock.status === 'ARCHIVED'
+                                ? (mockReason || 'Kullanıcı kendi kaldırmıştır')
                                 : mock.status === 'SUSPENDED'
                                 ? (mockReason || 'Paket süresi bitmiştir')
                                 : 'İlan onaya gönderildi',
@@ -878,26 +887,7 @@ class AdvertService {
         await apiRequest('DELETE', `${publicAdvertUrl}/${advertId}/urgent`);
     }
 
-    private async fetchAll(status?: string): Promise<ModerationAdvertResponse[]> {
-        if (status === 'UNPUBLISHED') {
-            const unpublishedStatuses = ['PENDING_REVIEW', 'SUSPENDED', 'REJECTED'];
-            const results = await Promise.all(
-                unpublishedStatuses.map((st) => this.fetchAll(st))
-            );
-            const seen = new Set<string>();
-            const merged: ModerationAdvertResponse[] = [];
-            for (const list of results) {
-                for (const item of list) {
-                    const id = item.identifier ?? item.id;
-                    if (id && !seen.has(id)) {
-                        seen.add(id);
-                        merged.push(item);
-                    }
-                }
-            }
-            return merged;
-        }
-
+    private async fetchBySingleStatus(status?: string): Promise<OwnerAdvertItem[]> {
         const items: OwnerAdvertItem[] = [];
         let cursor: string | undefined;
         let hasMore = true;
@@ -923,21 +913,69 @@ class AdvertService {
 
         let filteredBackendItems = items;
         if (status && status !== 'UNPUBLISHED') {
-            filteredBackendItems = items.filter((item) => item.status === status);
+            if (status === 'SUSPENDED') {
+                filteredBackendItems = items.filter((item) => item.status === 'SUSPENDED' || item.status === 'ARCHIVED');
+            } else {
+                filteredBackendItems = items.filter((item) => item.status === status);
+            }
         } else if (status === 'UNPUBLISHED') {
-            filteredBackendItems = items.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED');
+            filteredBackendItems = items.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED' || item.status === 'ARCHIVED');
         }
 
         if (filteredBackendItems.length === 0) {
             const localAdverts = getLocalMockAdverts().filter((a) => {
                 if (!status) return true;
-                if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED' || a.status === 'SUSPENDED';
+                if (status === 'SUSPENDED') return a.status === 'SUSPENDED' || a.status === 'ARCHIVED';
+                if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED' || a.status === 'SUSPENDED' || a.status === 'ARCHIVED';
                 return a.status === status;
             });
             filteredBackendItems.push(...localAdverts);
         }
 
-        return filteredBackendItems.map(toModerationAdvert);
+        return filteredBackendItems;
+    }
+
+    private async fetchAll(status?: string): Promise<ModerationAdvertResponse[]> {
+        if (status === 'UNPUBLISHED') {
+            const unpublishedStatuses = ['PENDING_REVIEW', 'SUSPENDED', 'ARCHIVED', 'REJECTED'];
+            const results = await Promise.all(
+                unpublishedStatuses.map((st) => this.fetchBySingleStatus(st))
+            );
+            const seen = new Set<string>();
+            const merged: OwnerAdvertItem[] = [];
+            for (const list of results) {
+                for (const item of list) {
+                    const id = item.id || (item as any).identifier;
+                    if (id && !seen.has(id)) {
+                        seen.add(id);
+                        merged.push(item);
+                    }
+                }
+            }
+            return merged.map(toModerationAdvert);
+        }
+
+        if (status === 'SUSPENDED') {
+            const suspendedStatuses = ['SUSPENDED', 'ARCHIVED'];
+            const results = await Promise.all(
+                suspendedStatuses.map((st) => this.fetchBySingleStatus(st))
+            );
+            const seen = new Set<string>();
+            const merged: OwnerAdvertItem[] = [];
+            for (const list of results) {
+                for (const item of list) {
+                    const id = item.id || (item as any).identifier;
+                    if (id && !seen.has(id)) {
+                        seen.add(id);
+                        merged.push(item);
+                    }
+                }
+            }
+            return merged.map(toModerationAdvert);
+        }
+
+        const items = await this.fetchBySingleStatus(status);
+        return items.map(toModerationAdvert);
     }
 
     private applyFilter(items: ModerationAdvertResponse[], filter?: string) {
@@ -954,7 +992,10 @@ class AdvertService {
             if (clause.startsWith('status==')) {
                 const statusVal = clause.slice('status=='.length).trim();
                 if (statusVal === 'UNPUBLISHED') {
-                    return item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED';
+                    return item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED' || item.status === 'ARCHIVED';
+                }
+                if (statusVal === 'SUSPENDED') {
+                    return item.status === 'SUSPENDED' || item.status === 'ARCHIVED';
                 }
                 return item.status === statusVal;
             }
