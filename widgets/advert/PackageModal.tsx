@@ -226,8 +226,7 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
     packageCode: string;
     statusText: string;
     statusVariant: string;
-    startDate: string;
-    endDate: string;
+    date: string;
     reason: string;
     sortTime: number;
     isCurrent?: boolean;
@@ -280,7 +279,7 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
           break;
         case 'SUSPENDED':
           stText = 'Yayından Kaldırıldı';
-          stVariant = 'warning';
+          stVariant = 'secondary';
           defaultReason = 'İlan yayından kaldırıldı';
           break;
         case 'REJECTED':
@@ -289,14 +288,11 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
           defaultReason = 'İlan kriterlere uygun bulunmadı';
           break;
         case 'PENDING_REVIEW':
-          if (prevStatuses.includes('REJECTED') || prevStatuses.includes('CHANGES_REQUESTED')) {
-            stText = 'Yeniden İnceleme Bekliyor';
-            defaultReason = 'Düzenlendi, tekrar incelemeye gönderildi';
-          } else {
-            stText = 'İnceleme Bekliyor';
-            defaultReason = 'İlan onaya gönderildi';
-          }
-          stVariant = 'info';
+          stText = 'İnceleme Bekliyor';
+          defaultReason = prevStatuses.includes('REJECTED') || prevStatuses.includes('CHANGES_REQUESTED')
+            ? 'Düzenlendi, tekrar incelemeye gönderildi'
+            : 'İlan onaya gönderildi';
+          stVariant = 'warning';
           break;
         case 'CHANGES_REQUESTED':
           stText = 'Düzeltme İstendi';
@@ -318,25 +314,12 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
           stVariant = 'secondary';
       }
 
-      const startDateStr = sh.createdAt ? formatDateForText(sh.createdAt) : '-';
-      let endDateStr = '-';
-      if (nextItem && nextItem.createdAt) {
-        endDateStr = formatDateForText(nextItem.createdAt);
-      } else if (isLast && sh.toStatus === currentAdvStatus) {
-        if (sh.toStatus === 'PUBLISHED' && currentPackage?.endsAt) {
-          endDateStr = formatDateForText(currentPackage.endsAt);
-        } else {
-          endDateStr = 'Devam Ediyor';
-        }
-      }
-
       rows.push({
         id: `sh-${idx}-${sh.createdAt}`,
         packageCode: rowPkgCode,
         statusText: stText,
         statusVariant: stVariant,
-        startDate: startDateStr,
-        endDate: endDateStr,
+        date: sh.createdAt ? formatDateForText(sh.createdAt) : '-',
         reason: sh.reason || defaultReason || '-',
         sortTime: shTime,
       });
@@ -356,8 +339,7 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
           packageCode: pkg.packageCode || activePkgCode,
           statusText: 'Paket Değiştirildi',
           statusVariant: pkg.status === 'ACTIVE' ? 'primary' : 'secondary',
-          startDate: pkg.startsAt ? formatDateForText(pkg.startsAt) : '-',
-          endDate: pkg.endsAt ? formatDateForText(pkg.endsAt) : 'Süresiz',
+          date: pkg.startsAt ? formatDateForText(pkg.startsAt) : (pkg.assignedAt ? formatDateForText(pkg.assignedAt) : '-'),
           reason: pkg.reason || 'Paket güncellendi',
           sortTime: new Date(pkg.assignedAt || pkg.startsAt || pkg.createdAt || 0).getTime(),
         });
@@ -383,7 +365,7 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
           break;
         case 'SUSPENDED':
           curText = 'Yayından Kaldırıldı';
-          curVariant = 'warning';
+          curVariant = 'secondary';
           if (!curReason) curReason = 'İlan yayından kaldırıldı';
           break;
         case 'REJECTED':
@@ -393,7 +375,7 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
           break;
         case 'PENDING_REVIEW':
           curText = 'İnceleme Bekliyor';
-          curVariant = 'info';
+          curVariant = 'warning';
           if (!curReason) curReason = 'İlan onaya gönderildi';
           break;
         case 'CHANGES_REQUESTED':
@@ -417,8 +399,7 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
         packageCode: activePkgCode,
         statusText: curText,
         statusVariant: curVariant,
-        startDate: advert?.updatedAt ? formatDateForText(advert.updatedAt) : (advert?.publishedAt ? formatDateForText(advert.publishedAt) : (advert?.createdAt ? formatDateForText(advert.createdAt) : '-')),
-        endDate: currentAdvStatus === 'PUBLISHED' && currentPackage?.endsAt ? formatDateForText(currentPackage.endsAt) : 'Devam Ediyor',
+        date: advert?.updatedAt ? formatDateForText(advert.updatedAt) : (advert?.publishedAt ? formatDateForText(advert.publishedAt) : (advert?.createdAt ? formatDateForText(advert.createdAt) : '-')),
         reason: curReason || '-',
         sortTime: Date.now() + 100000,
         isCurrent: true,
@@ -1014,8 +995,7 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
                           <tr>
                             <th style={{ minWidth: '130px' }}>Paket</th>
                             <th style={{ minWidth: '130px' }}>Durum</th>
-                            <th style={{ minWidth: '105px' }}>Başlangıç</th>
-                            <th style={{ minWidth: '105px' }}>Bitiş</th>
+                            <th style={{ minWidth: '120px' }}>Gönderim Tarihi</th>
                             <th>Gerekçe</th>
                           </tr>
                         </thead>
@@ -1048,13 +1028,12 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
                                 </div>
                               </td>
                               <td>
-                                <Badge bg={item.statusVariant as any}>
+                                <Badge bg={item.statusVariant as any} text={item.statusVariant === 'warning' ? 'dark' : 'white'}>
                                   {item.statusText}
                                 </Badge>
                               </td>
-                              <td className="text-dark fw-medium">{item.startDate}</td>
-                              <td className="text-dark fw-medium">{item.endDate}</td>
-                              <td className="text-muted" style={{ maxWidth: '320px', wordBreak: 'break-word' }}>
+                              <td className="text-dark fw-medium">{item.date}</td>
+                              <td className="text-muted" style={{ maxWidth: '340px', wordBreak: 'break-word' }}>
                                 {item.reason}
                               </td>
                             </tr>
