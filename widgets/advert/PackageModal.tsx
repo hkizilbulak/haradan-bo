@@ -46,13 +46,15 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
     if (!advertId) return;
 
     setLoadingCurrent(true);
+    setHistoryLoading(true);
     Promise.all([
       packageService.search({ pageRequest: { page: 0, size: 200 } }),
       advertService.getPackage(advertId).catch(() => null),
       advertService.getDetail(advertId).catch(() => null),
       advertService.getUrgent(advertId).catch(() => null),
+      advertService.getPackageHistory(advertId).catch(() => []),
     ])
-      .then(([packagePage, assignment, advertDetail, urgentStatus]) => {
+      .then(([packagePage, assignment, advertDetail, urgentStatus, pkgHist]) => {
         const activePackages = (packagePage.content || []).filter((item) => item.isActive);
         setPackages(activePackages);
         setCurrentPackage(assignment);
@@ -62,6 +64,9 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
         if (urgentStatus != null) {
           setIsUrgentActive(urgentStatus.isUrgent);
         }
+        if (pkgHist) {
+          setHistory(pkgHist);
+        }
         if (assignment?.packageCode) {
           setSelectedPackageCode(assignment.packageCode);
         } else if (activePackages.length > 0) {
@@ -69,7 +74,10 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
         }
       })
       .catch((err) => toast.error(getErrorMessage(err)))
-      .finally(() => setLoadingCurrent(false));
+      .finally(() => {
+        setLoadingCurrent(false);
+        setHistoryLoading(false);
+      });
   }, [advertId]);
 
   const loadHistory = useCallback(() => {
@@ -100,7 +108,7 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
   }, [advertId]);
 
   useEffect(() => {
-    if (tab === 'history') {
+    if (tab === 'history' || tab === 'manage') {
       loadHistory();
     } else if (tab === 'payments') {
       loadPayments();
@@ -119,8 +127,16 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
       await advertService.assignPackage(advertId, request);
       toast.success('Paket başarıyla atandı');
       setSelectedPackageCode(codeToAssign);
-      const updated = await advertService.getPackage(advertId).catch(() => null);
+      const [updated, pkgHist, advDetail] = await Promise.all([
+        advertService.getPackage(advertId).catch(() => null),
+        advertService.getPackageHistory(advertId).catch(() => []),
+        advertService.getDetail(advertId).catch(() => null),
+      ]);
       setCurrentPackage(updated);
+      setHistory(pkgHist);
+      if (advDetail) {
+        setDetail(advDetail);
+      }
       onDone();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -171,8 +187,16 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
             reason: 'Vitrin özelliği kapatıldı',
           });
         }
-        const updated = await advertService.getPackage(advertId).catch(() => null);
+        const [updated, pkgHist, advDetail] = await Promise.all([
+          advertService.getPackage(advertId).catch(() => null),
+          advertService.getPackageHistory(advertId).catch(() => []),
+          advertService.getDetail(advertId).catch(() => null),
+        ]);
         setCurrentPackage(updated);
+        setHistory(pkgHist);
+        if (advDetail) {
+          setDetail(advDetail);
+        }
         if (updated?.packageCode) setSelectedPackageCode(updated.packageCode);
         setPendingVitrin(null);
       }
@@ -325,29 +349,6 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
       });
     });
 
-    // 2. Paket Değişikliği Kayıtları:
-    // Sadece paket gerçekten sonradan değiştirilmişse (history.length > 1) ekle.
-    // İlk oluşturulma paketi ayrı bir satır olarak basılmaz çünkü durum satırında zaten yer alır.
-    if (history.length > 1) {
-      history.forEach((pkg, idx) => {
-        // En eski ilk paket atamasını atla (o ilanın başlangıç paketidir)
-        if (idx === history.length - 1 && pkg.status === 'SUPERSEDED') {
-          return;
-        }
-        rows.push({
-          id: `pkg-${pkg.id || idx}`,
-          packageCode: pkg.packageCode || activePkgCode,
-          statusText: 'Paket Değiştirildi',
-          statusVariant: pkg.status === 'ACTIVE' ? 'primary' : 'secondary',
-          date: pkg.startsAt ? formatDateForText(pkg.startsAt) : (pkg.assignedAt ? formatDateForText(pkg.assignedAt) : '-'),
-          reason: pkg.reason || 'Paket güncellendi',
-          sortTime: new Date(pkg.assignedAt || pkg.startsAt || pkg.createdAt || 0).getTime(),
-        });
-      });
-    }
-
-
-
     // 4. Durum Kaydı Olmaması veya En Son Durumun Eksik Olması Hali:
     const latestStatusInHist = sortedStatusHist.length > 0 ? sortedStatusHist[sortedStatusHist.length - 1].toStatus : null;
     const needsCurrentRow = !latestStatusInHist || latestStatusInHist !== currentAdvStatus;
@@ -429,6 +430,113 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
     ? formatMoney(detail.price.amount, detail.price.currency || 'TRY')
     : null;
 
+  const renderHistoryCard = (packageOnly = false) => {
+    const rows = packageOnly
+      ? [...history]
+          .sort((a, b) => new Date(b.assignedAt || b.startsAt || b.createdAt || 0).getTime()
+                        - new Date(a.assignedAt || a.startsAt || a.createdAt || 0).getTime())
+          .map((pkg, idx) => ({
+            id: `pkg-${pkg.id || idx}`,
+            packageCode: pkg.packageCode || '',
+            statusText: pkg.status === 'ACTIVE' ? 'Aktif Paket' : pkg.status === 'SUPERSEDED' ? 'Değiştirildi' : 'Pasif',
+            statusVariant: pkg.status === 'ACTIVE' ? 'success' : 'secondary',
+            date: pkg.assignedAt ? formatDateForText(pkg.assignedAt) : (pkg.startsAt ? formatDateForText(pkg.startsAt) : '-'),
+            reason: pkg.reason || 'Paket atandı',
+            isCurrent: idx === 0,
+          }))
+      : unifiedHistory;
+
+    const isEmpty = rows.length === 0;
+
+    return (
+      <Card className="border-0 shadow-sm rounded-3 bg-white mt-2">
+        <Card.Header className="bg-white border-bottom py-2 px-3 d-flex justify-content-between align-items-center">
+          <div>
+            <span className="small fw-bold text-dark d-flex align-items-center gap-1">
+              <i className="fe fe-clock text-secondary" style={{ fontSize: '12px' }} />
+              {packageOnly ? 'Paket Değişiklik Geçmişi' : 'İlan & Paket Güncelleme Geçmişi'}
+            </span>
+            <span className="text-muted d-block" style={{ fontSize: '10px' }}>
+              {packageOnly
+                ? 'Pakete ait atama geçmişi (en güncel en üstte)'
+                : 'İlanın durum ve paket değişiklikleri (en güncel durum en üstte)'}
+            </span>
+          </div>
+          <Badge bg="secondary" pill style={{ fontSize: '10px' }}>
+            {rows.length} Kayıt
+          </Badge>
+        </Card.Header>
+        <Card.Body className="p-0">
+          {historyLoading && (
+            <div className="text-center py-3">
+              <Spinner animation="border" size="sm" variant="primary" />
+              <div className="small text-muted mt-1">Geçmiş yükleniyor...</div>
+            </div>
+          )}
+
+          {!historyLoading && isEmpty && (
+            <div className="text-center py-3 text-muted small">Geçmiş kaydı bulunamadı.</div>
+          )}
+
+          {!historyLoading && !isEmpty && (
+            <div className="table-responsive">
+              <Table hover className="align-middle mb-0" style={{ fontSize: '0.78rem' }}>
+                <thead className="table-light">
+                  <tr>
+                    <th style={{ minWidth: '110px', padding: '6px 12px', fontWeight: 600 }}>Paket</th>
+                    <th style={{ minWidth: '110px', padding: '6px 12px', fontWeight: 600 }}>Durum</th>
+                    <th style={{ minWidth: '105px', padding: '6px 12px', fontWeight: 600 }}>Gönderim Tarihi</th>
+                    <th style={{ padding: '6px 12px', fontWeight: 600 }}>Gerekçe</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((item) => (
+                    <tr
+                      key={item.id}
+                      style={{
+                        backgroundColor: item.isCurrent ? '#f8faff' : undefined,
+                      }}
+                    >
+                      <td style={{ padding: '5px 12px' }}>
+                        <div className="d-flex align-items-center gap-1 flex-wrap">
+                          <span className="fw-semibold text-dark">{item.packageCode}</span>
+                          {item.isCurrent && (
+                            <span
+                              className="badge rounded-pill border"
+                              style={{
+                                backgroundColor: '#eef2ff',
+                                color: '#4338ca',
+                                borderColor: '#c7d2fe',
+                                fontSize: '8.5px',
+                                fontWeight: 600,
+                                padding: '1px 5px',
+                              }}
+                            >
+                              Şu Anki Hali
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '5px 12px' }}>
+                        <Badge bg={item.statusVariant as any} text={item.statusVariant === 'warning' ? 'dark' : 'white'} style={{ fontSize: '10px' }}>
+                          {item.statusText}
+                        </Badge>
+                      </td>
+                      <td className="text-dark" style={{ padding: '5px 12px', fontWeight: 500 }}>{item.date}</td>
+                      <td className="text-muted" style={{ padding: '5px 12px', maxWidth: '300px', wordBreak: 'break-word' }}>
+                        {item.reason}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          )}
+        </Card.Body>
+      </Card>
+    );
+  };
+
   return (
     <Modal show onHide={onClose} size="lg" centered backdrop="static">
       {/* Header */}
@@ -450,13 +558,13 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
       </Modal.Header>
 
       {/* Body */}
-      <Modal.Body className="p-4 bg-light">
+      <Modal.Body className="p-3 bg-light">
         {/* Navigation Tabs */}
-        <div className="d-flex gap-2 mb-4 bg-white p-1 rounded-3 shadow-sm border">
+        <div className="d-flex gap-1 mb-3 bg-white p-1 rounded-3 shadow-sm border">
           <Button
             variant={tab === 'manage' ? 'primary' : 'light'}
             size="sm"
-            className="rounded-2 fw-semibold d-flex align-items-center gap-2 border-0"
+            className="rounded-2 fw-semibold d-flex align-items-center gap-1 border-0 px-3"
             onClick={() => setTab('manage')}
           >
             <i className="fe fe-package" /> Paket Yönetimi
@@ -464,7 +572,7 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
           <Button
             variant={tab === 'card' ? 'primary' : 'light'}
             size="sm"
-            className="rounded-2 fw-semibold d-flex align-items-center gap-2 border-0"
+            className="rounded-2 fw-semibold d-flex align-items-center gap-1 border-0 px-3"
             onClick={() => setTab('card')}
           >
             <i className="fe fe-credit-card" /> İlan Kartı
@@ -475,19 +583,19 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
                 pill
                 style={{ fontSize: '10px' }}
               >
-                {displayVitrin && displayUrgent ? 'Vitrin + Acil' : displayVitrin ? 'Vitrin' : 'Acil'}
+                {displayVitrin && displayUrgent ? 'Vitrin+Acil' : displayVitrin ? 'Vitrin' : 'Acil'}
               </Badge>
             )}
           </Button>
           <Button
             variant={tab === 'history' ? 'primary' : 'light'}
             size="sm"
-            className="rounded-2 fw-semibold d-flex align-items-center gap-2 border-0"
+            className="rounded-2 fw-semibold d-flex align-items-center gap-1 border-0 px-3"
             onClick={() => setTab('history')}
           >
             <i className="fe fe-clock" /> Geçmiş
             {unifiedHistory.length > 0 && (
-              <Badge bg={tab === 'history' ? 'light' : 'secondary'} text={tab === 'history' ? 'dark' : 'white'} pill>
+              <Badge bg={tab === 'history' ? 'light' : 'secondary'} text={tab === 'history' ? 'dark' : 'white'} pill style={{ fontSize: '10px' }}>
                 {unifiedHistory.length}
               </Badge>
             )}
@@ -495,12 +603,12 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
           <Button
             variant={tab === 'payments' ? 'primary' : 'light'}
             size="sm"
-            className="rounded-2 fw-semibold d-flex align-items-center gap-2 border-0"
+            className="rounded-2 fw-semibold d-flex align-items-center gap-1 border-0 px-3"
             onClick={() => setTab('payments')}
           >
             <i className="fe fe-dollar-sign" /> Ödemeler
             {payments.length > 0 && (
-              <Badge bg={tab === 'payments' ? 'light' : 'secondary'} text={tab === 'payments' ? 'dark' : 'white'} pill>
+              <Badge bg={tab === 'payments' ? 'light' : 'secondary'} text={tab === 'payments' ? 'dark' : 'white'} pill style={{ fontSize: '10px' }}>
                 {payments.length}
               </Badge>
             )}
@@ -518,209 +626,198 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
           <>
             {/* TAB 1: PAKET YÖNETİMİ */}
             {tab === 'manage' && (
-              <Card className="border-0 shadow-sm rounded-3 bg-white">
-                <Card.Header className="bg-white border-bottom py-2 px-3">
+              <>
+                <Card className="border-0 shadow-sm rounded-3 bg-white">
+                <Card.Header className="bg-white border-bottom py-2 px-3 d-flex justify-content-between align-items-center">
                   <span className="small fw-bold text-dark d-flex align-items-center gap-1">
                     <i className="fe fe-grid text-primary" /> {currentPackage ? 'Paket Değiştir / Yenile' : 'Yeni Paket Ata'}
                   </span>
+                  {currentPkgObj && (
+                    <span className="small text-muted d-flex align-items-center gap-1">
+                      Şu anki: <strong className="text-primary ms-1">{currentPkgObj.displayName}</strong>
+                    </span>
+                  )}
                 </Card.Header>
-                <Card.Body className="p-3">
-                  <div className="mb-3">
-                    <div className="d-flex justify-content-between align-items-center mb-2">
-                      <label className="form-label small fw-semibold text-muted mb-0">
-                        Kullanılabilir Paketler (Seçmek için karta tıklayın)
-                      </label>
-                      {currentPkgObj && (
-                        <span className="small text-muted">
-                          Şu anki Paket: <strong className="text-primary">{currentPkgObj.displayName}</strong>
-                        </span>
-                      )}
-                    </div>
-                    <Row className="g-3">
-                      {packages.map((item) => {
-                        const isSelected = selectedPackageCode === item.code;
-                        const isCurrent = currentPackage?.packageCode === item.code;
-                        const priceFormatted = item.displayPrice?.amountMinor
-                          ? formatMoney(item.displayPrice.amountMinor, item.currencyCode || 'TRY')
-                          : 'Ücretsiz';
+                <Card.Body className="p-2">
+                  {/* Paket Kartları */}
+                  <Row className="g-2 mb-2">
+                    {packages.map((item) => {
+                      const isSelected = selectedPackageCode === item.code;
+                      const isCurrent = currentPackage?.packageCode === item.code;
+                      const priceFormatted = item.displayPrice?.amountMinor
+                        ? formatMoney(item.displayPrice.amountMinor, item.currencyCode || 'TRY')
+                        : 'Ücretsiz';
 
-                        return (
-                          <Col sm={6} key={item.code}>
-                            <div
-                              onClick={() => setSelectedPackageCode(item.code)}
-                              className="p-3 rounded-3 h-100 position-relative"
-                              style={{
-                                cursor: 'pointer',
-                                border: isSelected ? '2px solid #4f46e5' : '1.5px solid #e2e8f0',
-                                backgroundColor: isSelected ? '#f8f9ff' : '#ffffff',
-                                boxShadow: isSelected
-                                  ? '0 0 0 3px rgba(79, 70, 229, 0.15), 0 4px 12px rgba(79, 70, 229, 0.08)'
-                                  : '0 1px 3px rgba(0, 0, 0, 0.04)',
-                                transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
-                              }}
-                            >
-                              {/* Header: Title + Badges + Selection radio */}
-                              <div className="d-flex justify-content-between align-items-start gap-2 mb-2">
-                                <div>
-                                  <div className="d-flex align-items-center gap-1 flex-wrap mb-1">
-                                    <span className="fw-bold text-dark fs-6" style={{ letterSpacing: '-0.01em' }}>
-                                      {item.displayName}
-                                    </span>
-                                    {item.badgeText && (
-                                      <span
-                                        className="badge small px-2 py-0.5 rounded-pill"
-                                        style={{
-                                          backgroundColor: '#fef3c7',
-                                          color: '#92400e',
-                                          fontWeight: 600,
-                                          border: '1px solid #fde68a',
-                                        }}
-                                      >
-                                        {item.badgeText}
-                                      </span>
-                                    )}
-                                    {isCurrent && (
-                                      <span
-                                        className="badge small px-2 py-0.5 rounded-pill"
-                                        style={{
-                                          backgroundColor: '#dcfce7',
-                                          color: '#166534',
-                                          fontWeight: 600,
-                                          border: '1px solid #bbf7d0',
-                                        }}
-                                      >
-                                        Mevcut Paketiniz
-                                      </span>
-                                    )}
+                      return (
+                        <Col xs={4} key={item.code}>
+                          <div
+                            onClick={() => setSelectedPackageCode(item.code)}
+                            className="p-2 rounded-3 h-100 position-relative"
+                            style={{
+                              cursor: 'pointer',
+                              border: isSelected ? '2px solid #4f46e5' : '1.5px solid #e2e8f0',
+                              backgroundColor: isSelected ? '#f8f9ff' : '#ffffff',
+                              boxShadow: isSelected
+                                ? '0 0 0 3px rgba(79, 70, 229, 0.12), 0 2px 8px rgba(79, 70, 229, 0.06)'
+                                : '0 1px 2px rgba(0, 0, 0, 0.04)',
+                              transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
+                            }}
+                          >
+                            {/* Header: Title + Radio */}
+                            <div className="d-flex justify-content-between align-items-start gap-2 mb-1">
+                              <div className="d-flex align-items-center gap-1 flex-wrap">
+                                <span className="fw-bold text-dark" style={{ fontSize: '0.85rem', letterSpacing: '-0.01em' }}>
+                                  {item.displayName}
+                                </span>
+                                {item.badgeText && (
+                                  <span
+                                    className="badge rounded-pill"
+                                    style={{
+                                      fontSize: '9px',
+                                      backgroundColor: '#fef3c7',
+                                      color: '#92400e',
+                                      fontWeight: 600,
+                                      border: '1px solid #fde68a',
+                                      padding: '1px 6px',
+                                    }}
+                                  >
+                                    {item.badgeText}
+                                  </span>
+                                )}
+                                {isCurrent && (
+                                  <span
+                                    className="badge rounded-pill"
+                                    style={{
+                                      fontSize: '9px',
+                                      backgroundColor: '#dcfce7',
+                                      color: '#166534',
+                                      fontWeight: 600,
+                                      border: '1px solid #bbf7d0',
+                                      padding: '1px 6px',
+                                    }}
+                                  >
+                                    Mevcut Paketiniz
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex-shrink-0">
+                                {isSelected ? (
+                                  <div
+                                    className="rounded-circle d-flex align-items-center justify-content-center text-white"
+                                    style={{ width: '18px', height: '18px', backgroundColor: '#4f46e5', flexShrink: 0 }}
+                                  >
+                                    <i className="fe fe-check" style={{ fontSize: '10px' }} />
                                   </div>
-                                </div>
-
-                                <div className="flex-shrink-0">
-                                  {isSelected ? (
-                                    <div
-                                      className="rounded-circle d-flex align-items-center justify-content-center text-white"
-                                      style={{ width: '22px', height: '22px', backgroundColor: '#4f46e5' }}
-                                    >
-                                      <i className="fe fe-check" style={{ fontSize: '12px' }} />
-                                    </div>
-                                  ) : (
-                                    <div
-                                      className="rounded-circle border"
-                                      style={{ width: '22px', height: '22px', borderColor: '#cbd5e1', backgroundColor: '#fff' }}
-                                    />
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Price & Duration */}
-                              <div className="d-flex align-items-baseline gap-1 mb-2 pb-2 border-bottom border-light">
-                                <span className="fw-bold" style={{ fontSize: '1.25rem', color: isSelected ? '#4f46e5' : '#0f172a' }}>
-                                  {priceFormatted}
-                                </span>
-                                <span className="small text-muted">
-                                  / {item.defaultDurationDays ? `${item.defaultDurationDays} Gün` : 'Süresiz'}
-                                </span>
-                              </div>
-
-                              {/* Feature Badges */}
-                              <div className="d-flex flex-wrap gap-1">
-                                {item.allowsUrgent && (
-                                  <span
-                                    className="badge px-2 py-1 small rounded-2"
-                                    style={{
-                                      backgroundColor: '#fffbeb',
-                                      color: '#b45309',
-                                      border: '1px solid #fef3c7',
-                                      fontWeight: 500,
-                                    }}
-                                  >
-                                    ⚡ Acil İlan Destekli
-                                  </span>
-                                )}
-                                {item.showcaseEligible && (
-                                  <span
-                                    className="badge px-2 py-1 small rounded-2"
-                                    style={{
-                                      backgroundColor: '#eff6ff',
-                                      color: '#1d4ed8',
-                                      border: '1px solid #dbeafe',
-                                      fontWeight: 500,
-                                    }}
-                                  >
-                                    ⭐ Vitrin
-                                  </span>
-                                )}
-                                {item.searchPriority > 0 && (
-                                  <span
-                                    className="badge px-2 py-1 small rounded-2"
-                                    style={{
-                                      backgroundColor: '#f8fafc',
-                                      color: '#475569',
-                                      border: '1px solid #e2e8f0',
-                                      fontWeight: 500,
-                                    }}
-                                  >
-                                    Öncelik: +{item.searchPriority}
-                                  </span>
+                                ) : (
+                                  <div
+                                    className="rounded-circle border"
+                                    style={{ width: '18px', height: '18px', borderColor: '#cbd5e1', backgroundColor: '#fff', flexShrink: 0 }}
+                                  />
                                 )}
                               </div>
                             </div>
-                          </Col>
-                        );
-                      })}
-                    </Row>
-                  </div>
 
-                  <Form.Group className="mb-3">
-                    <Form.Label className="small fw-semibold text-muted">İşlem Gerekçesi / Notu (Opsiyonel)</Form.Label>
+                            {/* Price & Duration */}
+                            <div className="d-flex align-items-baseline gap-1 mb-1">
+                              <span className="fw-bold" style={{ fontSize: '1.05rem', color: isSelected ? '#4f46e5' : '#0f172a' }}>
+                                {priceFormatted}
+                              </span>
+                              <span className="text-muted" style={{ fontSize: '0.72rem' }}>
+                                / {item.defaultDurationDays ? `${item.defaultDurationDays} Gün` : 'Süresiz'}
+                              </span>
+                            </div>
+
+                            {/* Feature Badges */}
+                            <div className="d-flex flex-wrap gap-1">
+                              {item.allowsUrgent && (
+                                <span
+                                  className="badge rounded-2"
+                                  style={{
+                                    fontSize: '9.5px',
+                                    padding: '2px 6px',
+                                    backgroundColor: '#fffbeb',
+                                    color: '#b45309',
+                                    border: '1px solid #fef3c7',
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  ⚡ Acil İlan Destekli
+                                </span>
+                              )}
+                              {item.showcaseEligible && (
+                                <span
+                                  className="badge rounded-2"
+                                  style={{
+                                    fontSize: '9.5px',
+                                    padding: '2px 6px',
+                                    backgroundColor: '#eff6ff',
+                                    color: '#1d4ed8',
+                                    border: '1px solid #dbeafe',
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  ⭐ Vitrin
+                                </span>
+                              )}
+                              {item.searchPriority > 0 && (
+                                <span
+                                  className="badge rounded-2"
+                                  style={{
+                                    fontSize: '9.5px',
+                                    padding: '2px 6px',
+                                    backgroundColor: '#f8fafc',
+                                    color: '#475569',
+                                    border: '1px solid #e2e8f0',
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  Öncelik: +{item.searchPriority}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </Col>
+                      );
+                    })}
+                  </Row>
+
+                  {/* Gerekçe + Aksiyon — tek satırda */}
+                  <div
+                    className="d-flex align-items-center gap-2 p-2 rounded-3"
+                    style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}
+                  >
                     <Form.Control
                       size="sm"
-                      placeholder="Örn: Yönetici onayıyla paket güncellendi..."
+                      placeholder="İşlem gerekçesi (opsiyonel)…"
                       value={assignReason}
                       onChange={(e) => setAssignReason(e.target.value)}
+                      style={{ flex: 1, fontSize: '0.8rem' }}
                     />
-                  </Form.Group>
-
-                  {/* Actions & Dimmed / Soluk State */}
-                  <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-2 border-top">
-                    {isSamePackage && !hasReason ? (
-                      <div className="small text-muted d-flex align-items-center gap-1">
-                        <i className="fe fe-info text-primary opacity-75" />
-                        <span>Mevcut paket seçili. Güncellemek için farklı bir paket seçin veya gerekçe yazın.</span>
-                      </div>
-                    ) : (
-                      <div className="small text-success fw-semibold d-flex align-items-center gap-1">
-                        <i className="fe fe-check-circle" />
-                        <span>{currentPackage ? 'Paket değişikliği uygulanmaya hazır.' : 'Yeni paket tanımlanmaya hazır.'}</span>
-                      </div>
-                    )}
-
                     <Button
                       variant="primary"
+                      size="sm"
                       disabled={isUpdateDisabled}
                       onClick={() => void handleAssign()}
-                      className="d-flex align-items-center gap-2 px-4 py-2 shadow-sm rounded-2 fw-semibold ms-auto"
+                      className="d-flex align-items-center gap-1 fw-semibold px-3 flex-shrink-0"
                       style={{
                         opacity: isUpdateDisabled ? 0.45 : 1,
                         cursor: isUpdateDisabled ? 'not-allowed' : 'pointer',
-                        filter: isUpdateDisabled ? 'grayscale(35%)' : 'none',
                         transition: 'all 0.2s ease',
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       {submitting ? (
-                        <>
-                          <Spinner size="sm" animation="border" /> İşleniyor...
-                        </>
+                        <><Spinner size="sm" animation="border" /> İşleniyor...</>
                       ) : (
-                        <>
-                          <i className="fe fe-check" />
-                          {currentPackage ? 'Paketi Güncelle / Ata' : 'Paketi Tanımla'}
-                        </>
+                        <><i className="fe fe-check" /> {currentPackage ? 'Paketi Güncelle / Ata' : 'Paketi Tanımla'}</>
                       )}
                     </Button>
                   </div>
+
                 </Card.Body>
               </Card>
+              {renderHistoryCard(true)}
+            </>
             )}
 
             {/* TAB 2: İLAN KARTI (VİTRİN & ACİL İLAN YÖNETİMİ) */}
@@ -963,88 +1060,7 @@ export default function PackageModal({ advert, onClose, onDone }: PackageModalPr
             )}
 
             {/* TAB 3: GEÇMİŞ */}
-            {tab === 'history' && (
-              <Card className="border-0 shadow-sm rounded-3 bg-white">
-                <Card.Header className="bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
-                  <div>
-                    <h6 className="mb-0 fw-bold text-dark">İlan & Paket Güncelleme Geçmişi</h6>
-                    <small className="text-muted" style={{ fontSize: '11px' }}>
-                      İlanın durum ve paket değişiklikleri (en güncel durum en üstte)
-                    </small>
-                  </div>
-                  <Badge bg="secondary" pill>
-                    {unifiedHistory.length} Kayıt
-                  </Badge>
-                </Card.Header>
-                <Card.Body className="p-0">
-                  {historyLoading && (
-                    <div className="text-center py-4">
-                      <Spinner animation="border" size="sm" variant="primary" />
-                      <div className="small text-muted mt-1">Geçmiş yükleniyor...</div>
-                    </div>
-                  )}
-
-                  {!historyLoading && unifiedHistory.length === 0 && (
-                    <div className="text-center py-4 text-muted">Geçmiş kaydı bulunamadı.</div>
-                  )}
-
-                  {!historyLoading && unifiedHistory.length > 0 && (
-                    <div className="table-responsive">
-                      <Table hover className="align-middle mb-0 small">
-                        <thead className="table-light">
-                          <tr>
-                            <th style={{ minWidth: '130px' }}>Paket</th>
-                            <th style={{ minWidth: '130px' }}>Durum</th>
-                            <th style={{ minWidth: '120px' }}>Gönderim Tarihi</th>
-                            <th>Gerekçe</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {unifiedHistory.map((item) => (
-                            <tr
-                              key={item.id}
-                              style={{
-                                backgroundColor: item.isCurrent ? '#f8faff' : undefined,
-                              }}
-                            >
-                              <td>
-                                <div className="d-flex align-items-center gap-1.5 flex-wrap">
-                                  <span className="fw-bold text-dark">{item.packageCode}</span>
-                                  {item.isCurrent && (
-                                    <span
-                                      className="badge rounded-pill border"
-                                      style={{
-                                        backgroundColor: '#eef2ff',
-                                        color: '#4338ca',
-                                        borderColor: '#c7d2fe',
-                                        fontSize: '9px',
-                                        fontWeight: 600,
-                                        padding: '2px 6px',
-                                      }}
-                                    >
-                                      Şu Anki Hali
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td>
-                                <Badge bg={item.statusVariant as any} text={item.statusVariant === 'warning' ? 'dark' : 'white'}>
-                                  {item.statusText}
-                                </Badge>
-                              </td>
-                              <td className="text-dark fw-medium">{item.date}</td>
-                              <td className="text-muted" style={{ maxWidth: '340px', wordBreak: 'break-word' }}>
-                                {item.reason}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </Table>
-                    </div>
-                  )}
-                </Card.Body>
-              </Card>
-            )}
+            {tab === 'history' && renderHistoryCard()}
 
             {/* TAB 4: ÖDEMELER */}
             {tab === 'payments' && (

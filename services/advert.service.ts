@@ -844,24 +844,7 @@ class AdvertService {
     }
 
     async assignPackage(advertId: string, request: AssignPackageRequest): Promise<AdvertPackageAssignment> {
-        try {
-            return await apiRequest<AdvertPackageAssignment>('PUT', `${moderationRootUrl}/${advertId}/package`, request);
-        } catch {
-            return {
-                id: 'pkg-assign-1',
-                advertId,
-                packageCode: request.packageCode,
-                status: 'ACTIVE',
-                startsAt: new Date().toISOString(),
-                assignedByUserId: 'admin-1',
-                assignedAt: new Date().toISOString(),
-                reason: request.reason,
-                source: 'ADMIN',
-                version: 1,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-            };
-        }
+        return await apiRequest<AdvertPackageAssignment>('PUT', `${moderationRootUrl}/${advertId}/package`, request);
     }
 
     async cancelPackage(advertId: string, reason?: string) {
