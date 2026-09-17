@@ -263,200 +263,7 @@ export const DEFAULT_MOCK_MEDIA: Record<string, Array<{ assetId: string; display
     ],
 };
 
-const fallbackMockAdverts: OwnerAdvertItem[] = [
-    {
-        id: 'adv-nalbant-001',
-        title: 'denem nalbant',
-        publishedAt: null,
-        createdAt: '2026-09-13T11:45:00Z',
-        deletedAt: null,
-        status: 'PENDING_REVIEW',
-        version: 1,
-        mediaVersion: 1,
-        categoryId: 'c1000000-0000-4000-8000-000000000023',
-        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
-        ownerName: 'Admin Kullanıcı',
-        price: { amountMinor: 2500000, currency: 'TRY' },
-        provinceId: '47ff002c-f6f2-5c01-81a9-460b23ba9712',
-        provinceName: 'Bursa',
-        districtName: 'Osmangazi',
-        locationName: 'Bursa / Osmangazi',
-        properties: {
-            ownerName: 'Admin Kullanıcı',
-            ownerEmail: 'admin@haradan.com',
-            sehir: 'Bursa',
-            ilce: 'Osmangazi',
-            fiyat: '25.000 TL',
-            sellerPhone: '0532 123 45 67',
-            phone: '0532 123 45 67',
-        },
-        media: DEFAULT_MOCK_MEDIA['adv-nalbant-001'],
-    },
-    {
-        id: 'adv-abacan-002',
-        title: 'ABACAN',
-        publishedAt: null,
-        createdAt: '2026-09-13T10:30:00Z',
-        deletedAt: null,
-        status: 'PENDING_REVIEW',
-        version: 1,
-        mediaVersion: 1,
-        categoryId: 'c1000000-0000-4000-8000-000000000011',
-        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
-        ownerName: 'Admin Kullanıcı',
-        price: { amountMinor: 125000000, currency: 'TRY' },
-        provinceId: '2436cf3e-a250-511c-aa39-c5cd1c8a3f71',
-        provinceName: 'Ankara',
-        districtName: 'Çankaya',
-        locationName: 'Ankara / Çankaya',
-        properties: {
-            ownerName: 'Admin Kullanıcı',
-            ownerEmail: 'admin@haradan.com',
-            sehir: 'Ankara',
-            ilce: 'Çankaya',
-            fiyat: '1.250.000 TL',
-            sellerPhone: '0532 123 45 67',
-            phone: '0532 123 45 67',
-        },
-        media: DEFAULT_MOCK_MEDIA['adv-abacan-002'],
-    },
-    {
-        id: 'adv-deneme-003',
-        title: 'deneme',
-        publishedAt: null,
-        createdAt: '2026-09-12T17:15:00Z',
-        deletedAt: null,
-        status: 'PENDING_REVIEW',
-        version: 1,
-        mediaVersion: 1,
-        categoryId: 'c1000000-0000-4000-8000-000000000011',
-        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
-        ownerName: 'Admin Kullanıcı',
-        price: { amountMinor: 75000000, currency: 'TRY' },
-        provinceId: 'c029c5bf-570e-5eb2-9d0f-0437fa131ff1',
-        provinceName: 'İstanbul',
-        districtName: 'Kadıköy',
-        locationName: 'İstanbul / Kadıköy',
-        properties: {
-            ownerName: 'Admin Kullanıcı',
-            ownerEmail: 'admin@haradan.com',
-            sehir: 'İstanbul',
-            ilce: 'Kadıköy',
-            fiyat: '750.000 TL',
-            sellerPhone: '0532 123 45 67',
-            phone: '0532 123 45 67',
-        },
-        media: DEFAULT_MOCK_MEDIA['adv-deneme-003'],
-    },
-    {
-        id: 'adv-deneme-ilan-004',
-        title: 'deneme ilan',
-        publishedAt: null,
-        createdAt: '2026-09-12T14:20:00Z',
-        deletedAt: null,
-        status: 'PENDING_REVIEW',
-        version: 1,
-        mediaVersion: 1,
-        categoryId: 'c1000000-0000-4000-8000-000000000011',
-        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
-        ownerName: 'Admin Kullanıcı',
-        price: { amountMinor: 48000000, currency: 'TRY' },
-        provinceId: '64f1681f-bd67-5b6d-a0fb-cb67e70dda74',
-        provinceName: 'İzmir',
-        districtName: 'Urla',
-        locationName: 'İzmir / Urla',
-        properties: {
-            ownerName: 'Admin Kullanıcı',
-            ownerEmail: 'admin@haradan.com',
-            sehir: 'İzmir',
-            ilce: 'Urla',
-            fiyat: '480.000 TL',
-            sellerPhone: '0532 123 45 67',
-            phone: '0532 123 45 67',
-        },
-        media: DEFAULT_MOCK_MEDIA['adv-deneme-ilan-004'],
-    },
-    {
-        id: 'adv-001',
-        title: 'Satılık Arap Atı - Rüzgar',
-        publishedAt: '2026-03-01T10:00:00Z',
-        createdAt: '2026-03-01T08:00:00Z',
-        deletedAt: null,
-        status: 'PUBLISHED',
-        version: 1,
-        mediaVersion: 1,
-        categoryId: 'c1000000-0000-4000-8000-000000000011',
-        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
-        ownerName: 'Admin Kullanıcı',
-        price: { amountMinor: 35000000, currency: 'TRY' },
-        provinceId: 'c029c5bf-570e-5eb2-9d0f-0437fa131ff1',
-        provinceName: 'İstanbul',
-        districtName: 'Bakırköy',
-        locationName: 'İstanbul / Bakırköy',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sehir: 'İstanbul', ilce: 'Bakırköy', fiyat: '350.000 TL', sellerPhone: '0532 111 22 33', phone: '0532 111 22 33' },
-        media: DEFAULT_MOCK_MEDIA['adv-001'],
-    },
-    {
-        id: 'adv-002',
-        title: 'Şampiyon İngiliz Yarış Atı',
-        publishedAt: '2026-03-02T11:00:00Z',
-        createdAt: '2026-03-02T09:30:00Z',
-        deletedAt: null,
-        status: 'PUBLISHED',
-        version: 1,
-        mediaVersion: 1,
-        categoryId: 'c1000000-0000-4000-8000-000000000011',
-        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
-        ownerName: 'Admin Kullanıcı',
-        price: { amountMinor: 50000000, currency: 'TRY' },
-        provinceId: '99307140-598f-59c3-b219-892878bd5e7d',
-        provinceName: 'Kocaeli',
-        districtName: 'Kartepe',
-        locationName: 'Kocaeli / Kartepe',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sehir: 'Kocaeli', ilce: 'Kartepe', fiyat: '500.000 TL', sellerPhone: '0533 222 33 44', phone: '0533 222 33 44' },
-        media: DEFAULT_MOCK_MEDIA['adv-002'],
-    },
-    {
-        id: 'adv-003',
-        title: 'Safkan İngiliz Tay - 2 Yaş',
-        publishedAt: null,
-        createdAt: '2026-09-11T09:10:00Z',
-        deletedAt: null,
-        status: 'PENDING_REVIEW',
-        version: 1,
-        mediaVersion: 1,
-        categoryId: 'c1000000-0000-4000-8000-000000000011',
-        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
-        ownerName: 'Admin Kullanıcı',
-        price: { amountMinor: 28000000, currency: 'TRY' },
-        provinceId: '802aa4c5-68d5-56e3-b5d8-c98b5d7f7874',
-        provinceName: 'Adana',
-        districtName: 'Seyhan',
-        locationName: 'Adana / Seyhan',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sehir: 'Adana', ilce: 'Seyhan', fiyat: '280.000 TL', sellerPhone: '0532 123 45 67', phone: '0532 123 45 67' },
-        media: DEFAULT_MOCK_MEDIA['adv-003'],
-    },
-    {
-        id: 'adv-suspend-001',
-        title: 'Safkan Arap Tayı',
-        publishedAt: null,
-        createdAt: '2026-09-12T12:00:00Z',
-        deletedAt: null,
-        status: 'SUSPENDED',
-        version: 1,
-        mediaVersion: 1,
-        categoryId: 'c1000000-0000-4000-8000-000000000011',
-        ownerUserId: 'u1000000-0000-4000-8000-000000000001',
-        ownerName: 'Admin Kullanıcı',
-        price: { amountMinor: 60000000, currency: 'TRY' },
-        provinceId: 'f99e4649-2d13-539a-92e1-12b7c6d03b12',
-        provinceName: 'Eskişehir',
-        districtName: 'Tepebaşı',
-        locationName: 'Eskişehir / Tepebaşı',
-        properties: { ownerName: 'Admin Kullanıcı', ownerEmail: 'admin@haradan.com', sehir: 'Eskişehir', ilce: 'Tepebaşı', fiyat: '600.000 TL', sellerPhone: '0535 333 44 55', phone: '0535 333 44 55' },
-        media: DEFAULT_MOCK_MEDIA['adv-suspend-001'],
-    },
-];
+const fallbackMockAdverts: OwnerAdvertItem[] = [];
 
 function getLocalMockAdverts(): OwnerAdvertItem[] {
     const list: OwnerAdvertItem[] = [...fallbackMockAdverts];
@@ -467,7 +274,15 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
                 const parsed = JSON.parse(raw);
                 if (Array.isArray(parsed)) {
                     for (const item of parsed) {
-                        if (item && item.id && !list.some((x) => x.id === item.id || (item.title && x.title === item.title))) {
+                        if (
+                            item
+                            && item.id
+                            && !String(item.id).startsWith('adv-')
+                            && item.sellerId !== 'u1000000-0000-4000-8000-000000000001'
+                            && item.ownerUserId !== 'u1000000-0000-4000-8000-000000000001'
+                            && item.properties?.ownerEmail !== 'admin@haradan.com'
+                            && !list.some((x) => x.id === item.id || (item.title && x.title === item.title))
+                        ) {
                             const itemMedia = Array.isArray(item.media) && item.media.length > 0
                                 ? item.media
                                 : Array.isArray(item.gallery) && item.gallery.length > 0
@@ -496,7 +311,7 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
                                 version: item.version || 1,
                                 mediaVersion: 1,
                                 categoryId: item.categoryId || 'c1000000-0000-4000-8000-000000000011',
-                                ownerUserId: item.sellerId || 'u1000000-0000-4000-8000-000000000001',
+                                ownerUserId: item.sellerId || item.ownerUserId || undefined,
                                 rejectionReason: item.rejectionReason || (item.backendStatus === 'ARCHIVED' ? 'Kullanıcı kendi kaldırmıştır' : null),
                                 media: itemMedia,
                                 cover: item.cover || null,
@@ -857,7 +672,11 @@ class AdvertService {
 
     async delete(advertId: string | number): Promise<void> {
         const idStr = String(advertId).trim();
-        await apiRequest('DELETE', `${moderationRootUrl}/${idStr}`);
+        try {
+            await apiRequest('DELETE', `${moderationRootUrl}/${idStr}`);
+        } catch (err) {
+            console.warn('Backend delete error:', err);
+        }
         removeLocalMockAdvert(idStr);
     }
 
