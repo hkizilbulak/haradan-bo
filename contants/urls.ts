@@ -3,7 +3,7 @@ export const API_ORIGIN = '';
 export const API_URL = `${API_PROXY_PREFIX}/`;
 export const MEDIA_URL = `${API_PROXY_PREFIX}/v1/media`;
 
-const DEFAULT_FRONTEND_URL = 'https://haradan.up.railway.app';
+const DEFAULT_FRONTEND_URL = 'https://haradan.com';
 
 export function getFrontendBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_FRONTEND_URL?.trim();

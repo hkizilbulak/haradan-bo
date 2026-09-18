@@ -80,7 +80,26 @@ export default function Banners() {
   }, [reorderItems, reorderBaselineIds]);
 
   const openBannerModal = (banner?: BannerResponse) => {
-    openModal(<BannerModal selectedBanner={banner} onClose={closeModal} onHandleSave={handleSave} />);
+    openModal(
+      <BannerModal
+        selectedBanner={banner}
+        onClose={closeModal}
+        onHandleSave={handleSave}
+        onDelete={banner ? () => handleDelete(banner.id ?? banner.identifier ?? '') : undefined}
+      />
+    );
+  };
+
+  const handleDelete = async (bannerId: string) => {
+    try {
+      await bannerService.delete(bannerId);
+      toast.success('Banner başarıyla silindi');
+      closeModal();
+      exitReorderMode();
+      refetch();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   };
 
   const exitReorderMode = () => {

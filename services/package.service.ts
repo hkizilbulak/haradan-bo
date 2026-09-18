@@ -118,6 +118,10 @@ export class PackageService {
   reorder = async (items: Array<{ id: string; expectedVersion: number; sortOrder: number }>) => {
     await axiosInstance.put(`${baseUrl}/reorder`, { items });
   };
+
+  delete = async (packageCode: string): Promise<void> => {
+    await axiosInstance.delete(`${baseUrl}/${packageCode}`);
+  };
 }
 
 export const packageService = new PackageService();

@@ -2,6 +2,7 @@ import { Alert, Button, Col, Form, Offcanvas, Spinner } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { useState } from 'react';
+import ConfirmModal from '@/components/ConfirmModal';
 import { BannerRequest, BannerResponse } from '@/models';
 import { mediaService } from '@/services/media.service';
 import { buildMediaUrl } from '@/contants/urls';
@@ -51,11 +52,14 @@ type IProps = {
   selectedBanner?: BannerResponse;
   onClose: () => void;
   onHandleSave: (value: BannerRequest) => void;
+  onDelete?: () => Promise<void>;
 };
 
-export default function BannerModal({ selectedBanner, onClose, onHandleSave }: IProps) {
+export default function BannerModal({ selectedBanner, onClose, onHandleSave, onDelete }: IProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadStage, setUploadStage] = useState<'OPTIMIZING' | 'UPLOADING' | 'PROCESSING'>('UPLOADING');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const validationSchema = Yup.object().shape({
     assetId: Yup.string().required('Görsel zorunludur'),
@@ -313,16 +317,49 @@ export default function BannerModal({ selectedBanner, onClose, onHandleSave }: I
                 <Form.Label>Yönlendirme URL</Form.Label>
                 <Form.Control name="targetUrl" value={values.targetUrl ?? ''} onChange={handleChange} placeholder="Örn: /categories/satilik-yaris-ati" />
               </Form.Group>
-              <Button
-                disabled={!isValid || isSubmitting || uploading}
-                variant="primary"
-                as="input"
-                type="submit"
-                value={selectedBanner ? 'Güncelle' : 'Ekle'}
-              />
+              <div className="d-flex gap-2">
+                <Button
+                  disabled={!isValid || isSubmitting || uploading || isDeleting}
+                  variant="primary"
+                  type="submit"
+                  className="flex-grow-1"
+                >
+                  {selectedBanner ? 'Güncelle' : 'Ekle'}
+                </Button>
+                {selectedBanner && onDelete && (
+                  <Button
+                    type="button"
+                    variant="outline-danger"
+                    disabled={isSubmitting || uploading || isDeleting}
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    Sil
+                  </Button>
+                )}
+              </div>
             </Form>
           )}
         </Formik>
+        {selectedBanner && onDelete && (
+          <ConfirmModal
+            show={showDeleteConfirm}
+            onHide={() => setShowDeleteConfirm(false)}
+            onConfirm={async () => {
+              setIsDeleting(true);
+              try {
+                await onDelete();
+                setShowDeleteConfirm(false);
+              } finally {
+                setIsDeleting(false);
+              }
+            }}
+            type="danger"
+            title="Bannerı Sil"
+            message={`"${selectedBanner.title || selectedBanner.altText || 'Bu bannerı'}" silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`}
+            confirmText="Evet, Sil"
+            isLoading={isDeleting}
+          />
+        )}
       </Offcanvas.Body>
     </Offcanvas>
   );

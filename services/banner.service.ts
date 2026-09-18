@@ -178,6 +178,10 @@ export class BannerService {
       items,
     });
   };
+
+  delete = async (bannerId: string): Promise<void> => {
+    await axiosInstance.delete(`${baseUrl}/${bannerId}`);
+  };
 }
 
 export const bannerService = new BannerService();

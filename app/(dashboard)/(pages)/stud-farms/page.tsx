@@ -3,17 +3,15 @@ import React, { useState } from 'react';
 import { formatDateForText } from '@/helpers/DateUtils';
 import { capitalizeSentence } from '@/helpers/HelperUtils';
 import useApi from '@/hooks/useApi';
-import { StudFarm, StudFarmResponse } from '@/models/StudFarm';
+import { StudFarm } from '@/models/StudFarm';
 import { studFarmService } from '@/services';
 import CustomPagination from '@/components/Pagination';
 import { Skeleton } from '@/components/Skeleton';
 import { Col, Row, Container, Card, Table, Button, Alert, Form } from 'react-bootstrap';
-import { Trash2, Plus, ChevronDown, ChevronUp, Edit } from 'react-feather';
+import { Plus, ChevronDown, ChevronUp, Edit } from 'react-feather';
 import AddStudFarmModal from './components/AddStudFarmModal';
 import AddStudFarmNoteModal from './components/AddStudFarmNoteModal';
-import DeleteModal from '@/components/DeleteModal';
 import StudFarmNotesTimeline from './components/StudFarmNotesTimeline';
-import { toast } from 'react-toastify';
 
 export default function StudFarms() {
     const [{ data, parameters, isLoading, isError, handleFilter, handlePageChange, setParameters, refetch }] = useApi<StudFarm>({
@@ -27,7 +25,6 @@ export default function StudFarms() {
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
     const [notesRefreshTrigger, setNotesRefreshTrigger] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
-    const [deleteStudFarmId, setDeleteStudFarmId] = useState<string | null>(null);
 
     const toggleRow = (id: string) => {
         if (expandedRow === id) {
@@ -45,18 +42,6 @@ export default function StudFarms() {
     const handleClear = () => {
         setSearchTerm('');
         handleFilter('');
-    };
-
-    const confirmDelete = async () => {
-        if (!deleteStudFarmId) return;
-        try {
-            await studFarmService.deleteStudFarm(deleteStudFarmId);
-            toast.success("Hara başarıyla silindi.");
-            setDeleteStudFarmId(null);
-            refetch();
-        } catch (error) {
-            toast.error("Hara silinirken bir hata oluştu.");
-        }
     };
 
     const rows = data?.content ?? [];
@@ -175,17 +160,17 @@ export default function StudFarms() {
                                                             <td className="text-center">
                                                                 <div className="d-flex justify-content-center align-items-center gap-2">
                                                                     <Button
-                                                                        variant="success"
+                                                                        variant="light"
                                                                         size="sm"
                                                                         title="Görüşme Ekle"
-                                                                        className="text-white border-0 d-flex align-items-center justify-content-center"
+                                                                        className="bg-white border border-success text-success d-flex align-items-center justify-content-center"
                                                                         style={{ width: '24px', height: '24px', padding: 0 }}
                                                                         onClick={() => {
                                                                             setSelectedStudFarmId(item.id);
                                                                             setShowNoteModal(true);
                                                                         }}
                                                                     >
-                                                                        <Plus size={12} />
+                                                                        <Plus size={12} className="text-success" />
                                                                     </Button>
                                                                     <Button 
                                                                         variant="light" 
@@ -199,16 +184,6 @@ export default function StudFarms() {
                                                                         }}
                                                                     >
                                                                         <Edit size={12} className="text-secondary" />
-                                                                    </Button>
-                                                                    <Button
-                                                                        variant="light"
-                                                                        size="sm"
-                                                                        className="text-danger border-0 d-flex align-items-center justify-content-center"
-                                                                        style={{ width: '24px', height: '24px', padding: 0 }}
-                                                                        title="Sil"
-                                                                        onClick={() => setDeleteStudFarmId(item.id)}
-                                                                    >
-                                                                        <Trash2 size={12} />
                                                                     </Button>
                                                                 </div>
                                                             </td>
@@ -279,6 +254,7 @@ export default function StudFarms() {
                 show={showAddModal} 
                 onHide={() => { setShowAddModal(false); setEditStudFarm(null); }} 
                 onSuccess={() => refetch()} 
+                onDeleteSuccess={() => refetch()}
                 existingStudFarm={editStudFarm}
             />
             {selectedStudFarmId && (
@@ -293,12 +269,6 @@ export default function StudFarms() {
                         setNotesRefreshTrigger(prev => prev + 1);
                         refetch();
                     }} 
-                />
-            )}
-            {deleteStudFarmId && (
-                <DeleteModal 
-                    onClose={() => setDeleteStudFarmId(null)}
-                    onHandleDelete={confirmDelete}
                 />
             )}
         </Container>

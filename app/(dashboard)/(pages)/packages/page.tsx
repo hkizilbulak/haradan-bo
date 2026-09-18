@@ -7,6 +7,7 @@ import RichTextEditor from '@/components/RichTextEditor';
 import SafeRichText from '@/components/SafeRichText';
 import PrepareTable from '@/components/PrepareTable';
 import StatusBadge from '@/components/StatusBadge';
+import ConfirmModal from '@/components/ConfirmModal';
 import { formatDateTimeForText } from '@/helpers/DateUtils';
 import { formatMoney, formatMoneyInput, getErrorMessage, parseMoneyInput } from '@/helpers/HelperUtils';
 import { sanitizeRichHtml } from '@/helpers/sanitizeHtml';
@@ -67,8 +68,20 @@ function PackagePreview({ value }: { value: PackageRequest }) {
   );
 }
 
-function PackageModal({ selectedPackage, onClose, onSave }: { selectedPackage?: PackageResponse; onClose: () => void; onSave: (value: PackageRequest) => Promise<void>; }) {
+function PackageModal({
+  selectedPackage,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  selectedPackage?: PackageResponse;
+  onClose: () => void;
+  onSave: (value: PackageRequest) => Promise<void>;
+  onDelete?: () => Promise<void>;
+}) {
   const isNew = !selectedPackage?.code;
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const values: PackageRequest = selectedPackage ? {
     identifier: selectedPackage.code,
     expectedVersion: selectedPackage.version,
@@ -220,10 +233,49 @@ function PackageModal({ selectedPackage, onClose, onSave }: { selectedPackage?: 
                 </Form.Text>
               </Form.Group>
               <PackagePreview value={values} />
-              <Button disabled={!isValid || isSubmitting || parsedPrice.kind === 'invalid'} variant="primary" as="input" type="submit" value={isNew ? 'Ekle' : 'Güncelle'} />
+              <div className="d-flex gap-2">
+                <Button
+                  disabled={!isValid || isSubmitting || parsedPrice.kind === 'invalid'}
+                  variant="primary"
+                  type="submit"
+                  className="flex-grow-1"
+                >
+                  {isNew ? 'Ekle' : 'Güncelle'}
+                </Button>
+                {!isNew && onDelete && (
+                  <Button
+                    type="button"
+                    variant="outline-danger"
+                    disabled={isSubmitting || isDeleting}
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    Sil
+                  </Button>
+                )}
+              </div>
             </Form>
           )}
         </Formik>
+        {!isNew && onDelete && (
+          <ConfirmModal
+            show={showDeleteConfirm}
+            onHide={() => setShowDeleteConfirm(false)}
+            onConfirm={async () => {
+              setIsDeleting(true);
+              try {
+                await onDelete();
+                setShowDeleteConfirm(false);
+              } finally {
+                setIsDeleting(false);
+              }
+            }}
+            type="danger"
+            title="Paketi Sil"
+            message={`"${selectedPackage?.displayName}" paketini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`}
+            confirmText="Evet, Sil"
+            isLoading={isDeleting}
+          />
+        )}
       </Offcanvas.Body>
     </Offcanvas>
   );
@@ -241,7 +293,25 @@ export default function PackagesPage() {
   const [reorderBusy, setReorderBusy] = useState(false);
 
   const openPackageModal = (pkg?: PackageResponse) => {
-    openModal(<PackageModal selectedPackage={pkg} onClose={closeModal} onSave={handleSave} />);
+    openModal(
+      <PackageModal
+        selectedPackage={pkg}
+        onClose={closeModal}
+        onSave={handleSave}
+        onDelete={pkg ? () => handleDelete(pkg.code) : undefined}
+      />
+    );
+  };
+
+  const handleDelete = async (code: string) => {
+    try {
+      await packageService.delete(code);
+      toast.success('Paket başarıyla silindi');
+      closeModal();
+      refetch();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   };
 
   const handleSave = async (values: PackageRequest) => {
