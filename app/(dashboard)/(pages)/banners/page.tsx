@@ -12,7 +12,6 @@ import useModal from '@/hooks/useModal';
 import { BannerRequest, BannerResponse } from '@/models';
 import { bannerService } from '@/services';
 import { PageHeading } from '@/widgets';
-import BannerFilter from '@/widgets/banner/BannerFilter';
 import BannerModal from '@/widgets/banner/BannerModal';
 import { Alert, Button, Col, Container, Row } from 'react-bootstrap';
 import { toast } from 'react-toastify';
@@ -63,7 +62,6 @@ export default function Banners() {
     params: { filter: '', pageRequest: { page: 0, size: 20 } },
   });
   const { isModalOpen, openModal, closeModal, modalContent } = useModal();
-  const [openFilter, setOpenFilter] = useState(false);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
   /** Full placement list while in reorder mode (not just the current cursor page). */
   const [reorderItems, setReorderItems] = useState<BannerResponse[] | null>(null);
@@ -299,24 +297,9 @@ export default function Banners() {
             heading='Bannerlar'
             createButtonText='Banner Ekle'
             onCreate={() => openBannerModal(undefined)}
-            onToggleFilter={() => setOpenFilter(!openFilter)} />
+          />
         </Col>
       </Row>
-
-      {openFilter && (
-        <BannerFilter
-          onFilter={(values: string) => {
-            exitReorderMode();
-            handleFilter(values);
-          }}
-        />
-      )}
-
-      {!placementFilter && (
-        <Alert variant="light" className="border small">
-          Sıralamayı değiştirmek için önce bir yerleşim seçin (Ana Sayfa / İlan Detay / Arama).
-        </Alert>
-      )}
 
       {placementFilter && !reorderMode && (
         <div className="mb-3">

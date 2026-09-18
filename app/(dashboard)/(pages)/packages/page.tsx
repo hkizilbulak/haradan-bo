@@ -2,6 +2,7 @@
 import { Alert, Badge, Button, Card, Col, Container, Form, Offcanvas, Row } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
+import { Trash2 } from 'react-feather';
 import Loading from '@/components/Loading';
 import RichTextEditor from '@/components/RichTextEditor';
 import SafeRichText from '@/components/SafeRichText';
@@ -131,130 +132,135 @@ function PackageModal({
             });
           }}
         >
-          {({ handleSubmit, handleChange, setFieldValue, values, errors, touched, isValid, isSubmitting }) => (
-            <Form noValidate onSubmit={handleSubmit}>
-              <Form.Group className="mb-3">
-                <Form.Label>Ad</Form.Label>
-                <Form.Control name="displayName" value={values.displayName} onChange={handleChange} isInvalid={touched.displayName && !!errors.displayName} />
-                <Form.Control.Feedback type="invalid">{errors.displayName as string}</Form.Control.Feedback>
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Kısa Açıklama</Form.Label>
-                <RichTextEditor
-                  value={values.description ?? ''}
-                  onChange={(next) => void setFieldValue('description', next)}
-                />
-                <Form.Text muted>
-                  Zengin metin (kalın, italik, liste, bağlantı). İçerik kayıttan önce temizlenir; ham HTML/script kabul edilmez.
-                </Form.Text>
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Rozet (Opsiyonel)</Form.Label>
-                <Form.Control name="badgeText" value={values.badgeText ?? ''} onChange={handleChange} placeholder="Örn. En Popüler" />
-                <Form.Text muted>Örn. En Popüler, Önerilen, Avantajlı</Form.Text>
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Faydalar</Form.Label>
-                {(values.benefits ?? []).map((benefit, index) => (
-                  <div key={`benefit-${index}`} className="d-flex gap-2 mb-2">
-                    <Form.Control
-                      value={benefit}
-                      onChange={(e) => {
-                        const next = [...values.benefits];
-                        next[index] = e.target.value;
-                        void setFieldValue('benefits', next);
-                      }}
-                      placeholder="Fayda metni (emoji serbest)"
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline-secondary"
-                      disabled={(values.benefits?.length ?? 0) <= 1}
-                      onClick={() => void setFieldValue('benefits', values.benefits.filter((_, i) => i !== index))}
-                    >
-                      Sil
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline-primary"
-                  onClick={() => void setFieldValue('benefits', [...(values.benefits ?? []), ''])}
-                >
-                  + Fayda Ekle
-                </Button>
-                {touched.benefits && typeof errors.benefits === 'string' && (
-                  <div className="invalid-feedback d-block">{errors.benefits}</div>
-                )}
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Fiyat (₺)</Form.Label>
-                <Form.Control
-                  type="text"
-                  inputMode="decimal"
-                  value={priceInput}
-                  onChange={(e) => setPriceInput(e.target.value)}
-                  onBlur={() => {
-                    const price = parseMoneyInput(priceInput);
-                    if (price.kind === 'empty') {
-                      void setFieldValue('amountMinor', undefined);
-                    } else if (price.kind === 'valid') {
-                      void setFieldValue('amountMinor', price.amountMinor);
-                      setPriceInput(formatMoneyInput(price.amountMinor));
-                    }
-                  }}
-                  isInvalid={parsedPrice.kind === 'invalid'}
-                  placeholder="Örn. 199,90"
-                />
-                <Form.Control.Feedback type="invalid">
-                  Fiyatı 200,50 veya 1.200,50 biçiminde girin.
-                </Form.Control.Feedback>
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Varsayılan Süre (Gün)</Form.Label>
-                <Form.Control type="number" name="defaultDurationDays" value={values.defaultDurationDays ?? ''} onChange={handleChange} />
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Check type="checkbox" name="allowsUrgent" label="Acil İlan" checked={values.allowsUrgent} onChange={handleChange} />
-                <Form.Check type="checkbox" name="showcaseEligible" label="Vitrin Uygun" checked={values.showcaseEligible} onChange={handleChange} />
-                <Form.Check type="checkbox" name="broadcastOnPublish" label="Yayınlanınca Bildirim Gönder" checked={values.broadcastOnPublish} onChange={handleChange} />
-                <Form.Check type="checkbox" name="isActive" label="Aktif" checked={values.isActive} onChange={handleChange} />
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <div className="d-flex justify-content-between">
-                  <Form.Label>Arama Önceliği</Form.Label>
-                  <strong>{values.searchPriority}/100</strong>
-                </div>
-                <Form.Range min={0} max={100} name="searchPriority" value={values.searchPriority} onChange={handleChange} />
-                <Form.Text muted>
-                  Yüksek değer, diğer koşullar eşit olduğunda bu paketteki ilanlara arama sıralamasında daha fazla öncelik verir. 0 normal, 100 maksimum.
-                </Form.Text>
-              </Form.Group>
-              <PackagePreview value={values} />
-              <div className="d-flex gap-2">
-                <Button
-                  disabled={!isValid || isSubmitting || parsedPrice.kind === 'invalid'}
-                  variant="primary"
-                  type="submit"
-                  className="flex-grow-1"
-                >
-                  {isNew ? 'Ekle' : 'Güncelle'}
-                </Button>
-                {!isNew && onDelete && (
+          {({ handleSubmit, handleChange, setFieldValue, values, errors, touched, isValid, isSubmitting, dirty }) => {
+            const isFormChanged = isNew ? true : (dirty || priceInput !== formatMoneyInput(selectedPackage?.displayPrice?.amountMinor));
+            return (
+              <Form noValidate onSubmit={handleSubmit}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Ad</Form.Label>
+                  <Form.Control name="displayName" value={values.displayName} onChange={handleChange} isInvalid={touched.displayName && !!errors.displayName} />
+                  <Form.Control.Feedback type="invalid">{errors.displayName as string}</Form.Control.Feedback>
+                </Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Label>Kısa Açıklama</Form.Label>
+                  <RichTextEditor
+                    value={values.description ?? ''}
+                    onChange={(next) => void setFieldValue('description', next)}
+                  />
+                  <Form.Text muted>
+                    Zengin metin (kalın, italik, liste, bağlantı). İçerik kayıttan önce temizlenir; ham HTML/script kabul edilmez.
+                  </Form.Text>
+                </Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Label>Rozet (Opsiyonel)</Form.Label>
+                  <Form.Control name="badgeText" value={values.badgeText ?? ''} onChange={handleChange} placeholder="Örn. En Popüler" />
+                  <Form.Text muted>Örn. En Popüler, Önerilen, Avantajlı</Form.Text>
+                </Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Label>Faydalar</Form.Label>
+                  {(values.benefits ?? []).map((benefit, index) => (
+                    <div key={`benefit-${index}`} className="d-flex gap-2 mb-2">
+                      <Form.Control
+                        value={benefit}
+                        onChange={(e) => {
+                          const next = [...values.benefits];
+                          next[index] = e.target.value;
+                          void setFieldValue('benefits', next);
+                        }}
+                        placeholder="Fayda metni (emoji serbest)"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline-secondary"
+                        disabled={(values.benefits?.length ?? 0) <= 1}
+                        onClick={() => void setFieldValue('benefits', values.benefits.filter((_, i) => i !== index))}
+                      >
+                        Sil
+                      </Button>
+                    </div>
+                  ))}
                   <Button
                     type="button"
-                    variant="outline-danger"
-                    disabled={isSubmitting || isDeleting}
-                    onClick={() => setShowDeleteConfirm(true)}
+                    size="sm"
+                    variant="outline-primary"
+                    onClick={() => void setFieldValue('benefits', [...(values.benefits ?? []), ''])}
                   >
-                    Sil
+                    + Fayda Ekle
                   </Button>
-                )}
-              </div>
-            </Form>
-          )}
+                  {touched.benefits && typeof errors.benefits === 'string' && (
+                    <div className="invalid-feedback d-block">{errors.benefits}</div>
+                  )}
+                </Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Label>Fiyat (₺)</Form.Label>
+                  <Form.Control
+                    type="text"
+                    inputMode="decimal"
+                    value={priceInput}
+                    onChange={(e) => setPriceInput(e.target.value)}
+                    onBlur={() => {
+                      const price = parseMoneyInput(priceInput);
+                      if (price.kind === 'empty') {
+                        void setFieldValue('amountMinor', undefined);
+                      } else if (price.kind === 'valid') {
+                        void setFieldValue('amountMinor', price.amountMinor);
+                        setPriceInput(formatMoneyInput(price.amountMinor));
+                      }
+                    }}
+                    isInvalid={parsedPrice.kind === 'invalid'}
+                    placeholder="Örn. 199,90"
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    Fiyatı 200,50 veya 1.200,50 biçiminde girin.
+                  </Form.Control.Feedback>
+                </Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Label>Varsayılan Süre (Gün)</Form.Label>
+                  <Form.Control type="number" name="defaultDurationDays" value={values.defaultDurationDays ?? ''} onChange={handleChange} />
+                </Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Check type="checkbox" name="allowsUrgent" label="Acil İlan" checked={values.allowsUrgent} onChange={handleChange} />
+                  <Form.Check type="checkbox" name="showcaseEligible" label="Vitrin Uygun" checked={values.showcaseEligible} onChange={handleChange} />
+                  <Form.Check type="checkbox" name="broadcastOnPublish" label="Yayınlanınca Bildirim Gönder" checked={values.broadcastOnPublish} onChange={handleChange} />
+                  <Form.Check type="checkbox" name="isActive" label="Aktif" checked={values.isActive} onChange={handleChange} />
+                </Form.Group>
+                <Form.Group className="mb-3">
+                  <div className="d-flex justify-content-between">
+                    <Form.Label>Arama Önceliği</Form.Label>
+                    <strong>{values.searchPriority}/100</strong>
+                  </div>
+                  <Form.Range min={0} max={100} name="searchPriority" value={values.searchPriority} onChange={handleChange} />
+                  <Form.Text muted>
+                    Yüksek değer, diğer koşullar eşit olduğunda bu paketteki ilanlara arama sıralamasında daha fazla öncelik verir. 0 normal, 100 maksimum.
+                  </Form.Text>
+                </Form.Group>
+                <PackagePreview value={values} />
+                <div className="d-flex gap-2">
+                  <Button
+                    disabled={!isValid || isSubmitting || parsedPrice.kind === 'invalid' || !isFormChanged}
+                    variant="primary"
+                    type="submit"
+                    className="flex-grow-1"
+                  >
+                    {isNew ? 'Ekle' : 'Kaydet'}
+                  </Button>
+                  {!isNew && onDelete && (
+                    <Button
+                      type="button"
+                      variant="outline-danger"
+                      className="d-flex align-items-center justify-content-center px-3"
+                      title="Sil"
+                      disabled={isSubmitting || isDeleting}
+                      onClick={() => setShowDeleteConfirm(true)}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  )}
+                </div>
+              </Form>
+            );
+          }}
         </Formik>
         {!isNew && onDelete && (
           <ConfirmModal

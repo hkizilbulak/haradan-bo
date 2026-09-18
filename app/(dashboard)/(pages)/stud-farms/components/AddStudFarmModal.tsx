@@ -112,6 +112,14 @@ export default function AddStudFarmModal({ show, onHide, onSuccess, onDeleteSucc
         onHide();
     };
 
+    const isFormChanged = existingStudFarm
+        ? (formData.firstName !== (existingStudFarm.firstName || '') ||
+           formData.lastName !== (existingStudFarm.lastName || '') ||
+           formData.email !== (existingStudFarm.email || '') ||
+           formData.phone !== (existingStudFarm.phone || '') ||
+           formData.location !== (existingStudFarm.location || ''))
+        : Boolean(formData.firstName.trim());
+
     return (
         <>
             <Offcanvas show={show} onHide={handleClose} placement="end" style={{ maxWidth: 540 }} className="w-100">
@@ -178,29 +186,28 @@ export default function AddStudFarmModal({ show, onHide, onSuccess, onDeleteSucc
                             </Form.Group>
                         </div>
                         
-                        <div className="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
-                            {existingStudFarm ? (
+                        <div className="d-flex gap-2 mt-4 pt-3 border-top">
+                            <Button 
+                                variant="primary" 
+                                type="submit" 
+                                disabled={!isFormChanged || loading || deleteLoading} 
+                                className="flex-grow-1"
+                                style={{ backgroundColor: '#6f42c1', borderColor: '#6f42c1' }}
+                            >
+                                {loading ? (existingStudFarm ? 'Güncelleniyor...' : 'Ekleniyor...') : (existingStudFarm ? 'Kaydet' : 'Ekle')}
+                            </Button>
+                            {existingStudFarm && (
                                 <Button 
                                     variant="outline-danger" 
                                     type="button" 
                                     onClick={() => setShowDeleteModal(true)} 
                                     disabled={loading || deleteLoading}
-                                    className="d-flex align-items-center gap-1"
+                                    className="d-flex align-items-center justify-content-center px-3"
+                                    title="Sil"
                                 >
                                     <Trash2 size={16} />
-                                    <span>Sil</span>
                                 </Button>
-                            ) : (
-                                <div />
                             )}
-                            <div className="d-flex gap-2">
-                                <Button variant="secondary" onClick={handleClose} disabled={loading || deleteLoading}>
-                                    İptal
-                                </Button>
-                                <Button variant="primary" type="submit" disabled={loading || deleteLoading} style={{ backgroundColor: '#6f42c1', borderColor: '#6f42c1' }}>
-                                    {loading ? (existingStudFarm ? 'Güncelleniyor...' : 'Ekleniyor...') : (existingStudFarm ? 'Kaydet' : 'Ekle')}
-                                </Button>
-                            </div>
                         </div>
                     </Form>
                 </Offcanvas.Body>

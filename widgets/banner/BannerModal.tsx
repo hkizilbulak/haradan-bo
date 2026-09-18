@@ -2,6 +2,7 @@ import { Alert, Button, Col, Form, Offcanvas, Spinner } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { useState } from 'react';
+import { Trash2 } from 'react-feather';
 import ConfirmModal from '@/components/ConfirmModal';
 import { BannerRequest, BannerResponse } from '@/models';
 import { mediaService } from '@/services/media.service';
@@ -86,8 +87,10 @@ export default function BannerModal({ selectedBanner, onClose, onHandleSave, onD
       </Offcanvas.Header>
       <Offcanvas.Body>
         <Formik initialValues={values} validationSchema={validationSchema} onSubmit={onHandleSave}>
-          {({ handleSubmit, handleChange, values, setFieldValue, isValid, isSubmitting }) => (
-            <Form noValidate onSubmit={handleSubmit}>
+          {({ handleSubmit, handleChange, values, setFieldValue, isValid, isSubmitting, dirty }) => {
+            const isFormChanged = !selectedBanner ? true : dirty;
+            return (
+              <Form noValidate onSubmit={handleSubmit}>
               {(() => {
                 const context = placementContext[values.placement] || placementContext.HOMEPAGE_HERO;
                 return (
@@ -319,26 +322,29 @@ export default function BannerModal({ selectedBanner, onClose, onHandleSave, onD
               </Form.Group>
               <div className="d-flex gap-2">
                 <Button
-                  disabled={!isValid || isSubmitting || uploading || isDeleting}
+                  disabled={!isValid || isSubmitting || uploading || isDeleting || !isFormChanged}
                   variant="primary"
                   type="submit"
                   className="flex-grow-1"
                 >
-                  {selectedBanner ? 'Güncelle' : 'Ekle'}
+                  {selectedBanner ? 'Kaydet' : 'Ekle'}
                 </Button>
                 {selectedBanner && onDelete && (
                   <Button
                     type="button"
                     variant="outline-danger"
+                    className="d-flex align-items-center justify-content-center px-3"
+                    title="Sil"
                     disabled={isSubmitting || uploading || isDeleting}
                     onClick={() => setShowDeleteConfirm(true)}
                   >
-                    Sil
+                    <Trash2 size={16} />
                   </Button>
                 )}
               </div>
             </Form>
-          )}
+          );
+        }}
         </Formik>
         {selectedBanner && onDelete && (
           <ConfirmModal
