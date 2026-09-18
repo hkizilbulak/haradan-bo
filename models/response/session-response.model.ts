@@ -12,5 +12,8 @@ export interface SessionUserResponse {
 }
 
 export interface SessionResponse {
-  user: SessionUserResponse;
+  user?: SessionUserResponse;
+  requirePasswordChange?: boolean;
+  email?: string;
+  token?: string;
 }

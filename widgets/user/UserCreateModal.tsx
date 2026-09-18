@@ -23,11 +23,6 @@ export default function UserCreateModal({ onClose, onCreated }: IProps) {
     role: Yup.string().oneOf(['user', 'admin', 'CALL_CENTER']).required('Rol zorunludur'),
   });
 
-  const generatePassword = (email: string) => {
-    const prefix = email.split('@')[0] || 'kullanici';
-    return `${prefix}123`;
-  };
-
   return (
     <Modal show={true} onHide={onClose} centered backdrop="static">
       <Modal.Header closeButton>
@@ -63,8 +58,6 @@ export default function UserCreateModal({ onClose, onCreated }: IProps) {
               return;
             }
 
-            const generatedPassword = generatePassword(cleanEmail);
-
             await userService.create({
               firstName: values.firstName.trim(),
               lastName: values.lastName.trim(),
@@ -74,7 +67,7 @@ export default function UserCreateModal({ onClose, onCreated }: IProps) {
             });
 
             toast.success(
-              `Kullanıcı başarıyla oluşturuldu! Hoş geldiniz maili ve oluşturulan şifre (${generatedPassword}) e-posta adresine gönderilmiştir.`
+              'Kullanıcı başarıyla oluşturuldu! Kullanıcı ilk giriş yaptığında yeni şifresini belirleyebilecektir.'
             );
             onCreated();
             onClose();
@@ -157,8 +150,8 @@ export default function UserCreateModal({ onClose, onCreated }: IProps) {
               </Form.Group>
 
               <Alert variant="info" className="py-2 small mb-0">
-                <div className="fw-semibold mb-1">Otomatik Şifre Bilgilendirmesi</div>
-                Şifre e-postanın ön eki ve 123 birleştirilerek otomatik oluşturulacak (ör. {values.email ? generatePassword(values.email) : 'kullanici123'}) ve e-posta ile gönderilecektir.
+                <div className="fw-semibold mb-1">Şifre Bilgilendirmesi</div>
+                Kullanıcı oluşturulurken şifre atanmaz. Kullanıcı ilk girişinde kendi şifresini belirleyecektir.
               </Alert>
             </Modal.Body>
             <Modal.Footer>

@@ -44,11 +44,14 @@ type loginRequest struct {
 }
 
 type tokenResponse struct {
-	AccessToken   string `json:"accessToken"`
-	RefreshToken  string `json:"refreshToken"`
-	TokenType     string `json:"tokenType"`
-	ExpiresIn     int    `json:"expiresIn"`
-	ClientContext string `json:"clientContext,omitempty"`
+	AccessToken           string `json:"accessToken"`
+	RefreshToken          string `json:"refreshToken"`
+	TokenType             string `json:"tokenType"`
+	ExpiresIn             int    `json:"expiresIn"`
+	ClientContext         string `json:"clientContext,omitempty"`
+	RequirePasswordChange bool   `json:"requirePasswordChange,omitempty"`
+	Email                 string `json:"email,omitempty"`
+	Token                 string `json:"token,omitempty"`
 }
 
 type refreshRequest struct {
@@ -393,6 +396,15 @@ func (s *appServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var tokens tokenResponse
 	if err := json.Unmarshal(responseBody, &tokens); err != nil {
 		http.Error(w, "Invalid token response", http.StatusBadGateway)
+		return
+	}
+
+	if tokens.RequirePasswordChange {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"requirePasswordChange": true,
+			"email":                 tokens.Email,
+			"token":                 tokens.Token,
+		})
 		return
 	}
 

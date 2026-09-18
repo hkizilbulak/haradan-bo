@@ -95,6 +95,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       const nextSession = await authService.login(options.email, options.password);
+      if (nextSession.requirePasswordChange && nextSession.token) {
+        router.push(
+          `/reset-password?token=${encodeURIComponent(nextSession.token)}&email=${encodeURIComponent(options.email)}&autoLogin=true`
+        );
+        return { ok: true, error: null };
+      }
+
       if (!hasActiveAdminAccess(nextSession.user)) {
         await authService.logout();
         clearSession(false);

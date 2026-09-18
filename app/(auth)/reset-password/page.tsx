@@ -7,6 +7,7 @@ import { Formik } from "formik";
 import * as Yup from "yup";
 
 import FormTextField from "@/components/FormTextField";
+import { useAuth } from "@/context/AuthContext";
 
 interface FormData {
   password: string;
@@ -24,6 +25,7 @@ const validationSchema = Yup.object().shape({
 
 const ResetPassword = () => {
   const router = useRouter();
+  const { signIn } = useAuth();
   const [token, setToken] = useState("");
   const [tokenReady, setTokenReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +56,25 @@ const ResetPassword = () => {
     }
 
     setSuccess(true);
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get("email")?.trim();
+    const autoLogin = params.get("autoLogin") === "true";
+
+    if (autoLogin && email) {
+      window.setTimeout(async () => {
+        try {
+          await signIn("credentials", {
+            email,
+            password: values.password,
+            callbackUrl: "/",
+          });
+        } catch {
+          router.replace("/login");
+        }
+      }, 500);
+      return;
+    }
+
     window.setTimeout(() => router.replace("/login"), 1200);
   };
 
