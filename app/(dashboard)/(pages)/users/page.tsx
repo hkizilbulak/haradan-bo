@@ -183,11 +183,11 @@ export default function Users() {
         <div className="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mt-3 pt-3">
           <div className="d-flex flex-wrap align-items-center justify-content-center justify-content-md-start gap-2 text-muted small w-100 w-md-auto">
             <span className="text-nowrap fw-medium">Sayfa başına:</span>
-            <Form.Select 
-              size="sm" 
-              className="rounded-2 shadow-none border text-center fw-medium" 
-              style={{ width: '85px', minWidth: '85px', display: 'inline-block', cursor: 'pointer' }} 
-              value={parameters?.pageRequest?.size || 10} 
+            <Form.Select
+              size="sm"
+              className="rounded-2 shadow-none border text-center fw-medium"
+              style={{ width: '85px', minWidth: '85px', display: 'inline-block', cursor: 'pointer' }}
+              value={parameters?.pageRequest?.size || 10}
               onChange={(e) => setParameters({ ...parameters, pageRequest: { ...parameters.pageRequest, size: Number(e.target.value), page: 0 } })}
             >
               <option value={10}>10</option>
@@ -199,7 +199,7 @@ export default function Users() {
               Toplam <strong>{data?.page?.totalElements ?? 0}</strong> kayıt (Sayfa {(parameters?.pageRequest?.page ?? 0) + 1} / {data?.page?.totalPages ?? 1})
             </span>
           </div>
-          
+
           <div className="d-flex justify-content-center align-items-center w-100 w-md-auto overflow-auto">
             <CustomPagination page={data?.page} onPageChange={handlePageChange} />
           </div>

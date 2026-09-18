@@ -51,49 +51,29 @@ function parseFilter(filter?: string): BannerFilterParams {
 export class BannerService {
   search = async (params: SearchParams<BannerResponse>): Promise<PagedResponse<BannerResponse>> => {
     const filters = parseFilter(params.filter);
-    const limit = params.pageRequest.size ?? 10;
-    const cursorMode = params.cursor !== undefined || params.pageRequest.page !== undefined;
+    const limit = params.pageRequest?.size ?? 10;
+    const page = params.pageRequest?.page ?? 0;
 
-    // Cursor page mode (opaque cursor from caller)
-    if (cursorMode && params.cursor !== undefined) {
-      const response = await axiosInstance.get(baseUrl, {
-        params: {
-          cursor: params.cursor || undefined,
-          limit,
-          placement: filters.placement,
-          status: filters.status,
-        },
-      });
-      const data = response.data as AdminBannerListResponse;
-      const content = withIdentifiers(data.items ?? []);
-      return {
-        content,
-        page: {
-          size: limit,
-          number: params.pageRequest.page ?? 0,
-          totalElements: content.length,
-          totalPages: data.hasMore ? (params.pageRequest.page ?? 0) + 2 : (params.pageRequest.page ?? 0) + 1,
-          hasMore: Boolean(data.hasMore),
-          nextCursor: data.nextCursor ?? null,
-          cursorMode: true,
-        },
-      };
-    }
-
-    // Legacy: fetch all then slice (fallback)
-    const allItems = await this.fetchAll(filters);
-    const page = params.pageRequest.page ?? 0;
-    const size = params.pageRequest.size ?? 10;
-    const start = page * size;
-    const content = allItems.slice(start, start + size);
-
+    const response = await axiosInstance.get(baseUrl, {
+      params: {
+        cursor: params.cursor || undefined,
+        limit,
+        placement: filters.placement,
+        status: filters.status,
+      },
+    });
+    const data = response.data as AdminBannerListResponse;
+    const content = withIdentifiers(data.items ?? []);
     return {
       content,
       page: {
-        size,
-        totalElements: allItems.length,
-        totalPages: Math.max(1, Math.ceil(allItems.length / size)),
+        size: limit,
         number: page,
+        totalElements: content.length,
+        totalPages: data.hasMore ? page + 2 : page + 1,
+        hasMore: Boolean(data.hasMore),
+        nextCursor: data.nextCursor ?? null,
+        cursorMode: true,
       },
     };
   };

@@ -43,40 +43,49 @@ export default function Home() {
     const [loadingComments, setLoadingComments] = useState(true);
     const [commentActionLoading, setCommentActionLoading] = useState<string | null>(null);
 
-    useEffect(() => {
-        categoryService.search({ pageRequest: { page: 0, size: 100 } })
-            .then((res) => {
-                const map = new Map<string, string>();
-                const extract = (items: Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>) => {
-                    for (const item of items) {
-                        const id = item.identifier ?? item.id;
-                        if (id && item.name) {
-                            map.set(id, item.name);
-                        }
-                        if (item.children && Array.isArray(item.children)) {
-                            extract(item.children as Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>);
-                        }
+    const loadCategories = async () => {
+        try {
+            const res = await categoryService.search({ pageRequest: { page: 0, size: 100 } });
+            const map = new Map<string, string>();
+            const extract = (items: Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>) => {
+                for (const item of items) {
+                    const id = item.identifier ?? item.id;
+                    if (id && item.name) {
+                        map.set(id, item.name);
                     }
-                };
-                if (res?.content) {
-                    extract(res.content as Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>);
+                    if (item.children && Array.isArray(item.children)) {
+                        extract(item.children as Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>);
+                    }
                 }
-                setCategoryMap(map);
-            })
-            .catch(() => { });
-    }, []);
+            };
+            if (res?.content) {
+                extract(res.content as Array<{ identifier?: string; id?: string; name?: string; children?: unknown[] }>);
+            }
+            setCategoryMap(map);
+        } catch { }
+    };
 
     const loadDashboardData = async () => {
         setLoadingStats(true);
         try {
-            const [pendingAdvertsRes, publishedAdvertsRes, usersRes, packagesRes, jobsRes, tjkRes, bannersRes] = await Promise.allSettled([
+            const [
+                pendingAdvertsRes,
+                publishedAdvertsRes,
+                activeUsersRes,
+                totalUsersRes,
+                packagesRes,
+                jobsRes,
+                tjkRes,
+                bannersRes,
+            ] = await Promise.allSettled([
                 advertService.search({ filter: 'status==PENDING_REVIEW', pageRequest: { page: 0, size: 5 } }),
-                advertService.search({ filter: 'status==PUBLISHED', pageRequest: { page: 0, size: 10 } }),
-                userService.fetchAll(),
-                packageService.search({ pageRequest: { page: 0, size: 100 } }),
-                jobService.search({ pageRequest: { page: 0, size: 100 } }),
+                advertService.search({ filter: 'status==PUBLISHED', pageRequest: { page: 0, size: 1 } }),
+                userService.search({ filter: 'status==ACTIVE', pageRequest: { page: 0, size: 1 } }),
+                userService.search({ pageRequest: { page: 0, size: 1 } }),
+                packageService.search({ pageRequest: { page: 0, size: 1 } }),
+                jobService.search({ pageRequest: { page: 0, size: 1 } }),
                 tjkService.search({ pageRequest: { page: 0, size: 10 } }),
-                bannerService.search({ filter: 'status==ACTIVE', pageRequest: { page: 0, size: 100 } }),
+                bannerService.search({ filter: 'status==ACTIVE', pageRequest: { page: 0, size: 1 } }),
             ]);
 
             let pendingCount = 0;
@@ -91,30 +100,41 @@ export default function Home() {
                 activeAdvCount = publishedAdvertsRes.value.page?.totalElements || (publishedAdvertsRes.value.content || []).length;
             }
 
-            let uCount = 0;
             let activeUserCount = 0;
-            if (usersRes.status === 'fulfilled') {
-                const userList = usersRes.value || [];
-                uCount = userList.length;
-                activeUserCount = userList.filter((u) => u.status === 'ACTIVE').length;
+            if (activeUsersRes.status === 'fulfilled') {
+                activeUserCount = activeUsersRes.value.page?.totalElements || (activeUsersRes.value.content || []).length;
+            }
 
-                const uMap = new Map<string, { name?: string; email?: string }>();
-                for (const u of userList) {
-                    const id = u.identifier ?? u.id;
-                    if (id) {
-                        const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
-                        const info = { name: fullName || undefined, email: u.email || undefined };
-                        uMap.set(id, info);
-                        uMap.set(id.toLowerCase(), info);
+            let uCount = 0;
+            if (totalUsersRes.status === 'fulfilled') {
+                uCount = totalUsersRes.value.page?.totalElements || (totalUsersRes.value.content || []).length;
+            }
+
+            // Fetch owner account details for only the 5 pending adverts
+            const uniqueOwnerIds = Array.from(new Set(advertList.map(a => a.ownerUserId).filter(Boolean))) as string[];
+            const uMap = new Map<string, { name?: string; email?: string }>();
+            const defaultAdmin = {
+                name: 'Sistem Yöneticisi',
+                email: 'admin@haradan.com',
+            };
+            uMap.set('u1000000-0000-4000-8000-000000000001', defaultAdmin);
+
+            if (uniqueOwnerIds.length > 0) {
+                const ownerResults = await Promise.allSettled(uniqueOwnerIds.map(id => userService.getById(id)));
+                for (const res of ownerResults) {
+                    if (res.status === 'fulfilled' && res.value) {
+                        const u = res.value;
+                        const id = u.identifier ?? u.id;
+                        if (id) {
+                            const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+                            const info = { name: fullName || undefined, email: u.email || undefined };
+                            uMap.set(id, info);
+                            uMap.set(id.toLowerCase(), info);
+                        }
                     }
                 }
-                const defaultAdmin = {
-                    name: 'Sistem Yöneticisi',
-                    email: 'admin@haradan.com',
-                };
-                uMap.set('u1000000-0000-4000-8000-000000000001', defaultAdmin);
-                setUserMap(uMap);
             }
+            setUserMap(uMap);
 
             let pCount = 0;
             if (packagesRes.status === 'fulfilled') {
@@ -142,7 +162,7 @@ export default function Home() {
             let todayLogins = 0;
             if (session?.user?.id) {
                 try {
-                    const events = await userService.getSecurityEvents(session.user.id);
+                    const events = await userService.getSecurityEvents(session.user.id, 50);
                     const todayStr = new Date().toISOString().slice(0, 10);
                     const todayEvents = events.filter(
                         (e) => e.eventType === 'LOGIN_SUCCESS' && e.createdAt && e.createdAt.startsWith(todayStr)
@@ -189,9 +209,21 @@ export default function Home() {
     };
 
     useEffect(() => {
-        void loadDashboardData();
-        void loadPendingComments();
-    }, []);
+        let isMounted = true;
+        const init = async () => {
+            if (!isMounted) return;
+            await Promise.all([
+                loadDashboardData(),
+                loadPendingComments(),
+                loadCategories(),
+            ]);
+        };
+        void init();
+        return () => {
+            isMounted = false;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [session?.user?.id]);
 
     const handleApproveComment = async (id: string) => {
         setCommentActionLoading(id);

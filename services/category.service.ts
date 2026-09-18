@@ -730,6 +730,10 @@ class CategoryService {
     }
 
     private async fetchAll(): Promise<AdminCategoryItem[]> {
+        if (this.categoriesCache && this.categoriesCache.length > 0) {
+            return this.categoriesCache;
+        }
+
         try {
             let hasMore = true;
             let cursor: string | undefined = undefined;

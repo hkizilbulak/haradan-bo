@@ -1,3 +1,4 @@
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Button, Card, Col, Form, Row, Dropdown } from 'react-bootstrap';
 import { useFormik } from 'formik';
 import { appendOperator } from '@/helpers/HelperUtils';
@@ -26,6 +27,8 @@ type IProps = {
 };
 
 export default function UserFilter({ onFilter }: IProps) {
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const formik = useFormik({
     initialValues,
     onSubmit: (values) => {
@@ -54,7 +57,27 @@ export default function UserFilter({ onFilter }: IProps) {
     },
   });
 
+  const debouncedSubmit = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      formik.submitForm();
+    }, 300);
+  }, [formik]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleReset = () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
     formik.resetForm();
     onFilter('');
   };
@@ -71,7 +94,7 @@ export default function UserFilter({ onFilter }: IProps) {
                 name="firstName"
                 onChange={(e) => {
                   formik.handleChange(e);
-                  formik.submitForm();
+                  debouncedSubmit();
                 }}
                 value={formik.values.firstName ?? ''}
                 placeholder="İsim ile ara"
@@ -85,7 +108,7 @@ export default function UserFilter({ onFilter }: IProps) {
                 name="lastName"
                 onChange={(e) => {
                   formik.handleChange(e);
-                  formik.submitForm();
+                  debouncedSubmit();
                 }}
                 value={formik.values.lastName ?? ''}
                 placeholder="Soyisim ile ara"
@@ -100,7 +123,7 @@ export default function UserFilter({ onFilter }: IProps) {
                 name="email"
                 onChange={(e) => {
                   formik.handleChange(e);
-                  formik.submitForm();
+                  debouncedSubmit();
                 }}
                 value={formik.values.email ?? ''}
                 placeholder="E-posta ile ara"
@@ -114,7 +137,7 @@ export default function UserFilter({ onFilter }: IProps) {
                 name="phone"
                 onChange={(e) => {
                   formik.handleChange(e);
-                  formik.submitForm();
+                  debouncedSubmit();
                 }}
                 value={formik.values.phone ?? ''}
                 placeholder="Telefon ile ara"

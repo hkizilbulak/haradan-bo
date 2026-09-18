@@ -82,48 +82,40 @@ function parseFilter(filter?: string): UserFilterParams {
 export class UserService {
   search = async (params: SearchParams<UserResponse>): Promise<PagedResponse<UserResponse>> => {
     const filters = parseFilter(params.filter);
-    const limit = params.pageRequest.size ?? 10;
+    const limit = params.pageRequest?.size ?? 10;
+    const page = params.pageRequest?.page ?? 0;
+    const offset = page * limit;
 
-    if (params.cursor !== undefined) {
-      const response = await axiosInstance.get(baseUrl, {
-        params: {
-          cursor: params.cursor || undefined,
-          limit,
-          q: filters.q,
-          role: filters.role,
-          status: filters.status,
-        },
-      });
-      const data = response.data as AdminUserListResponse;
-      const content = withIdentifiers(data.items ?? []);
-      const pageNumber = params.pageRequest.page ?? 0;
-      return {
-        content,
-        page: {
-          size: limit,
-          number: pageNumber,
-          totalElements: data.totalCount ?? content.length,
-          totalPages: data.totalCount ? Math.max(1, Math.ceil(data.totalCount / limit)) : (data.hasMore ? pageNumber + 2 : pageNumber + 1),
-          hasMore: Boolean(data.hasMore),
-          nextCursor: data.nextCursor ?? null,
-          cursorMode: true,
-        },
-      };
-    }
+    const searchTerms = [filters.q, filters.firstName, filters.lastName, filters.email, filters.phone]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
 
-    const allItems = await this.fetchAll(filters);
-    const page = params.pageRequest.page ?? 0;
-    const size = params.pageRequest.size ?? 10;
-    const start = page * size;
-    const content = allItems.slice(start, start + size);
+    const response = await axiosInstance.get(baseUrl, {
+      params: {
+        cursor: params.cursor || undefined,
+        limit,
+        offset,
+        q: searchTerms || undefined,
+        role: filters.role || undefined,
+        status: filters.status || undefined,
+      },
+    });
+
+    const data = response.data as AdminUserListResponse;
+    const content = withIdentifiers(data.items ?? []);
+    const totalElements = data.totalCount ?? content.length;
+    const totalPages = Math.max(1, Math.ceil(totalElements / limit));
 
     return {
       content,
       page: {
-        size,
-        totalElements: allItems.length,
-        totalPages: Math.max(1, Math.ceil(allItems.length / size)),
+        size: limit,
         number: page,
+        totalElements,
+        totalPages,
+        hasMore: Boolean(data.hasMore),
+        nextCursor: data.nextCursor ?? null,
       },
     };
   };
@@ -131,8 +123,11 @@ export class UserService {
   fetchAll = async (params: UserFilterParams = {}): Promise<UserResponse[]> => {
     const items: AdminUserListItem[] = [];
     let cursor: string | undefined;
+    let iterations = 0;
+    const maxIterations = 50;
 
-    while (true) {
+    while (iterations < maxIterations) {
+      iterations++;
       const response = await axiosInstance.get(baseUrl, {
         params: {
           cursor,
@@ -146,7 +141,7 @@ export class UserService {
       const data = response.data as AdminUserListResponse;
       items.push(...(data.items ?? []));
 
-      if (!data.hasMore || !data.nextCursor) {
+      if (!data.hasMore || !data.nextCursor || data.nextCursor === cursor) {
         break;
       }
 
@@ -299,20 +294,12 @@ export class UserService {
     };
   };
 
-  getSecurityEvents = async (userId: string): Promise<SecurityEvent[]> => {
-    const items: SecurityEvent[] = [];
-    let cursor: string | undefined;
-    while (true) {
-      const response = await axiosInstance.get(`${baseUrl}/${userId}/security-events`, {
-        params: { cursor, limit: 50 },
-      });
-      const data = response.data as SecurityEventListResponse;
-      items.push(...data.items);
-      if (!data.hasMore || !data.nextCursor) {
-        return items;
-      }
-      cursor = data.nextCursor;
-    }
+  getSecurityEvents = async (userId: string, limit = 50): Promise<SecurityEvent[]> => {
+    const response = await axiosInstance.get(`${baseUrl}/${userId}/security-events`, {
+      params: { limit },
+    });
+    const data = response.data as SecurityEventListResponse;
+    return data.items ?? [];
   };
 
   getConsentLogs = async (userId: string): Promise<UserConsentLog[]> => {

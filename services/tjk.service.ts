@@ -66,40 +66,27 @@ async function fetchAllRuns(status?: string): Promise<TjkRunResponse[]> {
 
 export class TjkService {
   search = async (params: SearchParams<TjkRunResponse>): Promise<PagedResponse<TjkRunResponse>> => {
-    const limit = params.pageRequest.size ?? 10;
+    const limit = params.pageRequest?.size ?? 10;
+    const page = params.pageRequest?.page ?? 0;
 
-    if (params.cursor !== undefined) {
-      const response = await axiosInstance.get(baseUrl, {
-        params: {
-          cursor: params.cursor || undefined,
-          limit,
-        },
-      });
-      const data = response.data as TjkRunListResponse;
-      const content = data.items ?? [];
-      const pageNumber = params.pageRequest.page ?? 0;
-      return {
-        content,
-        page: {
-          size: limit,
-          number: pageNumber,
-          totalElements: content.length,
-          totalPages: data.hasMore ? pageNumber + 2 : pageNumber + 1,
-          hasMore: Boolean(data.hasMore),
-          nextCursor: data.nextCursor ?? null,
-          cursorMode: true,
-        },
-      };
-    }
-
-    const content = await fetchAllRuns(undefined);
+    const response = await axiosInstance.get(baseUrl, {
+      params: {
+        cursor: params.cursor || undefined,
+        limit,
+      },
+    });
+    const data = response.data as TjkRunListResponse;
+    const content = data.items ?? [];
     return {
       content,
       page: {
-        size: content.length,
+        size: limit,
+        number: page,
         totalElements: content.length,
-        totalPages: 1,
-        number: 0,
+        totalPages: data.hasMore ? page + 2 : page + 1,
+        hasMore: Boolean(data.hasMore),
+        nextCursor: data.nextCursor ?? null,
+        cursorMode: true,
       },
     };
   };
