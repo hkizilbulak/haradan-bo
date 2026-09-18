@@ -1,5 +1,6 @@
 "use client"
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button, Col, Container, Form, Modal, Row, Badge, Table, Alert, Nav, Card } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import Loading from '@/components/Loading';
@@ -25,8 +26,11 @@ type OwnerAccountInfo = {
   email?: string;
 };
 
-export default function Adverts() {
-  const [tab, setTab] = useState<'published' | 'unpublished'>('unpublished');
+function AdvertsContent() {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialTab = tabParam === 'published' ? 'published' : 'unpublished';
+  const [tab, setTab] = useState<'published' | 'unpublished'>(initialTab);
   const [pendingAction, setPendingAction] = useState<{
     advert: ModerationAdvertResponse;
     action: 'reject' | 'requestChanges' | 'suspend';
@@ -95,10 +99,18 @@ export default function Adverts() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (tabParam === 'published' && tab !== 'published') {
+      setTab('published');
+    } else if (tabParam === 'unpublished' && tab !== 'unpublished') {
+      setTab('unpublished');
+    }
+  }, [tabParam]);
+
   const [{ data, parameters, isLoading, isError, handleFilter, handlePageChange, setParameters, refetch }] = useApi<ModerationAdvertResponse>({
     service: advertService,
     params: {
-      filter: 'status==UNPUBLISHED',
+      filter: initialTab === 'published' ? 'status==PUBLISHED' : 'status==UNPUBLISHED',
       pageRequest: { page: 0, size: 10, sort: [{ direction: 'DESC', property: 'createdDate' }] },
     } as any,
   });
@@ -697,3 +709,12 @@ export default function Adverts() {
     </Container>
   );
 }
+
+export default function Adverts() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <AdvertsContent />
+    </Suspense>
+  );
+}
+

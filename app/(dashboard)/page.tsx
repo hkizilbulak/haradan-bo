@@ -327,83 +327,89 @@ export default function Home() {
                         <Row className="g-3 mb-3">
                             {/* Kart 1: Aktif İlan Sayısı */}
                             <Col md={4} sm={12}>
-                                <div
-                                    className="p-3 d-flex align-items-center gap-3 h-100"
-                                    style={{
-                                        backgroundColor: '#eff2fe',
-                                        borderRadius: '14px',
-                                        border: '1px solid #dce4fd'
-                                    }}
-                                >
+                                <Link href="/listings?tab=published" className="text-decoration-none d-block h-100">
                                     <div
-                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                                        style={{ width: '48px', height: '48px', backgroundColor: '#dbe4fc', color: '#4f46e5' }}
+                                        className="p-3 d-flex align-items-center gap-3 h-100 dashboard-stat-card"
+                                        style={{
+                                            backgroundColor: '#eff2fe',
+                                            borderRadius: '14px',
+                                            border: '1px solid #dce4fd'
+                                        }}
                                     >
-                                        <i className="fe fe-file-text fs-4"></i>
+                                        <div
+                                            className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                            style={{ width: '48px', height: '48px', backgroundColor: '#dbe4fc', color: '#4f46e5' }}
+                                        >
+                                            <i className="fe fe-file-text fs-4"></i>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="d-block text-secondary fw-semibold small mb-1" style={{ fontSize: '0.85rem' }}>
+                                                Aktif İlanlar
+                                            </span>
+                                            <h3 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.85rem' }}>
+                                                {loadingStats ? <Skeleton width="50px" height="32px" /> : stats.activeAdvertsCount}
+                                            </h3>
+                                        </div>
                                     </div>
-                                    <div className="min-w-0">
-                                        <span className="d-block text-secondary fw-semibold small mb-1" style={{ fontSize: '0.85rem' }}>
-                                            Aktif İlanlar
-                                        </span>
-                                        <h3 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.85rem' }}>
-                                            {loadingStats ? <Skeleton width="50px" height="32px" /> : stats.activeAdvertsCount}
-                                        </h3>
-                                    </div>
-                                </div>
+                                </Link>
                             </Col>
 
                             {/* Kart 2: Aktif Kullanıcı Sayısı */}
                             <Col md={4} sm={12}>
-                                <div
-                                    className="p-3 d-flex align-items-center gap-3 h-100"
-                                    style={{
-                                        backgroundColor: '#eff2fe',
-                                        borderRadius: '14px',
-                                        border: '1px solid #dce4fd'
-                                    }}
-                                >
+                                <Link href="/users" className="text-decoration-none d-block h-100">
                                     <div
-                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                                        style={{ width: '48px', height: '48px', backgroundColor: '#dbe4fc', color: '#4f46e5' }}
+                                        className="p-3 d-flex align-items-center gap-3 h-100 dashboard-stat-card"
+                                        style={{
+                                            backgroundColor: '#eff2fe',
+                                            borderRadius: '14px',
+                                            border: '1px solid #dce4fd'
+                                        }}
                                     >
-                                        <i className="fe fe-users fs-4"></i>
+                                        <div
+                                            className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                            style={{ width: '48px', height: '48px', backgroundColor: '#dbe4fc', color: '#4f46e5' }}
+                                        >
+                                            <i className="fe fe-users fs-4"></i>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="d-block text-secondary fw-semibold small mb-1" style={{ fontSize: '0.85rem' }}>
+                                                Aktif Kullanıcılar
+                                            </span>
+                                            <h3 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.85rem' }}>
+                                                {loadingStats ? <Skeleton width="50px" height="32px" /> : stats.activeUsersCount}
+                                            </h3>
+                                        </div>
                                     </div>
-                                    <div className="min-w-0">
-                                        <span className="d-block text-secondary fw-semibold small mb-1" style={{ fontSize: '0.85rem' }}>
-                                            Aktif Kullanıcılar
-                                        </span>
-                                        <h3 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.85rem' }}>
-                                            {loadingStats ? <Skeleton width="50px" height="32px" /> : stats.activeUsersCount}
-                                        </h3>
-                                    </div>
-                                </div>
+                                </Link>
                             </Col>
 
                             {/* Kart 3: Günlük Başarılı Login Sayısı */}
                             <Col md={4} sm={12}>
-                                <div
-                                    className="p-3 d-flex align-items-center gap-3 h-100"
-                                    style={{
-                                        backgroundColor: '#eff2fe',
-                                        borderRadius: '14px',
-                                        border: '1px solid #dce4fd'
-                                    }}
-                                >
+                                <Link href="/users" className="text-decoration-none d-block h-100">
                                     <div
-                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                                        style={{ width: '48px', height: '48px', backgroundColor: '#dbe4fc', color: '#4f46e5' }}
+                                        className="p-3 d-flex align-items-center gap-3 h-100 dashboard-stat-card"
+                                        style={{
+                                            backgroundColor: '#eff2fe',
+                                            borderRadius: '14px',
+                                            border: '1px solid #dce4fd'
+                                        }}
                                     >
-                                        <i className="fe fe-check-circle fs-4"></i>
+                                        <div
+                                            className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                            style={{ width: '48px', height: '48px', backgroundColor: '#dbe4fc', color: '#4f46e5' }}
+                                        >
+                                            <i className="fe fe-check-circle fs-4"></i>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="d-block text-secondary fw-semibold small mb-1" style={{ fontSize: '0.85rem' }}>
+                                                Günlük Başarılı Giriş
+                                            </span>
+                                            <h3 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.85rem' }}>
+                                                {loadingStats ? <Skeleton width="50px" height="32px" /> : stats.dailySuccessfulLogins}
+                                            </h3>
+                                        </div>
                                     </div>
-                                    <div className="min-w-0">
-                                        <span className="d-block text-secondary fw-semibold small mb-1" style={{ fontSize: '0.85rem' }}>
-                                            Günlük Başarılı Giriş
-                                        </span>
-                                        <h3 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.85rem' }}>
-                                            {loadingStats ? <Skeleton width="50px" height="32px" /> : stats.dailySuccessfulLogins}
-                                        </h3>
-                                    </div>
-                                </div>
+                                </Link>
                             </Col>
                         </Row>
 
@@ -411,118 +417,126 @@ export default function Home() {
                         <Row className="g-3">
                             {/* Kart 1: Onay Bekleyen İlanlar */}
                             <Col lg={3} sm={6} xs={12}>
-                                <div 
-                                    className="d-flex align-items-center gap-3 h-100"
-                                    style={{ 
-                                        backgroundColor: '#fff1f5', 
-                                        borderRadius: '12px',
-                                        border: '1px solid #fce7ef',
-                                        minHeight: '68px',
-                                        padding: '14px 18px'
-                                    }}
-                                >
+                                <Link href="/listings?tab=unpublished" className="text-decoration-none d-block h-100">
                                     <div 
-                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                                        style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                        className="d-flex align-items-center gap-3 h-100 dashboard-stat-card-rose"
+                                        style={{ 
+                                            backgroundColor: '#fff1f5', 
+                                            borderRadius: '12px',
+                                            border: '1px solid #fce7ef',
+                                            minHeight: '68px',
+                                            padding: '14px 18px'
+                                        }}
                                     >
-                                        <i className="fe fe-clock fs-5"></i>
+                                        <div 
+                                            className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                            style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                        >
+                                            <i className="fe fe-clock fs-5"></i>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
+                                                Onay Bekleyen İlanlar
+                                            </span>
+                                            <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
+                                                {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.pendingAdvertsCount}
+                                            </h4>
+                                        </div>
                                     </div>
-                                    <div className="min-w-0">
-                                        <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
-                                            Onay Bekleyen İlanlar
-                                        </span>
-                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
-                                            {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.pendingAdvertsCount}
-                                        </h4>
-                                    </div>
-                                </div>
+                                </Link>
                             </Col>
 
                             {/* Kart 2: Tanımlı Paketler */}
                             <Col lg={3} sm={6} xs={12}>
-                                <div 
-                                    className="d-flex align-items-center gap-3 h-100"
-                                    style={{ 
-                                        backgroundColor: '#fff1f5', 
-                                        borderRadius: '12px',
-                                        border: '1px solid #fce7ef',
-                                        minHeight: '68px',
-                                        padding: '14px 18px'
-                                    }}
-                                >
+                                <Link href="/packages" className="text-decoration-none d-block h-100">
                                     <div 
-                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                                        style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                        className="d-flex align-items-center gap-3 h-100 dashboard-stat-card-rose"
+                                        style={{ 
+                                            backgroundColor: '#fff1f5', 
+                                            borderRadius: '12px',
+                                            border: '1px solid #fce7ef',
+                                            minHeight: '68px',
+                                            padding: '14px 18px'
+                                        }}
                                     >
-                                        <i className="fe fe-package fs-5"></i>
+                                        <div 
+                                            className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                            style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                        >
+                                            <i className="fe fe-package fs-5"></i>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
+                                                Aktif Paketler
+                                            </span>
+                                            <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
+                                                {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.totalPackages}
+                                            </h4>
+                                        </div>
                                     </div>
-                                    <div className="min-w-0">
-                                        <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
-                                            Aktif Paketler
-                                        </span>
-                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
-                                            {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.totalPackages}
-                                        </h4>
-                                    </div>
-                                </div>
+                                </Link>
                             </Col>
 
                             {/* Kart 3: Aktif Bannerlar */}
                             <Col lg={3} sm={6} xs={12}>
-                                <div 
-                                    className="d-flex align-items-center gap-3 h-100"
-                                    style={{ 
-                                        backgroundColor: '#fff1f5', 
-                                        borderRadius: '12px',
-                                        border: '1px solid #fce7ef',
-                                        minHeight: '68px',
-                                        padding: '14px 18px'
-                                    }}
-                                >
+                                <Link href="/banners" className="text-decoration-none d-block h-100">
                                     <div 
-                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                                        style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                        className="d-flex align-items-center gap-3 h-100 dashboard-stat-card-rose"
+                                        style={{ 
+                                            backgroundColor: '#fff1f5', 
+                                            borderRadius: '12px',
+                                            border: '1px solid #fce7ef',
+                                            minHeight: '68px',
+                                            padding: '14px 18px'
+                                        }}
                                     >
-                                        <i className="fe fe-layout fs-5"></i>
+                                        <div 
+                                            className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                            style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                        >
+                                            <i className="fe fe-layout fs-5"></i>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
+                                                Aktif Bannerlar
+                                            </span>
+                                            <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
+                                                {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.activeBanners}
+                                            </h4>
+                                        </div>
                                     </div>
-                                    <div className="min-w-0">
-                                        <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
-                                            Aktif Bannerlar
-                                        </span>
-                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
-                                            {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.activeBanners}
-                                        </h4>
-                                    </div>
-                                </div>
+                                </Link>
                             </Col>
 
                             {/* Kart 4: Zamanlanmış & TJK İşleri */}
                             <Col lg={3} sm={6} xs={12}>
-                                <div 
-                                    className="d-flex align-items-center gap-3 h-100"
-                                    style={{ 
-                                        backgroundColor: '#fff1f5', 
-                                        borderRadius: '12px',
-                                        border: '1px solid #fce7ef',
-                                        minHeight: '68px',
-                                        padding: '14px 18px'
-                                    }}
-                                >
+                                <Link href="/jobs" className="text-decoration-none d-block h-100">
                                     <div 
-                                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                                        style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                        className="d-flex align-items-center gap-3 h-100 dashboard-stat-card-rose"
+                                        style={{ 
+                                            backgroundColor: '#fff1f5', 
+                                            borderRadius: '12px',
+                                            border: '1px solid #fce7ef',
+                                            minHeight: '68px',
+                                            padding: '14px 18px'
+                                        }}
                                     >
-                                        <i className="fe fe-cpu fs-5"></i>
+                                        <div 
+                                            className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                            style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                        >
+                                            <i className="fe fe-cpu fs-5"></i>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
+                                                Zamanlanmış / TJK İşleri
+                                            </span>
+                                            <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
+                                                {loadingStats ? <Skeleton width="30px" height="24px" /> : (stats.totalJobs + stats.activeTjkRuns)}
+                                            </h4>
+                                        </div>
                                     </div>
-                                    <div className="min-w-0">
-                                        <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
-                                            Zamanlanmış / TJK İşleri
-                                        </span>
-                                        <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
-                                            {loadingStats ? <Skeleton width="30px" height="24px" /> : (stats.totalJobs + stats.activeTjkRuns)}
-                                        </h4>
-                                    </div>
-                                </div>
+                                </Link>
                             </Col>
                         </Row>
                     </Card.Body>
