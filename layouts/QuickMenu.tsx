@@ -23,7 +23,7 @@ const QuickMenu = () => {
         <>
             <Dropdown.Item as="div" className="px-2 pb-0 pt-2" bsPrefix=' '>
                 <div className="lh-1 text-center">
-                    <h5 className="mb-1">{`${session?.user.firstName ?? ''} ${session?.user.lastName ?? ''}`.trim()}</h5>
+                    <h5 className="mb-1">{`${session?.user?.firstName ?? ''} ${session?.user?.lastName ?? ''}`.trim()}</h5>
                 </div>
                 <div className=" dropdown-divider mt-3 mb-2"></div>
             </Dropdown.Item>

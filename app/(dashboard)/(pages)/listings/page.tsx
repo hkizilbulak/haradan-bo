@@ -105,7 +105,7 @@ function AdvertsContent() {
     } else if (tabParam === 'unpublished' && tab !== 'unpublished') {
       setTab('unpublished');
     }
-  }, [tabParam]);
+  }, [tabParam, tab]);
 
   const [{ data, parameters, isLoading, isError, handleFilter, handlePageChange, setParameters, refetch }] = useApi<ModerationAdvertResponse>({
     service: advertService,

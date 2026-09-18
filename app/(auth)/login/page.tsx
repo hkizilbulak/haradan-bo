@@ -17,17 +17,20 @@ interface FormData {
 
 const SignIn = () => {
   const hasMounted = useMounted();
-  const { data: session } = useSession();
-  const { signIn } = useAuth();
+  const { signIn, hasAdminAccess, session } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    if (session?.user.role === "admin" && session.user.status === "ACTIVE") {
-      router.replace("/");
+    if (hasAdminAccess) {
+      if (session?.user?.role === "CALL_CENTER") {
+        router.replace("/stud-farms");
+      } else {
+        router.replace("/");
+      }
     }
-  }, [router, session]);
+  }, [router, hasAdminAccess, session?.user?.role]);
 
   const initialValues: FormData = {
     email: "",
