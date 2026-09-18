@@ -28,26 +28,21 @@ export default function Users() {
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleteUserTarget, setDeleteUserTarget] = useState<UserResponse | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const handleConfirmDelete = async () => {
     if (!deleteUserTarget) return;
     const userId = deleteUserTarget.identifier ?? deleteUserTarget.id;
+    setDeleting(true);
     try {
-      await userService.changeStatus(userId, {
-        identifier: userId,
-        firstName: deleteUserTarget.firstName,
-        lastName: deleteUserTarget.lastName,
-        email: deleteUserTarget.email,
-        expectedCurrentRole: deleteUserTarget.role,
-        newRole: deleteUserTarget.role,
-        expectedCurrentStatus: deleteUserTarget.status,
-        newStatus: 'DISABLED',
-      });
-      toast.success('Kullanıcı durumu Pasif olarak güncellendi.');
+      await userService.delete(userId);
+      toast.success('Kullanıcı veritabanından tamamen silindi.');
       setDeleteUserTarget(null);
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -86,7 +81,11 @@ export default function Users() {
 
       {deleteUserTarget && (
         <DeleteModal
-          onClose={() => setDeleteUserTarget(null)}
+          title="Kullanıcıyı Sil"
+          message={`"${deleteUserTarget.firstName} ${deleteUserTarget.lastName}" (${deleteUserTarget.email}) adlı kullanıcıyı silmek istediğinize emin misiniz? Bu işlem geri alınamaz ve kullanıcı veritabanından tamamen silinecektir.`}
+          confirmText="Evet, Kullanıcıyı Sil"
+          isLoading={deleting}
+          onClose={() => !deleting && setDeleteUserTarget(null)}
           onHandleDelete={handleConfirmDelete}
         />
       )}
@@ -155,7 +154,7 @@ export default function Users() {
                                   className="d-inline-flex align-items-center justify-content-center p-0"
                                   style={{ width: '28px', height: '28px' }}
                                   title="Sil"
-                                  aria-label="Kullanıcıyı pasife al"
+                                  aria-label="Kullanıcıyı sil"
                                   onClick={() => setDeleteUserTarget(user)}
                                 >
                                   <Trash2 size={14} />

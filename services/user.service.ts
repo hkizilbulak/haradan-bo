@@ -212,6 +212,10 @@ export class UserService {
     });
   };
 
+  delete = async (userId: string): Promise<void> => {
+    await axiosInstance.delete(`${baseUrl}/${userId}`);
+  };
+
   getById = async (userId: string): Promise<UserResponse> => {
     const response = await axiosInstance.get(`${baseUrl}/${userId}`);
     const data = response.data as AdminUserListItem & {
