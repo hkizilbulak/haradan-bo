@@ -1,9 +1,8 @@
 "use client";
 import React, { useState } from 'react';
 import StatusBadge from '@/components/StatusBadge';
-import DeleteModal from '@/components/DeleteModal';
 import { formatDateForText } from '@/helpers/DateUtils';
-import { capitalizeSentence, getErrorMessage } from '@/helpers/HelperUtils';
+import { capitalizeSentence } from '@/helpers/HelperUtils';
 import { getUserRoleText } from '@/helpers/EnumUtils';
 import useApi from '@/hooks/useApi';
 import { UserResponse } from '@/models';
@@ -13,11 +12,9 @@ import UserFilter from '@/widgets/user/UserFilter';
 import UserCreateModal from '@/widgets/user/UserCreateModal';
 import UserDetailOffcanvas from '@/widgets/user/UserDetailOffcanvas';
 import CustomPagination from '@/components/Pagination';
-import { Form } from 'react-bootstrap';
+import { Form, Col, Row, Container, Card, Table, Button, Alert } from 'react-bootstrap';
 import { Skeleton } from '@/components/Skeleton';
-import { Col, Row, Container, Card, Table, Button, Alert } from 'react-bootstrap';
-import { Eye, Trash2 } from 'react-feather';
-import { toast } from 'react-toastify';
+import { Edit } from 'react-feather';
 
 export default function Users() {
   const [{ data, parameters, isLoading, isError, handleFilter, handlePageChange, setParameters, refetch }] = useApi<UserResponse>({
@@ -27,24 +24,6 @@ export default function Users() {
   const [openFilter, setOpenFilter] = useState(true);
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [deleteUserTarget, setDeleteUserTarget] = useState<UserResponse | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  const handleConfirmDelete = async () => {
-    if (!deleteUserTarget) return;
-    const userId = deleteUserTarget.identifier ?? deleteUserTarget.id;
-    setDeleting(true);
-    try {
-      await userService.delete(userId);
-      toast.success('Kullanıcı veritabanından tamamen silindi.');
-      setDeleteUserTarget(null);
-      refetch();
-    } catch (error) {
-      toast.error(getErrorMessage(error));
-    } finally {
-      setDeleting(false);
-    }
-  };
 
   const rows = data?.content ?? [];
 
@@ -79,17 +58,6 @@ export default function Users() {
         />
       )}
 
-      {deleteUserTarget && (
-        <DeleteModal
-          title="Kullanıcıyı Sil"
-          message={`"${deleteUserTarget.firstName} ${deleteUserTarget.lastName}" (${deleteUserTarget.email}) adlı kullanıcıyı silmek istediğinize emin misiniz? Bu işlem geri alınamaz ve kullanıcı veritabanından tamamen silinecektir.`}
-          confirmText="Evet, Kullanıcıyı Sil"
-          isLoading={deleting}
-          onClose={() => !deleting && setDeleteUserTarget(null)}
-          onHandleDelete={handleConfirmDelete}
-        />
-      )}
-
       {isError && (
         <Alert variant="danger" className="d-flex justify-content-between align-items-center mb-3">
           <span>Kullanıcılar yüklenirken bir hata oluştu.</span>
@@ -111,7 +79,7 @@ export default function Users() {
                         <th style={{ width: '15%' }}>ROL</th>
                         <th style={{ width: '15%' }}>DURUM</th>
                         <th style={{ width: '10%' }}>KAYIT TARİHİ</th>
-                        <th className="text-end" style={{ width: '10%' }}>İŞLEMLER</th>
+                        <th className="text-center" style={{ width: '10%' }}>İŞLEMLER</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -123,7 +91,7 @@ export default function Users() {
                             <td><Skeleton width="50%" height="1rem" /></td>
                             <td><Skeleton width="40%" height="1rem" /></td>
                             <td><Skeleton width="50%" height="1rem" /></td>
-                            <td className="text-end"><Skeleton width="60px" height="1rem" /></td>
+                            <td className="text-center"><Skeleton width="28px" height="28px" className="mx-auto" /></td>
                           </tr>
                         ))
                       ) : rows.length > 0 ? (
@@ -138,26 +106,16 @@ export default function Users() {
                               <td>{getUserRoleText(user.role)}</td>
                               <td><StatusBadge status={user.status} /></td>
                               <td>{formatDateForText(user.createdAt)}</td>
-                              <td className="text-end">
+                              <td className="text-center">
                                 <Button
-                                  variant="outline-info"
-                                  className="me-2 d-inline-flex align-items-center justify-content-center p-0"
-                                  style={{ width: '28px', height: '28px' }}
-                                  title="Detay"
-                                  aria-label="Kullanıcı detayı"
-                                  onClick={() => setDetailUserId(id!)}
-                                >
-                                  <Eye size={14} />
-                                </Button>
-                                <Button
-                                  variant="outline-danger"
+                                  variant="outline-primary"
                                   className="d-inline-flex align-items-center justify-content-center p-0"
                                   style={{ width: '28px', height: '28px' }}
-                                  title="Sil"
-                                  aria-label="Kullanıcıyı sil"
-                                  onClick={() => setDeleteUserTarget(user)}
+                                  title="Düzenle"
+                                  aria-label="Kullanıcı düzenle"
+                                  onClick={() => setDetailUserId(id!)}
                                 >
-                                  <Trash2 size={14} />
+                                  <Edit size={14} />
                                 </Button>
                               </td>
                             </tr>

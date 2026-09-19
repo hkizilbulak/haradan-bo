@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Offcanvas, Form, Button, Table, Badge, Alert, Spinner, OverlayTrigger, Tooltip, Row, Col } from 'react-bootstrap';
-import { Info } from 'react-feather';
+import { Info, Trash2 } from 'react-feather';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { toast } from 'react-toastify';
@@ -10,6 +10,7 @@ import { formatDateTimeForText } from '@/helpers/DateUtils';
 import { formatPhoneDisplayTR, isValidOptionalPhoneTR, PHONE_INVALID_MESSAGE, toCanonicalPhoneTR } from '@/helpers/phone';
 import { getErrorMessage } from '@/helpers/HelperUtils';
 import { getUserRoleText } from '@/helpers/EnumUtils';
+import DeleteModal from '@/components/DeleteModal';
 
 type IProps = {
   userId: string;
@@ -89,6 +90,26 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
   const [consentLogs, setConsentLogs] = useState<UserConsentLog[]>([]);
   const [consentLogsLoading, setConsentLogsLoading] = useState(true);
   const [consentLogsError, setConsentLogsError] = useState(false);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!detail) return;
+    const targetId = detail.identifier ?? detail.id ?? userId;
+    setDeleting(true);
+    try {
+      await userService.delete(targetId);
+      toast.success('Kullanıcı veritabanından tamamen silindi.');
+      setShowDeleteModal(false);
+      onClose();
+      onUpdated();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const fetchDetail = async () => {
     setLoading(true);
@@ -247,7 +268,7 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                 }
               }}
             >
-              {({ handleSubmit, handleChange, setFieldValue, values, errors, touched, isValid, isSubmitting }) => (
+              {({ handleSubmit, handleChange, setFieldValue, values, errors, touched, isValid, isSubmitting, dirty }) => (
                 <Form noValidate onSubmit={handleSubmit} className="mb-4">
                   {duplicateError && <Alert variant="danger" className="py-2 small mb-3">{duplicateError}</Alert>}
 
@@ -351,9 +372,25 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
                     </div>
                   </div>
 
-                  <div className="d-flex justify-content-end gap-2 mb-4">
-                    <Button variant="primary" type="submit" disabled={!isValid || isSubmitting}>
+                  <div className="d-flex gap-2 mb-4">
+                    <Button
+                      variant="primary"
+                      type="submit"
+                      disabled={!dirty || !isValid || isSubmitting || deleting}
+                      className="flex-grow-1"
+                    >
                       {isSubmitting ? 'Kaydediliyor...' : 'Kaydet'}
+                    </Button>
+                    <Button
+                      variant="outline-danger"
+                      type="button"
+                      onClick={() => setShowDeleteModal(true)}
+                      disabled={isSubmitting || deleting}
+                      className="d-flex align-items-center justify-content-center px-3"
+                      title="Kullanıcıyı Sil"
+                      aria-label="Kullanıcıyı Sil"
+                    >
+                      <Trash2 size={16} />
                     </Button>
                   </div>
                 </Form>
@@ -476,6 +513,17 @@ export default function UserDetailOffcanvas({ userId, onClose, onUpdated }: IPro
           </>
         )}
       </Offcanvas.Body>
+
+      {showDeleteModal && detail && (
+        <DeleteModal
+          title="Kullanıcıyı Sil"
+          message={`"${detail.firstName} ${detail.lastName}" (${detail.email}) adlı kullanıcıyı silmek istediğinize emin misiniz? Bu işlem geri alınamaz ve kullanıcı veritabanından tamamen silinecektir.`}
+          confirmText="Evet, Kullanıcıyı Sil"
+          isLoading={deleting}
+          onClose={() => !deleting && setShowDeleteModal(false)}
+          onHandleDelete={handleDelete}
+        />
+      )}
     </Offcanvas>
   );
 }

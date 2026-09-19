@@ -15,6 +15,10 @@ export const studFarmService = {
             const match = params.filter.match(/search=([^;]+)/);
             if (match) {
                 filterParams.q = match[1];
+                filterParams.search = match[1];
+            } else if (!params.filter.includes('=')) {
+                filterParams.q = params.filter;
+                filterParams.search = params.filter;
             }
         }
 

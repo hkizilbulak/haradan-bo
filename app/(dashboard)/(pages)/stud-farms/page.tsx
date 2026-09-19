@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { formatDateForText } from '@/helpers/DateUtils';
 import { capitalizeSentence } from '@/helpers/HelperUtils';
 import useApi from '@/hooks/useApi';
@@ -25,6 +25,8 @@ export default function StudFarms() {
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
     const [notesRefreshTrigger, setNotesRefreshTrigger] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
+    const isFirstRender = useRef(true);
+    const activeSearchRef = useRef(false);
 
     const toggleRow = (id: string) => {
         if (expandedRow === id) {
@@ -34,14 +36,49 @@ export default function StudFarms() {
         }
     };
 
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            const trimmed = searchTerm.trim();
+            if (trimmed.length >= 3) {
+                activeSearchRef.current = true;
+                handleFilter(`search=${trimmed}`);
+            } else if (trimmed.length === 0) {
+                if (activeSearchRef.current) {
+                    activeSearchRef.current = false;
+                    handleFilter('');
+                }
+            }
+            // 1 veya 2 harf girilirken hiçbir istek/arama yapılmaz
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        handleFilter(searchTerm ? `search=${searchTerm}` : '');
+        const trimmed = searchTerm.trim();
+        if (trimmed.length >= 3) {
+            activeSearchRef.current = true;
+            handleFilter(`search=${trimmed}`);
+        } else if (trimmed.length === 0) {
+            if (activeSearchRef.current) {
+                activeSearchRef.current = false;
+                handleFilter('');
+            }
+        }
     };
 
     const handleClear = () => {
         setSearchTerm('');
-        handleFilter('');
+        if (activeSearchRef.current) {
+            activeSearchRef.current = false;
+            handleFilter('');
+        }
     };
 
     const rows = data?.content ?? [];
@@ -160,30 +197,30 @@ export default function StudFarms() {
                                                             <td className="text-center">
                                                                 <div className="d-flex justify-content-center align-items-center gap-2">
                                                                     <Button
-                                                                        variant="light"
-                                                                        size="sm"
+                                                                        variant="outline-success"
+                                                                        className="d-inline-flex align-items-center justify-content-center p-0"
+                                                                        style={{ width: '28px', height: '28px' }}
                                                                         title="Görüşme Ekle"
-                                                                        className="bg-white border border-success text-success d-flex align-items-center justify-content-center"
-                                                                        style={{ width: '24px', height: '24px', padding: 0 }}
+                                                                        aria-label="Görüşme Ekle"
                                                                         onClick={() => {
                                                                             setSelectedStudFarmId(item.id);
                                                                             setShowNoteModal(true);
                                                                         }}
                                                                     >
-                                                                        <Plus size={12} className="text-success" />
+                                                                        <Plus size={14} />
                                                                     </Button>
                                                                     <Button 
-                                                                        variant="light" 
-                                                                        size="sm" 
+                                                                        variant="outline-primary" 
+                                                                        className="d-inline-flex align-items-center justify-content-center p-0"
+                                                                        style={{ width: '28px', height: '28px' }}
                                                                         title="Hara Düzenle"
-                                                                        className="bg-white border d-flex align-items-center justify-content-center"
-                                                                        style={{ width: '24px', height: '24px', padding: 0 }}
+                                                                        aria-label="Hara Düzenle"
                                                                         onClick={() => {
                                                                             setEditStudFarm(item);
                                                                             setShowAddModal(true);
                                                                         }}
                                                                     >
-                                                                        <Edit size={12} className="text-secondary" />
+                                                                        <Edit size={14} />
                                                                     </Button>
                                                                 </div>
                                                             </td>
