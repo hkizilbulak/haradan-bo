@@ -63,7 +63,7 @@ const JobHistoryClient = () => {
     if (!hasActiveRun) return;
     const interval = setInterval(() => {
       fetchData(true);
-    }, 3000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [hasActiveRun, fetchData]);
 

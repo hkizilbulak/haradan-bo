@@ -60,7 +60,7 @@ const JobsPage = () => {
     if (!hasActiveJob) return;
     const interval = setInterval(() => {
       fetchJobs(undefined, undefined, true);
-    }, 3000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [hasActiveJob, fetchJobs]);
 
