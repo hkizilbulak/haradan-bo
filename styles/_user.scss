@@ -412,37 +412,85 @@
 
 // 11. Mouse Resizable Modal Window
 .resizable-modal {
-  max-width: 95vw !important;
+  max-width: 95vw;
 
-  .modal-content {
-    resize: both;
-    overflow: hidden;
-    min-width: 520px;
-    min-height: 380px;
-    max-width: 95vw;
-    max-height: 90vh;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2) !important;
+  @media (max-width: 767.98px) {
+    max-width: 100% !important;
+    margin: 0 !important;
+
+    .modal-content {
+      min-width: 0 !important;
+      min-height: 0 !important;
+      max-width: 100% !important;
+      max-height: 100vh !important;
+      height: 100vh !important;
+      border-radius: 0 !important;
+      resize: none !important;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-footer::after {
+      display: none !important;
+    }
   }
 
-  .modal-body {
-    flex: 1 1 auto;
-    overflow-y: auto;
+  @media (min-width: 768px) {
+    .modal-content {
+      resize: both;
+      overflow: hidden;
+      min-width: 520px;
+      min-height: 380px;
+      max-width: 95vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2) !important;
+    }
+
+    .modal-body {
+      flex: 1 1 auto;
+      overflow-y: auto;
+    }
+
+    .modal-footer {
+      position: relative;
+
+      &::after {
+        content: '◢';
+        position: absolute;
+        right: 5px;
+        bottom: 2px;
+        font-size: 14px;
+        color: #64748b;
+        pointer-events: none;
+      }
+    }
+  }
+}
+
+// Compact Job Detail Modal
+.job-detail-modal {
+  max-width: 680px !important;
+
+  @media (max-width: 767.98px) {
+    max-width: 100% !important;
+    margin: 0 !important;
+
+    .modal-content {
+      min-width: 0 !important;
+      max-width: 100% !important;
+      height: 100vh !important;
+      border-radius: 0 !important;
+    }
   }
 
-  .modal-footer {
-    position: relative;
-
-    &::after {
-      content: '◢';
-      position: absolute;
-      right: 5px;
-      bottom: 2px;
-      font-size: 14px;
-      color: #64748b;
-      pointer-events: none;
+  @media (min-width: 768px) {
+    .modal-content {
+      max-width: 680px !important;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15) !important;
+      border-radius: 12px !important;
     }
   }
 }

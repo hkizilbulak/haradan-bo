@@ -1,7 +1,8 @@
+const rawUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
+export const API_URL = rawUrl.endsWith('/') ? rawUrl : `${rawUrl}/`;
 export const API_PROXY_PREFIX = '/api';
-export const API_ORIGIN = '';
-export const API_URL = `${API_PROXY_PREFIX}/`;
-export const MEDIA_URL = `${API_PROXY_PREFIX}/v1/media`;
+export const API_ORIGIN = rawUrl.startsWith('http') ? new URL(rawUrl).origin : '';
+export const MEDIA_URL = `${API_URL}v1/media`;
 
 const DEFAULT_FRONTEND_URL = 'https://haradan.com';
 
@@ -40,4 +41,3 @@ export function buildMediaUrl(assetId: string, profile: string) {
   }
   return `${base}${MEDIA_URL}/${encodeURIComponent(trimmed)}/${encodeURIComponent(profile)}`;
 }
-

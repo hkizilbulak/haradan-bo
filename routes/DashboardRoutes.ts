@@ -69,7 +69,7 @@ export const DashboardMenu: IMenuProps[] = [
 		id: uuid(),
 		title: 'Zamanlanmış Görevler',
 		icon: 'refresh-cw',
-		link: '/jobs',
+		link: '/job-management',
 		allowedRoles: ['admin']
 	},
 	{
@@ -77,13 +77,6 @@ export const DashboardMenu: IMenuProps[] = [
 		title: 'Bildirim Şablonları',
 		icon: 'mail',
 		link: '/notifications',
-		allowedRoles: ['admin']
-	},
-	{
-		id: uuid(),
-		title: 'TJK Senkron',
-		icon: 'activity',
-		link: '/tjk',
 		allowedRoles: ['admin']
 	},
 	{

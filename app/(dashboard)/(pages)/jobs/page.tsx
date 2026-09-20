@@ -284,7 +284,7 @@ export default function JobsPage() {
   };
 
   const visibleJobs = (data?.content ?? []).filter((job) =>
-    ALLOWED_SCHEDULED_JOBS.has(job.key) && ALLOWED_SCHEDULED_JOBS.has(job.jobType),
+    ALLOWED_SCHEDULED_JOBS.has(job.key || '') && ALLOWED_SCHEDULED_JOBS.has(job.jobType || ''),
   );
   const content = visibleJobs.map((job) => (
     <tr key={job.id}>

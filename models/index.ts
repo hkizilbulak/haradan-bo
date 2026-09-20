@@ -8,3 +8,4 @@ export * from './request/auth-login-request.model';
 export * from './response/user-response.model';
 export * from './response/token-response.model';
 export * from './response/session-response.model';
+export * from './job-models';

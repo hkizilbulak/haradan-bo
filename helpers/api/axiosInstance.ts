@@ -1,4 +1,3 @@
-import { API_URL } from '@/contants/urls';
 import axios from 'axios';
 import { dispatchUnauthorizedEvent } from './authEvents';
 
@@ -27,16 +26,21 @@ export function getBackendBaseUrl(): string {
 axiosInstance.interceptors.request.use(
   async (config) => {
     if (config.url) {
+      // Fix duplicate /api/api/ prefix
       config.url = config.url.replace(/^\/api\/api\//, '/api/');
+      
+      // In dev mode when NEXT_PUBLIC_DEV_PROXY_URL is set (e.g. http://localhost:3000),
+      // forward /api/* requests to the Go BFF server
       const proxyUrl = process.env.NEXT_PUBLIC_DEV_PROXY_URL;
       if (typeof window !== 'undefined' && proxyUrl && config.url.startsWith('/api/')) {
-        config.url = proxyUrl + config.url;
+        config.url = proxyUrl.replace(/\/+$/, '') + config.url;
       }
     }
 
     if (typeof window !== 'undefined') {
       try {
         const token =
+          localStorage.getItem('access_token') ||
           localStorage.getItem('token') ||
           localStorage.getItem('accessToken') ||
           localStorage.getItem('auth_token') ||
@@ -65,4 +69,3 @@ axiosInstance.interceptors.response.use(
 );
 
 export default axiosInstance;
-
