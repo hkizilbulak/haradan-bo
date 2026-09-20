@@ -10,7 +10,7 @@ interface RunJobModalProps {
   job: Job;
   loading?: boolean;
   onClose: () => void;
-  onConfirm: (referenceDate?: string) => void;
+  onConfirm: (referenceDate?: string, pageNumber?: number) => void;
 }
 
 function formatDateForDisplay(dateStr: string): string {
@@ -40,13 +40,27 @@ export default function RunJobModal({
 }: RunJobModalProps) {
   const [runMode, setRunMode] = useState<RunMode>('now');
   const [referenceDate, setReferenceDate] = useState('');
+  const [pageNumber, setPageNumber] = useState('');
 
   const supportsPastDate = Boolean(job.supports_reference_date || job.supportsReferenceDate);
+  const isTjkJob =
+    job.key === 'TJK_SYNC' ||
+    job.job_key === 'TJK_SYNC' ||
+    job.jobType === 'TJK_SYNC' ||
+    job.job_type === 'TJK_SYNC';
+  const supportsPageNumber = Boolean(
+    job.supports_page_number !== undefined
+      ? job.supports_page_number
+      : job.supportsPageNumber !== undefined
+      ? job.supportsPageNumber
+      : isTjkJob
+  );
 
   useEffect(() => {
     if (show) {
       setRunMode('now');
       setReferenceDate('');
+      setPageNumber('');
     }
   }, [show, job?.id]);
 
@@ -55,23 +69,32 @@ export default function RunJobModal({
     if (runMode === 'past') {
       if (!referenceDate) return true;
     }
+    if (supportsPageNumber && pageNumber.trim() !== '') {
+      const p = parseInt(pageNumber, 10);
+      if (isNaN(p) || p < 0) return true;
+    }
     return false;
-  }, [loading, runMode, referenceDate]);
+  }, [loading, runMode, referenceDate, supportsPageNumber, pageNumber]);
 
   const message = useMemo(() => {
+    const parsedPage = supportsPageNumber && pageNumber.trim() !== '' ? parseInt(pageNumber, 10) : 0;
+    const pageSuffix = parsedPage > 0 ? ` (${parsedPage}. sayfadan başlayarak)` : '';
+
     if (runMode === 'past' && referenceDate) {
-      return `"${job.name}" görevi ${formatDateForDisplay(referenceDate)} tarihi için çalıştırılacak. Devam etmek istediğinizden emin misiniz?`;
+      return `"${job.name}" görevi ${formatDateForDisplay(referenceDate)} tarihi için${pageSuffix} çalıştırılacak. Devam etmek istediğinizden emin misiniz?`;
     }
-    return `"${job.name}" görevi şimdi çalıştırılacak. Devam etmek istediğinizden emin misiniz?`;
-  }, [job.name, runMode, referenceDate]);
+    return `"${job.name}" görevi şimdi${pageSuffix} çalıştırılacak. Devam etmek istediğinizden emin misiniz?`;
+  }, [job.name, runMode, referenceDate, supportsPageNumber, pageNumber]);
 
   const handleConfirm = () => {
     if (confirmDisabled) return;
+    const parsedPage = supportsPageNumber && pageNumber.trim() !== '' ? parseInt(pageNumber, 10) : undefined;
+    const validPage = parsedPage !== undefined && !isNaN(parsedPage) && parsedPage >= 0 ? parsedPage : undefined;
     if (runMode === 'past') {
-      onConfirm(referenceDate);
+      onConfirm(referenceDate, validPage);
       return;
     }
-    onConfirm();
+    onConfirm(undefined, validPage);
   };
 
   return (
@@ -83,7 +106,7 @@ export default function RunJobModal({
         <p className="mb-3">{message}</p>
 
         {supportsPastDate && (
-          <Form.Group className="mb-0 bg-light p-3 rounded">
+          <Form.Group className="mb-3 bg-light p-3 rounded">
             <Form.Check
               type="radio"
               id={`run-mode-now-${job.id}`}
@@ -119,6 +142,24 @@ export default function RunJobModal({
               </div>
             )}
           </Form.Group>
+        )}
+
+        {supportsPageNumber && (
+          <div className="bg-light p-3 rounded">
+            <Form.Label className="small fw-bold">Başlangıç Sayfa Numarası (PageNumber)</Form.Label>
+            <Form.Control
+              type="number"
+              min={0}
+              step={1}
+              placeholder="0 (Varsayılan: baştan başlar)"
+              value={pageNumber}
+              onChange={(e) => setPageNumber(e.target.value)}
+              disabled={loading}
+            />
+            <Form.Text className="text-muted small">
+              Senkronizasyonun başlayacağı sayfa numarası (0-tabanlı). Boş bırakılırsa 0 kabul edilir.
+            </Form.Text>
+          </div>
         )}
       </Modal.Body>
       <Modal.Footer>

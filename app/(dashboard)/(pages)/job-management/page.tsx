@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Container, Row, Col, Card, Table, Badge, Form, Button, Spinner, Modal } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import { PlayCircle, Clock, Edit2, ChevronUp, ChevronDown, StopCircle, RefreshCw } from 'react-feather';
-import { Job } from '@/models/job-models';
+import { Job, RunJobRequest } from '@/models/job-models';
 import { jobService } from '@/services/job.service';
 import { PageHeading } from '@/widgets';
 import JobModal from '@/widgets/job/JobModal';
@@ -102,16 +102,24 @@ const JobsPage = () => {
     setJobToRun(null);
   };
 
-  const handleRunConfirm = async (referenceDate?: string) => {
+  const handleRunConfirm = async (referenceDate?: string, pageNumber?: number) => {
     if (!jobToRun || runLoading) return;
 
     try {
       setRunLoading(true);
-      const payload = referenceDate ? { reference_date: referenceDate } : undefined;
-      await jobService.runJob(jobToRun.id, payload);
-      const suffix = referenceDate
-        ? ` (${referenceDate.split('-').reverse().join('.')} tarihi için)`
-        : '';
+      const payload: RunJobRequest = {};
+      if (referenceDate) payload.referenceDate = referenceDate;
+      if (pageNumber !== undefined && pageNumber !== null && !isNaN(pageNumber)) {
+        payload.pageNumber = pageNumber;
+      }
+      await jobService.runJob(jobToRun.id, Object.keys(payload).length > 0 ? payload : undefined);
+      let suffix = '';
+      if (referenceDate) {
+        suffix += ` (${referenceDate.split('-').reverse().join('.')} tarihi için)`;
+      }
+      if (pageNumber !== undefined && pageNumber > 0) {
+        suffix += ` (${pageNumber}. sayfadan başlayarak)`;
+      }
       toast.success(`"${jobToRun.name}" başarıyla tetiklendi${suffix}. Arka planda çalışıyor.`);
       setShowRunConfirmModal(false);
       setJobToRun(null);
@@ -202,22 +210,35 @@ const JobsPage = () => {
   return (
     <Container fluid className="p-3 lg:p-6">
       <Row>
-        <Col lg={12} md={12} sm={12}>
-          <div className="d-flex align-items-center justify-content-between mb-4">
-            <PageHeading
-              heading="Zamanlanmış Görevler"
-              showCreateButton={false}
-            />
-            <Button
-              variant="outline-primary"
-              size="sm"
-              onClick={() => fetchJobs()}
-              disabled={isLoading}
-              className="d-flex align-items-center"
-            >
-              <RefreshCw size={14} className={`me-1 ${isLoading ? 'spin' : ''}`} />
-              Yenile
-            </Button>
+        <Col lg={12} md={12} xs={12}>
+          <div className="border-bottom pb-4 mb-4">
+            <div className="d-flex justify-content-between align-items-center">
+              <h3 className="mb-0 fw-bold">Zamanlanmış Görevler</h3>
+              <div className="d-flex align-items-center gap-2">
+                <Button
+                  variant="outline-primary"
+                  size="sm"
+                  onClick={() => fetchJobs()}
+                  disabled={isLoading}
+                  className="d-flex align-items-center"
+                >
+                  <RefreshCw size={14} className={`me-1 ${isLoading ? 'spin' : ''}`} />
+                  Yenile
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedJob(null);
+                    setShowModal(true);
+                  }}
+                  className="d-flex align-items-center"
+                >
+                  <i className="fe fe-plus me-1"></i>
+                  Yeni Görev Ekle
+                </Button>
+              </div>
+            </div>
           </div>
         </Col>
       </Row>
@@ -408,7 +429,7 @@ const JobsPage = () => {
         </Modal.Footer>
       </Modal>
 
-      {showModal && selectedJob && (
+      {showModal && (
         <JobModal
           show={showModal}
           job={selectedJob}

@@ -15,6 +15,8 @@ export interface Job {
   timeout_second?: number;
   supports_reference_date?: boolean;
   supportsReferenceDate?: boolean;
+  supports_page_number?: boolean;
+  supportsPageNumber?: boolean;
   version?: number;
   last_run_at?: string;
   lastRunAt?: string;
@@ -65,6 +67,8 @@ export interface JobHistory {
 export interface RunJobRequest {
   reference_date?: string;
   referenceDate?: string;
+  page_number?: number;
+  pageNumber?: number;
 }
 
 export interface JobUpdateRequest {
@@ -77,6 +81,28 @@ export interface JobUpdateRequest {
   timeout_second?: number;
   expected_version?: number;
   expectedVersion?: number;
+  supports_reference_date?: boolean;
+  supportsReferenceDate?: boolean;
+  supports_page_number?: boolean;
+  supportsPageNumber?: boolean;
+}
+
+export interface CreateJobRequest {
+  key: string;
+  name: string;
+  description?: string;
+  job_type?: string;
+  jobType?: string;
+  cron_expression?: string;
+  cronExpression?: string;
+  is_active?: boolean;
+  isActive?: boolean;
+  timeout_seconds?: number;
+  timeoutSeconds?: number;
+  supports_reference_date?: boolean;
+  supportsReferenceDate?: boolean;
+  supports_page_number?: boolean;
+  supportsPageNumber?: boolean;
 }
 
 export interface JobHistoryPage {

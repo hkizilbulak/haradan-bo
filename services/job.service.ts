@@ -1,7 +1,7 @@
 import axiosInstance from '@/helpers/api/axiosInstance';
 import { API_URL } from '@/contants/urls';
 import { PagedResponse } from '@/models/common';
-import { Job, JobHistory, JobHistoryPage, JobUpdateRequest, RunJobRequest } from '@/models/job-models';
+import { Job, JobHistory, JobHistoryPage, JobUpdateRequest, RunJobRequest, CreateJobRequest } from '@/models/job-models';
 
 function normalizeJob(raw: any): Job {
   if (!raw) return raw;
@@ -23,6 +23,8 @@ function normalizeJob(raw: any): Job {
     timeout_second: raw.timeoutSeconds || raw.timeout_seconds || raw.timeout_second || 3600,
     supportsReferenceDate: raw.supportsReferenceDate !== undefined ? raw.supportsReferenceDate : raw.supports_reference_date,
     supports_reference_date: raw.supportsReferenceDate !== undefined ? raw.supportsReferenceDate : raw.supports_reference_date,
+    supportsPageNumber: raw.supportsPageNumber !== undefined ? raw.supportsPageNumber : (raw.supports_page_number !== undefined ? raw.supports_page_number : (raw.jobType === 'TJK_SYNC' || raw.job_type === 'TJK_SYNC' || (raw.key || raw.job_key || '').includes('TJK'))),
+    supports_page_number: raw.supportsPageNumber !== undefined ? raw.supportsPageNumber : (raw.supports_page_number !== undefined ? raw.supports_page_number : (raw.jobType === 'TJK_SYNC' || raw.job_type === 'TJK_SYNC' || (raw.key || raw.job_key || '').includes('TJK'))),
     version: raw.version || 1,
     lastRunAt: raw.lastRunAt || raw.last_run_at,
     last_run_at: raw.lastRunAt || raw.last_run_at,
@@ -102,13 +104,33 @@ class JobService {
     return list;
   }
 
+  // Create job
+  async createJob(payload: CreateJobRequest): Promise<{ message?: string; job?: Job }> {
+    const body: any = {
+      key: payload.key,
+      name: payload.name,
+      description: payload.description,
+      jobType: payload.jobType || payload.job_type,
+      cronExpression: payload.cronExpression || payload.cron_expression,
+      isActive: payload.isActive !== undefined ? payload.isActive : payload.is_active ?? true,
+      timeoutSeconds: payload.timeoutSeconds ?? payload.timeout_seconds ?? 3600,
+      supportsReferenceDate: payload.supportsReferenceDate ?? payload.supports_reference_date ?? false,
+      supportsPageNumber: payload.supportsPageNumber ?? payload.supports_page_number ?? true,
+    };
+    const response = await axiosInstance.post<any>(this.baseUrl, body);
+    return {
+      message: 'Görev başarıyla oluşturuldu',
+      job: normalizeJob(response.data),
+    };
+  }
+
   // Get job by ID
   async getJobById(id: string): Promise<Job> {
     const response = await axiosInstance.get<any>(`${this.baseUrl}/${id}`);
     return normalizeJob(response.data);
   }
 
-  // Update job (cron, is_active, timeout)
+  // Update job (cron, is_active, timeout, supportsReferenceDate, supportsPageNumber)
   async updateJob(id: string, data: JobUpdateRequest): Promise<{ message?: string; job?: Job }> {
     const body: any = {};
     if (data.expected_version !== undefined || data.expectedVersion !== undefined) {
@@ -123,6 +145,12 @@ class JobService {
     if (data.timeout_seconds !== undefined || data.timeoutSeconds !== undefined || data.timeout_second !== undefined) {
       body.timeoutSeconds = data.timeout_seconds ?? data.timeoutSeconds ?? data.timeout_second;
     }
+    if (data.supports_reference_date !== undefined || data.supportsReferenceDate !== undefined) {
+      body.supportsReferenceDate = data.supports_reference_date ?? data.supportsReferenceDate;
+    }
+    if (data.supports_page_number !== undefined || data.supportsPageNumber !== undefined) {
+      body.supportsPageNumber = data.supports_page_number ?? data.supportsPageNumber;
+    }
 
     const response = await axiosInstance.patch<any>(`${this.baseUrl}/${id}`, body);
     return {
@@ -134,8 +162,14 @@ class JobService {
   // Trigger job manually
   async runJob(id: string, payload?: RunJobRequest): Promise<{ message: string; runId?: string }> {
     const refDate = payload?.reference_date || payload?.referenceDate;
-    const body = refDate ? { referenceDate: refDate } : undefined;
-    const response = await axiosInstance.post<{ jobId: string; runId: string }>(`${this.baseUrl}/${id}/run`, body);
+    const pageNumber = payload?.page_number ?? payload?.pageNumber;
+    const body: Record<string, any> = {};
+    if (refDate) body.referenceDate = refDate;
+    if (pageNumber !== undefined && pageNumber !== null) body.pageNumber = pageNumber;
+    const response = await axiosInstance.post<{ jobId: string; runId: string }>(
+      `${this.baseUrl}/${id}/run`,
+      Object.keys(body).length > 0 ? body : undefined
+    );
     return {
       message: 'Görev başarıyla tetiklendi',
       runId: response.data?.runId,
