@@ -94,7 +94,9 @@ const JobModal = ({ show, job, onHide, onSave }: JobModalProps) => {
       if (isEdit && job) {
         await jobService.updateJob(job.id, {
           expected_version: job.version,
-          cron_expression: formData.cron_expression,
+          name: formData.name.trim(),
+          description: formData.description.trim() || undefined,
+          cron_expression: formData.cron_expression.trim(),
           is_active: formData.is_active,
           timeout_seconds: formData.timeout_second,
           supports_reference_date: formData.supports_reference_date,
@@ -133,63 +135,54 @@ const JobModal = ({ show, job, onHide, onSave }: JobModalProps) => {
           <Modal.Title>{isEdit ? `Görevi Düzenle: ${job?.name}` : 'Yeni Görev Tanımla'}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {!isEdit && (
-            <>
-              <Form.Group className="mb-3">
-                <Form.Label className="fw-semibold">İş Anahtarı (Key) <span className="text-danger">*</span></Form.Label>
-                <Form.Control
-                  type="text"
-                  name="key"
-                  placeholder="Örn: TJK_SYNC_MANUAL veya TJK_SYNC_DAILY"
-                  value={formData.key}
-                  onChange={handleChange}
-                  required
-                />
-                <Form.Text className="text-muted">
-                  Benzersiz görev anahtarı (Büyük harf ve alt çizgi önerilir).
-                </Form.Text>
-              </Form.Group>
-
-              <Form.Group className="mb-3">
-                <Form.Label className="fw-semibold">Görev Adı <span className="text-danger">*</span></Form.Label>
-                <Form.Control
-                  type="text"
-                  name="name"
-                  placeholder="Örn: Günlük TJK Senkronizasyonu"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                />
-              </Form.Group>
-
-              <Form.Group className="mb-3">
-                <Form.Label className="fw-semibold">Açıklama</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  name="description"
-                  placeholder="Görevin amacı hakkında kısa açıklama..."
-                  value={formData.description}
-                  onChange={handleChange}
-                />
-              </Form.Group>
-            </>
-          )}
-
-          {isEdit && (
-            <Form.Group className="mb-3">
-              <Form.Label className="fw-semibold">İş Anahtarı (Job Key)</Form.Label>
-              <Form.Control
-                type="text"
-                value={job?.job_key || job?.key || ''}
-                disabled
-              />
-              <Form.Text className="text-muted">Job key değiştirilemez.</Form.Text>
-            </Form.Group>
-          )}
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-semibold">
+              İş Anahtarı (Job Key) {!isEdit && <span className="text-danger">*</span>}
+            </Form.Label>
+            <Form.Control
+              type="text"
+              name="key"
+              placeholder="Örn: TJK_SYNC_MANUAL veya TJK_SYNC_DAILY"
+              value={formData.key}
+              onChange={handleChange}
+              disabled={isEdit}
+              required={!isEdit}
+            />
+            <Form.Text className="text-muted">
+              {isEdit ? 'İş anahtarı (Job Key) değiştirilemez.' : 'Benzersiz görev anahtarı (Büyük harf ve alt çizgi önerilir).'}
+            </Form.Text>
+          </Form.Group>
 
           <Form.Group className="mb-3">
-            <Form.Label className="fw-semibold">Cron İfadesi <span className="text-danger">*</span></Form.Label>
+            <Form.Label className="fw-semibold">
+              Görev Adı <span className="text-danger">*</span>
+            </Form.Label>
+            <Form.Control
+              type="text"
+              name="name"
+              placeholder="Örn: Günlük TJK Senkronizasyonu"
+              value={formData.name}
+              onChange={handleChange}
+              required
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-semibold">Açıklama</Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={2}
+              name="description"
+              placeholder="Görevin amacı hakkında kısa açıklama..."
+              value={formData.description}
+              onChange={handleChange}
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-semibold">
+              Cron İfadesi <span className="text-danger">*</span>
+            </Form.Label>
             <Form.Control
               type="text"
               name="cron_expression"
@@ -203,7 +196,9 @@ const JobModal = ({ show, job, onHide, onSave }: JobModalProps) => {
           </Form.Group>
 
           <Form.Group className="mb-3">
-            <Form.Label className="fw-semibold">Timeout Süresi (Saniye) <span className="text-danger">*</span></Form.Label>
+            <Form.Label className="fw-semibold">
+              Timeout Süresi (Saniye) <span className="text-danger">*</span>
+            </Form.Label>
             <Form.Control
               type="number"
               name="timeout_second"

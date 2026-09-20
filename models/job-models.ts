@@ -72,6 +72,8 @@ export interface RunJobRequest {
 }
 
 export interface JobUpdateRequest {
+  name?: string;
+  description?: string;
   cron_expression?: string;
   cronExpression?: string;
   is_active?: boolean;

@@ -136,6 +136,12 @@ class JobService {
     if (data.expected_version !== undefined || data.expectedVersion !== undefined) {
       body.expectedVersion = data.expected_version ?? data.expectedVersion;
     }
+    if (data.name !== undefined) {
+      body.name = data.name;
+    }
+    if (data.description !== undefined) {
+      body.description = data.description;
+    }
     if (data.cron_expression !== undefined || data.cronExpression !== undefined) {
       body.cronExpression = data.cron_expression ?? data.cronExpression;
     }
