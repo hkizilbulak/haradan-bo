@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { formatDateForText, formatDateTimeForText } from '@/helpers/DateUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
 import { ModerationAdvertResponse } from '@/models';
-import { advertService, jobService, packageService, userService, tjkService, bannerService, categoryService, commentService, AdvertComment, ModerationReasonRequest } from '@/services';
+import { advertService, jobService, packageService, userService, bannerService, campaignService, categoryService, commentService, AdvertComment, ModerationReasonRequest } from '@/services';
 import { toast } from 'react-toastify';
 import { Skeleton, TableSkeleton } from '@/components/Skeleton';
 import { AdvertDetailModal, PackageModal } from '@/widgets';
@@ -25,7 +25,7 @@ export default function Home() {
         totalPackages: 0,
         totalJobs: 0,
         activeBanners: 0,
-        activeTjkRuns: 0,
+        activeCampaigns: 0,
     });
     const [recentAdverts, setRecentAdverts] = useState<ModerationAdvertResponse[]>([]);
     const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
@@ -75,17 +75,17 @@ export default function Home() {
                 totalUsersRes,
                 packagesRes,
                 jobsRes,
-                tjkRes,
                 bannersRes,
+                campaignsRes,
             ] = await Promise.allSettled([
                 advertService.search({ filter: 'status==PENDING_REVIEW', pageRequest: { page: 0, size: 5 } }),
                 advertService.search({ filter: 'status==PUBLISHED', pageRequest: { page: 0, size: 1 } }),
                 userService.search({ filter: 'status==ACTIVE', pageRequest: { page: 0, size: 1 } }),
                 userService.search({ pageRequest: { page: 0, size: 1 } }),
                 packageService.search({ pageRequest: { page: 0, size: 1 } }),
-                jobService.search({ pageRequest: { page: 0, size: 1 } }),
-                tjkService.search({ pageRequest: { page: 0, size: 10 } }),
-                bannerService.search({ filter: 'status==ACTIVE', pageRequest: { page: 0, size: 1 } }),
+                jobService.getJobs(),
+                bannerService.fetchAll({ status: 'ACTIVE' }),
+                campaignService.search({ pageRequest: {} }),
             ]);
 
             let pendingCount = 0;
@@ -142,20 +142,18 @@ export default function Home() {
             }
 
             let jCount = 0;
-            if (jobsRes.status === 'fulfilled') {
-                jCount = jobsRes.value.page?.totalElements || (jobsRes.value.content || []).length;
-            }
-
-            let tjkActiveCount = 0;
-            if (tjkRes.status === 'fulfilled') {
-                tjkActiveCount = (tjkRes.value.content || []).filter(
-                    r => r.status === 'RUNNING' || r.status === 'QUEUED'
-                ).length;
+            if (jobsRes.status === 'fulfilled' && Array.isArray(jobsRes.value)) {
+                jCount = jobsRes.value.length;
             }
 
             let activeBannerCount = 0;
-            if (bannersRes.status === 'fulfilled') {
-                activeBannerCount = bannersRes.value.page?.totalElements || (bannersRes.value.content || []).length;
+            if (bannersRes.status === 'fulfilled' && Array.isArray(bannersRes.value)) {
+                activeBannerCount = bannersRes.value.length;
+            }
+
+            let activeCampaignCount = 0;
+            if (campaignsRes.status === 'fulfilled' && campaignsRes.value?.content) {
+                activeCampaignCount = campaignsRes.value.content.filter(c => c.isActive).length;
             }
 
             // Günlük başarılı giriş sayısı hesabı
@@ -184,7 +182,7 @@ export default function Home() {
                 totalPackages: pCount,
                 totalJobs: jCount,
                 activeBanners: activeBannerCount,
-                activeTjkRuns: tjkActiveCount,
+                activeCampaigns: activeCampaignCount,
             });
 
             setRecentAdverts(advertList.slice(0, 5));
@@ -445,10 +443,10 @@ export default function Home() {
                             </Col>
                         </Row>
 
-                        {/* Alt Satır (4 Kompakt Kart: Pembe/Roz Tonu - Bekleyen & Sistem Durumları) */}
-                        <Row className="g-3">
+                        {/* Alt Satır (5 Kompakt Kart: Pembe/Roz Tonu - Bekleyen & Sistem Durumları) */}
+                        <Row className="g-3 row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-xl-5">
                             {/* Kart 1: Onay Bekleyen İlanlar */}
-                            <Col lg={3} sm={6} xs={12}>
+                            <Col>
                                 <Link href="/listings?tab=unpublished" className="text-decoration-none d-block h-100">
                                     <div 
                                         className="d-flex align-items-center gap-3 h-100 dashboard-stat-card-rose"
@@ -479,7 +477,7 @@ export default function Home() {
                             </Col>
 
                             {/* Kart 2: Tanımlı Paketler */}
-                            <Col lg={3} sm={6} xs={12}>
+                            <Col>
                                 <Link href="/packages" className="text-decoration-none d-block h-100">
                                     <div 
                                         className="d-flex align-items-center gap-3 h-100 dashboard-stat-card-rose"
@@ -509,8 +507,39 @@ export default function Home() {
                                 </Link>
                             </Col>
 
-                            {/* Kart 3: Aktif Bannerlar */}
-                            <Col lg={3} sm={6} xs={12}>
+                            {/* Kart 3: Aktif Kampanyalar */}
+                            <Col>
+                                <Link href="/campaigns" className="text-decoration-none d-block h-100">
+                                    <div 
+                                        className="d-flex align-items-center gap-3 h-100 dashboard-stat-card-rose"
+                                        style={{ 
+                                            backgroundColor: '#fff1f5', 
+                                            borderRadius: '12px',
+                                            border: '1px solid #fce7ef',
+                                            minHeight: '68px',
+                                            padding: '14px 18px'
+                                        }}
+                                    >
+                                        <div 
+                                            className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                            style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
+                                        >
+                                            <i className="fe fe-tag fs-5"></i>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
+                                                Aktif Kampanyalar
+                                            </span>
+                                            <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
+                                                {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.activeCampaigns}
+                                            </h4>
+                                        </div>
+                                    </div>
+                                </Link>
+                            </Col>
+
+                            {/* Kart 4: Aktif Bannerlar */}
+                            <Col>
                                 <Link href="/banners" className="text-decoration-none d-block h-100">
                                     <div 
                                         className="d-flex align-items-center gap-3 h-100 dashboard-stat-card-rose"
@@ -540,9 +569,9 @@ export default function Home() {
                                 </Link>
                             </Col>
 
-                            {/* Kart 4: Zamanlanmış & TJK İşleri */}
-                            <Col lg={3} sm={6} xs={12}>
-                                <Link href="/jobs" className="text-decoration-none d-block h-100">
+                            {/* Kart 5: Zamanlanmış Görevler */}
+                            <Col>
+                                <Link href="/job-management" className="text-decoration-none d-block h-100">
                                     <div 
                                         className="d-flex align-items-center gap-3 h-100 dashboard-stat-card-rose"
                                         style={{ 
@@ -557,14 +586,14 @@ export default function Home() {
                                             className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
                                             style={{ width: '40px', height: '40px', backgroundColor: '#fed7e2', color: '#e11d48' }}
                                         >
-                                            <i className="fe fe-cpu fs-5"></i>
+                                            <i className="fe fe-clock fs-5"></i>
                                         </div>
                                         <div className="min-w-0">
                                             <span className="d-block fw-semibold mb-0" style={{ color: '#be185d', fontSize: '0.82rem' }}>
-                                                Zamanlanmış / TJK İşleri
+                                                Zamanlanmış Görevler
                                             </span>
                                             <h4 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.5rem' }}>
-                                                {loadingStats ? <Skeleton width="30px" height="24px" /> : (stats.totalJobs + stats.activeTjkRuns)}
+                                                {loadingStats ? <Skeleton width="30px" height="24px" /> : stats.totalJobs}
                                             </h4>
                                         </div>
                                     </div>
