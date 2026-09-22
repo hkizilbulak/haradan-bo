@@ -31,19 +31,28 @@ export default function UserFilter({ onFilter }: IProps) {
 
   const formik = useFormik({
     initialValues,
-    onSubmit: (values) => {
+    onSubmit: () => {},
+  });
+
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    debounceTimerRef.current = setTimeout(() => {
+      const values = formik.values;
       let filter = '';
 
-      if (values.firstName && values.firstName.trim() !== '') {
+      if (values.firstName && values.firstName.trim().length >= 2) {
         filter = appendOperator(filter, `firstName==*${values.firstName.trim()}*`);
       }
-      if (values.lastName && values.lastName.trim() !== '') {
+      if (values.lastName && values.lastName.trim().length >= 2) {
         filter = appendOperator(filter, `lastName==*${values.lastName.trim()}*`);
       }
-      if (values.email && values.email.trim() !== '') {
+      if (values.email && values.email.trim().length >= 2) {
         filter = appendOperator(filter, `email==*${values.email.trim()}*`);
       }
-      if (values.phone && values.phone.trim() !== '') {
+      if (values.phone && values.phone.trim().length >= 2) {
         filter = appendOperator(filter, `phone==*${values.phone.trim()}*`);
       }
       if (values.status) {
@@ -54,25 +63,17 @@ export default function UserFilter({ onFilter }: IProps) {
       }
 
       onFilter(filter);
-    },
-  });
-
-  const debouncedSubmit = useCallback(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    debounceTimerRef.current = setTimeout(() => {
-      formik.submitForm();
     }, 300);
-  }, [formik]);
 
-  useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formik.values]);
+
+
 
   const handleReset = () => {
     if (debounceTimerRef.current) {
@@ -92,10 +93,7 @@ export default function UserFilter({ onFilter }: IProps) {
               <Form.Control
                 size="sm"
                 name="firstName"
-                onChange={(e) => {
-                  formik.handleChange(e);
-                  debouncedSubmit();
-                }}
+                onChange={formik.handleChange}
                 value={formik.values.firstName ?? ''}
                 placeholder="İsim ile ara"
               />
@@ -106,10 +104,7 @@ export default function UserFilter({ onFilter }: IProps) {
               <Form.Control
                 size="sm"
                 name="lastName"
-                onChange={(e) => {
-                  formik.handleChange(e);
-                  debouncedSubmit();
-                }}
+                onChange={formik.handleChange}
                 value={formik.values.lastName ?? ''}
                 placeholder="Soyisim ile ara"
               />
@@ -121,10 +116,7 @@ export default function UserFilter({ onFilter }: IProps) {
                 size="sm"
                 type="email"
                 name="email"
-                onChange={(e) => {
-                  formik.handleChange(e);
-                  debouncedSubmit();
-                }}
+                onChange={formik.handleChange}
                 value={formik.values.email ?? ''}
                 placeholder="E-posta ile ara"
               />
@@ -135,10 +127,7 @@ export default function UserFilter({ onFilter }: IProps) {
               <Form.Control
                 size="sm"
                 name="phone"
-                onChange={(e) => {
-                  formik.handleChange(e);
-                  debouncedSubmit();
-                }}
+                onChange={formik.handleChange}
                 value={formik.values.phone ?? ''}
                 placeholder="Telefon ile ara"
               />
@@ -155,10 +144,10 @@ export default function UserFilter({ onFilter }: IProps) {
                   </span>
                 </Dropdown.Toggle>
                 <Dropdown.Menu className="w-100 shadow-sm border-0" style={{ fontSize: '0.875rem' }}>
-                  <Dropdown.Item onClick={() => { formik.setFieldValue('role', ''); setTimeout(() => formik.submitForm(), 0); }}>Tüm Roller</Dropdown.Item>
-                  <Dropdown.Item onClick={() => { formik.setFieldValue('role', 'admin'); setTimeout(() => formik.submitForm(), 0); }}>Yönetici</Dropdown.Item>
-                  <Dropdown.Item onClick={() => { formik.setFieldValue('role', 'CALL_CENTER'); setTimeout(() => formik.submitForm(), 0); }}>Çağrı Merkezi</Dropdown.Item>
-                  <Dropdown.Item onClick={() => { formik.setFieldValue('role', 'user'); setTimeout(() => formik.submitForm(), 0); }}>Kullanıcı</Dropdown.Item>
+                  <Dropdown.Item onClick={() => formik.setFieldValue('role', '')}>Tüm Roller</Dropdown.Item>
+                  <Dropdown.Item onClick={() => formik.setFieldValue('role', 'admin')}>Yönetici</Dropdown.Item>
+                  <Dropdown.Item onClick={() => formik.setFieldValue('role', 'CALL_CENTER')}>Çağrı Merkezi</Dropdown.Item>
+                  <Dropdown.Item onClick={() => formik.setFieldValue('role', 'user')}>Kullanıcı</Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
             </Form.Group>
@@ -174,10 +163,10 @@ export default function UserFilter({ onFilter }: IProps) {
                   </span>
                 </Dropdown.Toggle>
                 <Dropdown.Menu className="w-100 shadow-sm border-0" style={{ fontSize: '0.875rem' }}>
-                  <Dropdown.Item onClick={() => { formik.setFieldValue('status', ''); setTimeout(() => formik.submitForm(), 0); }}>Tüm Durumlar</Dropdown.Item>
-                  <Dropdown.Item onClick={() => { formik.setFieldValue('status', 'ACTIVE'); setTimeout(() => formik.submitForm(), 0); }}>Aktif</Dropdown.Item>
-                  <Dropdown.Item onClick={() => { formik.setFieldValue('status', 'CLOSED'); setTimeout(() => formik.submitForm(), 0); }}>Kapalı</Dropdown.Item>
-                  <Dropdown.Item onClick={() => { formik.setFieldValue('status', 'DISABLED'); setTimeout(() => formik.submitForm(), 0); }}>Pasif</Dropdown.Item>
+                  <Dropdown.Item onClick={() => formik.setFieldValue('status', '')}>Tüm Durumlar</Dropdown.Item>
+                  <Dropdown.Item onClick={() => formik.setFieldValue('status', 'ACTIVE')}>Aktif</Dropdown.Item>
+                  <Dropdown.Item onClick={() => formik.setFieldValue('status', 'CLOSED')}>Kapalı</Dropdown.Item>
+                  <Dropdown.Item onClick={() => formik.setFieldValue('status', 'DISABLED')}>Pasif</Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
             </Form.Group>
