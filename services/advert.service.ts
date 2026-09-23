@@ -137,6 +137,21 @@ export type AdvertUrgentActivation = {
     createdAt: string;
 };
 
+export type AdminUpdateAdvertPayload = {
+    expectedVersion?: number;
+    title?: string;
+    description?: string;
+    price?: { amountMinor?: number; currency?: string };
+    districtId?: string;
+    horseId?: string;
+    properties?: Record<string, any>;
+    media?: Array<{
+        assetId: string;
+        displayOrder: number;
+        isCover: boolean;
+    }>;
+};
+
 const baseUrl = `${API_URL}v1/admin/adverts/moderation`;
 const moderationRootUrl = `${API_URL}v1/admin/adverts`;
 const publicAdvertUrl = `${API_URL}v1/adverts`;
@@ -329,11 +344,17 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
     return list;
 }
 
-function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem> & { rejectionReason?: string | null; reason?: string | null }) {
+function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem> & { rejectionReason?: string | null; reason?: string | null; description?: string | null }) {
     const targetIdStr = String(id).trim();
     const idx = fallbackMockAdverts.findIndex((m) => String(m.id).trim() === targetIdStr || String((m as any).identifier).trim() === targetIdStr);
     if (idx !== -1) {
         Object.assign(fallbackMockAdverts[idx], patch);
+        if (patch.properties) {
+            fallbackMockAdverts[idx].properties = {
+                ...(fallbackMockAdverts[idx].properties || {}),
+                ...patch.properties,
+            };
+        }
         if (patch.rejectionReason || patch.reason) {
             fallbackMockAdverts[idx].rejectionReason = patch.rejectionReason || patch.reason;
         }
@@ -359,6 +380,17 @@ function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem> & { r
                                     ? 'pending'
                                     : 'draft';
                         }
+                        if (patch.title) parsed[itemIdx].title = patch.title;
+                        if (patch.price) parsed[itemIdx].price = patch.price;
+                        if (patch.districtId) parsed[itemIdx].districtId = patch.districtId;
+                        if (patch.provinceId) parsed[itemIdx].provinceId = patch.provinceId;
+                        if (patch.properties) {
+                            parsed[itemIdx].properties = {
+                                ...(parsed[itemIdx].properties || {}),
+                                ...patch.properties,
+                            };
+                        }
+                        if (patch.media) parsed[itemIdx].media = patch.media;
                         if (patch.version) parsed[itemIdx].version = patch.version;
                         if (patch.publishedAt) parsed[itemIdx].publishedAt = patch.publishedAt;
                         if (patch.rejectionReason || patch.reason) {
@@ -668,6 +700,17 @@ class AdvertService {
             });
             return;
         }
+    }
+
+    async updateAdvert(advertId: string, payload: AdminUpdateAdvertPayload): Promise<ModerationAdvertDetail> {
+        const res = await apiRequest<ModerationAdvertDetail>('PATCH', `${moderationRootUrl}/${advertId}`, payload);
+        updateLocalMockAdvert(advertId, {
+            title: payload.title,
+            properties: payload.properties,
+            media: payload.media,
+            version: res?.version,
+        });
+        return res;
     }
 
     async delete(advertId: string | number): Promise<void> {

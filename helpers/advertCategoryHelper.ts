@@ -637,7 +637,11 @@ export function buildModerationAdvertSpecRows(
 
     const we = getBoolProp(['waterElectricity', 'elektrikSu', 'altyapi']);
     if (we) list.push({ label: 'Elektrik ve Su Altyapısı', value: we, isBoolean: true });
-  } else if (categoryKind === 'farrier' || categoryKind === 'service') {
+  } else if (categoryKind === 'farrier') {
+    const hotShoeing = getBoolProp(['SICAK_UYGULAMA', 'sicakUygulama', 'sicak_uygulama', 'sıcak uygulama', 'sicak'], 'Hayır');
+    if (hotShoeing) list.push({ label: 'Sıcak Uygulama', value: hotShoeing, isBoolean: true });
+    list.push({ label: 'Hizmet Türü', value: resolvedCategory });
+  } else if (categoryKind === 'service') {
     list.push({ label: 'Hizmet Türü', value: resolvedCategory });
   } else {
     // Horse adverts (Satılık Yarış Atı, Satılık Kısrak, Satılık Aygır, Satılık Binek Atı, Satılık Pony)

@@ -340,6 +340,30 @@ function assert(cond: unknown, msg: string): asserts cond {
   console.log('✓ Facility category test passed');
 }
 
+// 7b. Farrier (Nalbantlar) Test
+{
+  const mockDetail = {
+    id: '139',
+    title: '32we',
+    status: 'PUBLISHED' as const,
+    version: 1,
+    ownerUserId: 'u-7',
+    categoryId: 'c1000000-0000-4000-8000-000000000023',
+    properties: {
+      SICAK_UYGULAMA: true,
+      companyName: 'Usta Nalbant',
+    },
+  };
+
+  const rows = buildModerationAdvertSpecRows(mockDetail as any, null, 'Nalbantlar');
+  const labels = rows.map((r) => r.label);
+
+  assert(labels.includes('Sıcak Uygulama'), 'has Sıcak Uygulama');
+  assert(rows.find((r) => r.label === 'Sıcak Uygulama')?.value === 'Evet', 'Sıcak Uygulama is Evet');
+  assert(labels.includes('Hizmet Türü'), 'has Hizmet Türü');
+  console.log('✓ Farrier category test passed');
+}
+
 // 8. getAdvertMainCategory Tests (At, At Hizmetleri, Aşım)
 {
   assert(getAdvertMainCategory('c1000000-0000-4000-8000-000000000011', 'Satılık Yarış Atı') === 'at', 'Race horse is at');

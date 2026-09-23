@@ -37,6 +37,7 @@ function AdvertsContent() {
   } | null>(null);
   const [pendingApprove, setPendingApprove] = useState<ModerationAdvertResponse | null>(null);
   const [packageAdvert, setPackageAdvert] = useState<ModerationAdvertResponse | null>(null);
+  const [packageInitialTab, setPackageInitialTab] = useState<'manage' | 'edit' | 'card' | 'history' | 'payments'>('edit');
   const [detailAdvert, setDetailAdvert] = useState<ModerationAdvertResponse | null>(null);
   const [reason, setReason] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
@@ -402,11 +403,14 @@ function AdvertsContent() {
             </Button>
             <Button
               size="sm"
-              variant="outline-secondary"
+              variant="outline-primary"
               className="d-inline-flex align-items-center justify-content-center"
               style={{ width: '32px', height: '32px', padding: 0 }}
-              title="Paket ve İlan Düzenle"
-              onClick={() => setPackageAdvert(advert)}
+              title="İlanı Düzenle"
+              onClick={() => {
+                setPackageInitialTab('edit');
+                setPackageAdvert(advert);
+              }}
             >
               <i className="fe fe-edit" />
             </Button>
@@ -640,7 +644,17 @@ function AdvertsContent() {
         </Modal.Footer>
       </Modal>
 
-      {packageAdvert && <PackageModal advert={packageAdvert} onClose={() => setPackageAdvert(null)} onDone={() => { setPackageAdvert(null); refetch(); }} />}
+      {packageAdvert && (
+        <PackageModal
+          advert={packageAdvert}
+          initialTab={packageInitialTab}
+          onClose={() => setPackageAdvert(null)}
+          onDone={() => {
+            setPackageAdvert(null);
+            refetch();
+          }}
+        />
+      )}
 
       <AdvertDetailModal
         advert={detailAdvert}
