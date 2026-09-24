@@ -27,6 +27,7 @@ import {
   isMareAdvert,
   isStallionAdvert,
 } from '@/helpers/advertCategoryHelper';
+import LiveAdvertCardPreview from './LiveAdvertCardPreview';
 
 const HORSE_BREED_OPTIONS = [
   'Safkan Arap',
@@ -779,7 +780,13 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
   const isUpdateDisabled = submitting || !selectedPackageCode.trim() || (isSamePackage && !hasReason);
 
   const coverMedia = detail?.media?.find((m) => m.isCover) ?? detail?.media?.[0];
-  const coverUrl = coverMedia?.assetId ? buildMediaUrl(coverMedia.assetId, 'DETAIL') : null;
+  const coverUrl =
+    editMediaList.find((m) => m.isCover)?.previewUrl ||
+    (coverMedia?.assetId ? buildMediaUrl(coverMedia.assetId, 'DETAIL') : null) ||
+    editMediaList[0]?.previewUrl ||
+    (advert as any)?.cover?.publicUrl ||
+    (advert as any)?.cover?.url ||
+    null;
   const advertPrice = detail?.price?.amount
     ? formatMoney(detail.price.amount, detail.price.currency || 'TRY')
     : null;
@@ -3009,114 +3016,33 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
                       <span className="small fw-bold text-dark d-flex align-items-center gap-1">
                         <i className="fe fe-eye text-primary" /> İlan Kartı Önizlemesi
                       </span>
-                      <span className="badge bg-light text-muted border small">Canlı Görünüm</span>
                     </div>
 
-                    {/* Image Mockup Area */}
+                    {/* Preview Presentation Stage */}
                     <div
-                      className="position-relative d-flex align-items-center justify-content-center overflow-hidden"
-                      style={{ height: '220px', backgroundColor: '#1e293b' }}
+                      className="p-3 d-flex flex-column align-items-center justify-content-center"
+                      style={{
+                        backgroundColor: '#f8fafc',
+                        minHeight: '360px',
+                      }}
                     >
-                      {coverUrl ? (
-                        <img
-                          src={coverUrl}
-                          alt={advert.title || 'İlan Görseli'}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                      ) : (
-                        <div className="text-center text-white-50 p-4">
-                          <i className="fe fe-image fs-1 d-block mb-2 opacity-50" />
-                          <span className="small">Görsel Bulunmuyor</span>
-                        </div>
-                      )}
-
-                      {/* Top-Left Live Badges — pending değişiklikleri yansıt */}
-                      <div
-                        className="position-absolute top-0 start-0 m-2 d-flex flex-column gap-1 align-items-start"
-                        style={{ zIndex: 2 }}
-                      >
-                        {displayUrgent && (
-                          <span
-                            className="badge px-2 py-1 text-white fw-bold shadow-sm d-flex align-items-center gap-1"
-                            style={{
-                              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                              fontSize: '0.72rem',
-                              letterSpacing: '0.5px',
-                              border: '1px solid rgba(255,255,255,0.4)',
-                              boxShadow: '0 2px 8px rgba(220, 38, 38, 0.4)',
-                              opacity: pendingUrgent !== null ? 0.7 : 1,
-                            }}
-                          >
-                            <i className="fe fe-zap" /> ACİL İLAN
-                            {pendingUrgent !== null && <span style={{fontSize:'9px'}}> (kaydedilmedi)</span>}
-                          </span>
-                        )}
-                        {displayVitrin && (
-                          <span
-                            className="badge px-2 py-1 text-dark fw-bold shadow-sm d-flex align-items-center gap-1"
-                            style={{
-                              background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-                              fontSize: '0.72rem',
-                              letterSpacing: '0.5px',
-                              border: '1px solid rgba(255,255,255,0.5)',
-                              boxShadow: '0 2px 8px rgba(245, 158, 11, 0.35)',
-                              opacity: pendingVitrin !== null ? 0.7 : 1,
-                            }}
-                          >
-                            <i className="fe fe-star" /> VİTRİN
-                            {pendingVitrin !== null && <span style={{fontSize:'9px'}}> (kaydedilmedi)</span>}
-                          </span>
-                        )}
-                        {!displayUrgent && !displayVitrin && (
-                          <span
-                            className="badge bg-dark bg-opacity-75 text-white px-2 py-1 small rounded-1"
-                            style={{ fontSize: '0.7rem' }}
-                          >
-                            Standart Rozetsiz
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Top-Right Favorite Heart */}
-                      <div
-                        className="position-absolute top-0 end-0 m-2 rounded-circle bg-dark bg-opacity-50 text-white d-flex align-items-center justify-content-center shadow-sm"
-                        style={{ width: '32px', height: '32px', backdropFilter: 'blur(4px)' }}
-                      >
-                        <i className="fe fe-heart" style={{ fontSize: '15px' }} />
-                      </div>
-
-                      {/* Bottom-Left Package Tag */}
-                      <div className="position-absolute bottom-0 start-0 m-2" style={{ zIndex: 2 }}>
-                        <span
-                          className="badge bg-white text-dark shadow-sm border px-2 py-1 small fw-semibold"
-                          style={{ fontSize: '0.72rem' }}
-                        >
-                          <i className="fe fe-package text-primary me-1" />
-                          {currentPkgObj?.displayName ?? currentPackage?.packageCode ?? 'Paketsiz'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Card Body */}
-                    <div className="p-3">
-                      <h6 className="fw-bold text-dark text-truncate mb-1" title={advert.title || ''}>
-                        {detail?.title || advert.title || 'İlan Başlığı'}
-                      </h6>
-                      <div className="small text-muted d-flex align-items-center gap-1 mb-2">
-                        <i className="fe fe-map-pin" style={{ fontSize: '12px' }} />
-                        <span>Türkiye</span>
-                        <span className="mx-1">•</span>
-                        <span>#{advertId}</span>
-                      </div>
-                      <div className="d-flex align-items-baseline justify-content-between pt-2 border-top">
-                        <span className="fw-bold text-primary fs-5">
-                          {advertPrice || 'Fiyat Belirtilmemiş'}
-                        </span>
-                        <span className="badge bg-light text-secondary border small">Yayında</span>
-                      </div>
-                      <small className="text-muted d-block mt-2" style={{ fontSize: '0.74rem' }}>
-                        * Ziyaretçiler aramalarda ve listelerde kartı bu şekilde görür.
-                      </small>
+                      <LiveAdvertCardPreview
+                        advert={advert}
+                        detail={detail}
+                        coverUrl={coverUrl}
+                        displayUrgent={displayUrgent}
+                        displayVitrin={displayVitrin}
+                        pendingUrgent={pendingUrgent}
+                        pendingVitrin={pendingVitrin}
+                        theme="light"
+                        editTitle={editTitle}
+                        editPrice={editPrice}
+                        editProvinceId={editProvinceId}
+                        editGender={editGender}
+                        editAge={editAge}
+                        editBreed={editBreed}
+                        editHeightCm={editHeightCm}
+                      />
                     </div>
                   </div>
                 </Col>
