@@ -363,20 +363,63 @@ export default function LiveAdvertCardPreview({
           borderTopLeftRadius: '19px',
           borderTopRightRadius: '19px',
           overflow: 'hidden',
-          backgroundColor: isDark ? '#151820' : '#e2e8f0',
+          backgroundColor: '#0a0d14',
         }}
       >
         {coverUrl ? (
-          <img
-            src={coverUrl}
-            alt={title}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: 'block',
-            }}
-          />
+          <>
+            {/* Buğulu Arka Plan (Yayındaki ilan kartı bokeh efekti) */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                overflow: 'hidden',
+                pointerEvents: 'none',
+              }}
+            >
+              <img
+                src={coverUrl}
+                alt=""
+                aria-hidden="true"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  transform: 'scale(1.25)',
+                  opacity: 0.85,
+                  filter: 'blur(20px)',
+                  WebkitFilter: 'blur(20px)',
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                }}
+              />
+            </div>
+
+            {/* Net Ön Plan Fotoğrafı */}
+            <img
+              src={coverUrl}
+              alt={title}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                position: 'relative',
+                zIndex: 1,
+                display: 'block',
+              }}
+            />
+          </>
         ) : (
           <div
             style={{

@@ -37,7 +37,8 @@ export function buildMediaUrl(assetId: string, profile: string) {
     }
   }
   if (trimmed.startsWith('/')) {
-    return `${base}${trimmed}`;
+    const apiPath = trimmed.startsWith('/api/') ? trimmed : `/api${trimmed}`;
+    return `${base}${apiPath}`;
   }
   return `${base}${MEDIA_URL}/${encodeURIComponent(trimmed)}/${encodeURIComponent(profile)}`;
 }

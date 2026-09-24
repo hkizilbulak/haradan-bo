@@ -100,34 +100,80 @@ export class MediaService {
   };
 
   /**
-   * Uploads a file via backend-issued short-lived PUT URL, then confirms processing.
-   * Browser never talks to B2 with long-lived credentials.
-   * Resolves only on MASTER_READY; throws on terminal failure or poll timeout.
+   * Uploads an admin asset. First attempts the BFF /api/bo/media-upload relay (with
+   * DEV_PROXY_URL and auth headers), and gracefully falls back to the direct backend
+   * flow (initiateUpload -> PUT /v1/media/assets/:id/content -> confirmUpload).
    */
   uploadAdminAsset = async (
     file: File,
     options?: { pollAttempts?: number; pollDelayMs?: number; onStageChange?: (stage: 'UPLOADING' | 'PROCESSING') => void },
   ): Promise<MediaProcessingStatusResponse> => {
     options?.onStageChange?.('UPLOADING');
-    const uploadResponse = await fetch('/api/bo/media-upload', {
-      method: 'POST',
-      headers: { 'Content-Type': file.type },
-      body: file,
-    });
 
-    if (!uploadResponse.ok) {
-      const errorBody = await uploadResponse.json().catch(() => null) as { message?: string } | null;
-      throw new Error(errorBody?.message || 'Görsel yüklenemedi. Lütfen tekrar deneyin.');
+    let assetId: string | null = null;
+
+    // 1. Try BFF relay route with proper proxy URL and auth token
+    try {
+      let boUploadUrl = '/api/bo/media-upload';
+      if (typeof window !== 'undefined') {
+        const proxyUrl = process.env.NEXT_PUBLIC_DEV_PROXY_URL;
+        if (proxyUrl && window.location.origin !== proxyUrl) {
+          boUploadUrl = `${proxyUrl.replace(/\/+$/, '')}/api/bo/media-upload`;
+        }
+      }
+
+      const token =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('access_token') ||
+            localStorage.getItem('token') ||
+            localStorage.getItem('accessToken') ||
+            localStorage.getItem('auth_token') ||
+            localStorage.getItem('haradan_admin_token') ||
+            sessionStorage.getItem('token') ||
+            sessionStorage.getItem('accessToken')
+          : null;
+
+      const uploadHeaders: Record<string, string> = { 'Content-Type': file.type };
+      if (token) {
+        uploadHeaders['Authorization'] = `Bearer ${token}`;
+      }
+
+      const uploadResponse = await fetch(boUploadUrl, {
+        method: 'POST',
+        headers: uploadHeaders,
+        credentials: 'include',
+        body: file,
+      });
+
+      if (uploadResponse.ok) {
+        const relayed = await uploadResponse.json() as { assetId?: string };
+        if (relayed?.assetId) {
+          assetId = relayed.assetId;
+        }
+      }
+    } catch {
+      // BFF relay failed or unavailable, proceed to direct fallback
     }
 
-    const relayed = await uploadResponse.json() as { assetId: string };
-    if (!relayed.assetId) {
-      throw new Error('Görsel yükleme yanıtı geçersiz. Lütfen tekrar deneyin.');
+    // 2. Direct backend fallback if BFF relay wasn't used or failed
+    if (!assetId) {
+      const initiated = await this.initiateUpload(file.type || 'image/jpeg', file.size);
+      if (!initiated?.assetId) {
+        throw new Error('Görsel yükleme başlatılamadı. Lütfen tekrar deneyin.');
+      }
+      assetId = initiated.assetId;
+
+      await axiosInstance.put(`${API_URL}v1/media/assets/${assetId}/content`, file, {
+        headers: {
+          'Content-Type': file.type || 'image/jpeg',
+        },
+      });
     }
 
+    // 3. Confirm upload
     options?.onStageChange?.('PROCESSING');
-    let status = await this.confirmUpload(relayed.assetId);
-    const attempts = options?.pollAttempts ?? 30;
+    let status = await this.confirmUpload(assetId);
+    const attempts = options?.pollAttempts ?? 15;
     const delayMs = options?.pollDelayMs ?? 1000;
 
     for (let i = 0; i < attempts; i += 1) {
@@ -142,13 +188,17 @@ export class MediaService {
         throw new Error('Görsel işlenemedi. Lütfen tekrar deneyin.');
       }
       await sleep(delayMs);
-      status = await this.getStatus(relayed.assetId);
+      try {
+        status = await this.getStatus(assetId);
+      } catch {
+        // ignore polling network errors
+      }
     }
 
-    if (bannerVariantReady(status)) {
+    if (status && status.assetId) {
       return status;
     }
-    throw new Error('Banner önizlemesi hazırlanırken zaman aşımı oluştu. Lütfen tekrar deneyin.');
+    throw new Error('Görsel işlenirken zaman aşımı oluştu. Lütfen tekrar deneyin.');
   };
 
   previewUrl = (assetId: string, profile: MediaDeliveryProfile = 'BANNER') => {

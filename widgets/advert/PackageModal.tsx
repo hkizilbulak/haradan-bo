@@ -28,6 +28,7 @@ import {
   isStallionAdvert,
 } from '@/helpers/advertCategoryHelper';
 import LiveAdvertCardPreview from './LiveAdvertCardPreview';
+import ImageCropperModal from '@/components/ImageCropperModal';
 
 const HORSE_BREED_OPTIONS = [
   'Safkan Arap',
@@ -339,10 +340,12 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
     displayOrder: number;
     isCover: boolean;
     previewUrl?: string;
+    file?: File;
   }>>([]);
   const [isEditInitialized, setIsEditInitialized] = useState(false);
   const [initialEditSnapshot, setInitialEditSnapshot] = useState<string>('');
   const [editLightboxIndex, setEditLightboxIndex] = useState<number | null>(null);
+  const [cropModalIndex, setCropModalIndex] = useState<number | null>(null);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -971,12 +974,12 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
   const resolveMediaSrc = (m: any): string => {
     if (!m) return '';
     if (typeof m === 'string') return buildMediaUrl(m, 'DETAIL');
+    if (m.assetId && typeof m.assetId === 'string' && m.assetId.trim()) {
+      return buildMediaUrl(m.assetId, 'DETAIL');
+    }
     const url = m.publicUrl || m.url || m.imageUrl || m.src;
     if (url && typeof url === 'string' && url.trim()) {
       return buildMediaUrl(url, 'DETAIL');
-    }
-    if (m.assetId && typeof m.assetId === 'string' && m.assetId.trim()) {
-      return buildMediaUrl(m.assetId, 'DETAIL');
     }
     return '';
   };
@@ -1266,15 +1269,8 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
           });
           toast.success(`${file.name} başarıyla yüklendi.`);
         }
-      } catch (err) {
-        const mockAssetId = `upload-${Date.now()}-${i}`;
-        newItems.push({
-          assetId: mockAssetId,
-          displayOrder: newItems.length,
-          isCover: newItems.length === 0,
-          previewUrl: URL.createObjectURL(file),
-        });
-        toast.info(`${file.name} listeye eklendi.`);
+      } catch (err: any) {
+        toast.error(`${file.name} yüklenemedi: ${err?.message || 'Bilinmeyen hata'}`);
       }
     }
 
@@ -1319,6 +1315,36 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
       copy[targetIdx] = temp;
       return copy.map((m, i) => ({ ...m, displayOrder: i }));
     });
+  };
+
+  const handleCropSave = async (croppedUri: string, croppedFile: File) => {
+    if (cropModalIndex === null) return;
+    const targetIdx = cropModalIndex;
+
+    try {
+      const status = await mediaService.uploadAdminAsset(croppedFile);
+      const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!status?.assetId || !UUID_REGEX.test(status.assetId)) {
+        throw new Error('Görsel sunucuya yüklenemedi veya geçersiz yanıt alındı.');
+      }
+
+      setEditMediaList((prev) => {
+        const next = [...prev];
+        if (next[targetIdx]) {
+          next[targetIdx] = {
+            ...next[targetIdx],
+            assetId: status.assetId,
+            previewUrl: croppedUri,
+            file: croppedFile,
+          };
+        }
+        return next;
+      });
+
+      setCropModalIndex(null);
+    } catch (err: any) {
+      toast.error('Fotoğraf yüklenirken hata oluştu: ' + (err?.message || 'Bilinmeyen hata'));
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -1477,6 +1503,17 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
       if (editItemCondition) currentProps['condition'] = editItemCondition;
       if (editBrandName) currentProps['brandName'] = editBrandName;
 
+      const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const validMediaList = editMediaList.filter((m) => m.assetId && UUID_REGEX.test(m.assetId));
+      if (validMediaList.length === 0) {
+        toast.warning('İlanda en az bir geçerli fotoğraf bulunmalıdır.');
+        setSavingAdvert(false);
+        return;
+      }
+      if (!validMediaList.some((m) => m.isCover)) {
+        validMediaList[0].isCover = true;
+      }
+
       const payload = {
         expectedVersion: detail?.version ?? advert?.version,
         title: editTitle.trim(),
@@ -1484,7 +1521,7 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
         price: priceMinor ? { amountMinor: priceMinor, currency: 'TRY' } : undefined,
         districtId: editDistrictId || undefined,
         properties: currentProps,
-        media: editMediaList.map((m, i) => ({
+        media: validMediaList.map((m, i) => ({
           assetId: m.assetId,
           displayOrder: i,
           isCover: m.isCover,
@@ -1570,15 +1607,49 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
                           {/* Image Preview Container (Tıklandığında Lightbox ile Büyür) */}
                           <div
                             className="position-relative overflow-hidden"
-                            style={{ height: '125px', backgroundColor: '#0f172a', cursor: 'pointer' }}
+                            style={{
+                              aspectRatio: '694.6 / 440',
+                              minHeight: '125px',
+                              backgroundColor: '#0a0d14',
+                              cursor: 'pointer',
+                            }}
                             onClick={() => setEditLightboxIndex(idx)}
                             title="Büyütmek için tıklayın"
                           >
+                            {/* Buğulu Arka Plan (Yayındaki ilan galerisi bokeh efekti) */}
+                            <div
+                              className="position-absolute top-0 start-0 w-100 h-100 overflow-hidden"
+                              style={{ pointerEvents: 'none' }}
+                            >
+                              <img
+                                src={m.previewUrl || buildMediaUrl(m.assetId, 'DETAIL')}
+                                alt=""
+                                aria-hidden="true"
+                                className="w-100 h-100"
+                                style={{
+                                  objectFit: 'cover',
+                                  transform: 'scale(1.25)',
+                                  opacity: 0.85,
+                                  filter: 'blur(20px)',
+                                  WebkitFilter: 'blur(20px)',
+                                }}
+                              />
+                              <div
+                                className="position-absolute top-0 start-0 w-100 h-100"
+                                style={{ backgroundColor: 'rgba(0, 0, 0, 0.25)' }}
+                              />
+                            </div>
+
+                            {/* Net Ön Plan Fotoğrafı - contain ile boşluk varsa boşluğuyla yayındaki gibi görünür */}
                             <img
                               src={m.previewUrl || buildMediaUrl(m.assetId, 'DETAIL')}
                               alt={`Fotoğraf ${idx + 1}`}
-                              className="w-100 h-100 object-fit-cover"
-                              style={{ transition: 'transform 0.2s ease' }}
+                              className="w-100 h-100 position-relative"
+                              style={{
+                                objectFit: 'contain',
+                                zIndex: 1,
+                                transition: 'transform 0.2s ease',
+                              }}
                               onError={(e) => {
                                 (e.target as HTMLImageElement).src =
                                   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150"><rect width="200" height="150" fill="%23f1f5f9"/><text x="100" y="80" text-anchor="middle" font-size="13" fill="%2394a3b8">Görsel Yüklenemedi</text></svg>';
@@ -1592,6 +1663,7 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
                                 backgroundColor: 'rgba(0, 0, 0, 0.4)',
                                 opacity: 0,
                                 transition: 'opacity 0.2s ease',
+                                zIndex: 2,
                               }}
                               onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
                               onMouseLeave={(e) => (e.currentTarget.style.opacity = '0')}
@@ -1601,22 +1673,36 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
                               </div>
                             </div>
 
-                            {/* Top Badges & Delete Button */}
-                            <div className="position-absolute top-0 start-0 m-1.5 d-flex gap-1 align-items-center">
-                              <Badge
-                                bg={m.isCover ? 'primary' : 'dark'}
-                                className="fw-semibold px-2 py-1 shadow-sm"
-                                style={{ fontSize: '10px' }}
-                              >
-                                #{idx + 1} {m.isCover && '★ Kapak'}
-                              </Badge>
-                            </div>
+                            {/* Düzenle Butonu (Sol Üst) */}
+                            <button
+                              type="button"
+                              className="position-absolute top-0 start-0 m-1.5 px-2 py-0.5 d-flex align-items-center gap-1 border-0 shadow-sm"
+                              style={{
+                                backgroundColor: 'rgba(12, 12, 14, 0.75)',
+                                color: '#ffffff',
+                                borderRadius: '50rem',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                zIndex: 3,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCropModalIndex(idx);
+                              }}
+                              title="Fotoğrafı kırp ve düzenle"
+                            >
+                              <i className="fe fe-crop" style={{ fontSize: '11px' }} />
+                              <span>Düzenle</span>
+                            </button>
 
+                            {/* Delete Button */}
                             <Button
                               size="sm"
                               variant="danger"
                               className="position-absolute top-0 end-0 m-1.5 p-0 d-flex align-items-center justify-content-center shadow-sm rounded-circle"
-                              style={{ width: '24px', height: '24px', fontSize: '11px', opacity: 0.95 }}
+                              style={{ width: '24px', height: '24px', fontSize: '11px', opacity: 0.95, zIndex: 3 }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeletePhoto(idx);
@@ -3374,17 +3460,43 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
           {/* Büyük Görsel Alanı */}
           <div
             className="d-flex align-items-center justify-content-center position-relative rounded-3 overflow-hidden"
-            style={{ minHeight: '440px', backgroundColor: '#090d16' }}
+            style={{ minHeight: '440px', backgroundColor: '#0a0d14' }}
           >
+            {/* Buğulu Arka Plan */}
+            <div
+              className="position-absolute top-0 start-0 w-100 h-100 overflow-hidden"
+              style={{ pointerEvents: 'none' }}
+            >
+              <img
+                src={
+                  editMediaList[editLightboxIndex].previewUrl ||
+                  buildMediaUrl(editMediaList[editLightboxIndex].assetId, 'DETAIL')
+                }
+                alt=""
+                aria-hidden="true"
+                className="w-100 h-100"
+                style={{
+                  objectFit: 'cover',
+                  transform: 'scale(1.25)',
+                  opacity: 0.85,
+                  filter: 'blur(28px)',
+                  WebkitFilter: 'blur(28px)',
+                }}
+              />
+              <div
+                className="position-absolute top-0 start-0 w-100 h-100"
+                style={{ backgroundColor: 'rgba(0, 0, 0, 0.35)' }}
+              />
+            </div>
+
             <img
               src={
                 editMediaList[editLightboxIndex].previewUrl ||
-                buildMediaUrl(editMediaList[editLightboxIndex].assetId, 'ORIGINAL') ||
                 buildMediaUrl(editMediaList[editLightboxIndex].assetId, 'DETAIL')
               }
               alt={`Fotoğraf ${editLightboxIndex + 1}`}
-              className="img-fluid rounded-2"
-              style={{ maxHeight: '72vh', maxWidth: '100%', objectFit: 'contain' }}
+              className="img-fluid rounded-2 position-relative"
+              style={{ maxHeight: '72vh', maxWidth: '100%', objectFit: 'contain', zIndex: 1 }}
             />
           </div>
 
@@ -3431,6 +3543,20 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
           )}
         </div>
       </Modal>
+    )}
+
+    {/* Görsel Kırpma ve Düzenleme Modalı */}
+    {cropModalIndex !== null && editMediaList[cropModalIndex] && (
+      <ImageCropperModal
+        show={cropModalIndex !== null}
+        imageUri={
+          editMediaList[cropModalIndex].previewUrl ||
+          buildMediaUrl(editMediaList[cropModalIndex].assetId, 'DETAIL')
+        }
+        fileName={`advert-media-${cropModalIndex + 1}.jpg`}
+        onClose={() => setCropModalIndex(null)}
+        onSave={handleCropSave}
+      />
     )}
   </>
 );

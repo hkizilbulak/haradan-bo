@@ -491,7 +491,7 @@ export default function AdvertDetailModal({
                   <Col lg={7}>
                     {/* Main Gallery Showcase */}
                     <Card className="border-0 shadow-sm rounded-4 overflow-hidden mb-4 bg-white">
-                      <div className="position-relative bg-dark" style={{ minHeight: '380px' }}>
+                      <div className="position-relative bg-white" style={{ minHeight: '380px' }}>
                         {activeMediaUrl ? (
                           <>
                             <div
@@ -557,7 +557,7 @@ export default function AdvertDetailModal({
                             )}
                           </>
                         ) : (
-                          <div className="d-flex flex-column align-items-center justify-content-center py-5 text-white-50" style={{ height: '380px' }}>
+                          <div className="d-flex flex-column align-items-center justify-content-center py-5 text-muted" style={{ height: '380px' }}>
                             <i className="fe fe-camera fs-1 mb-2 opacity-50" />
                             <span className="fw-semibold">Bu ilan için henüz fotoğraf yüklenmemiş.</span>
                           </div>
@@ -581,7 +581,7 @@ export default function AdvertDetailModal({
                                 <img
                                   src={resolveMediaSrc(m)}
                                   alt={`Küçük Resim ${idx + 1}`}
-                                  className="w-100 h-100 object-fit-cover"
+                                  className="w-100 h-100 object-fit-contain bg-white"
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement;
                                     if (!target.src.includes('placeholder-img.jpg')) {

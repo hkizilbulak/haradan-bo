@@ -229,7 +229,7 @@ func (s *appServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 		s.handleMediaUploadRelay(w, r)
 		return
 	}
-	if strings.HasPrefix(r.URL.Path, "/api/") {
+	if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/v1/") {
 		s.handleAPIProxy(w, r)
 		return
 	}
@@ -462,6 +462,11 @@ func (s *appServer) handleAPIProxy(w http.ResponseWriter, r *http.Request) {
 
 func (s *appServer) performAuthenticatedRequest(ctx context.Context, w http.ResponseWriter, r *http.Request, targetPath string, requestBody []byte) (*http.Response, []byte, error) {
 	initialAccessToken := readCookieValue(r, accessTokenCookieName)
+	if initialAccessToken == "" {
+		if auth := strings.TrimSpace(r.Header.Get("Authorization")); strings.HasPrefix(strings.ToLower(auth), "bearer ") {
+			initialAccessToken = strings.TrimSpace(auth[7:])
+		}
+	}
 	response, responseBody, err := s.doBackendJSONRequest(ctx, r.Method, targetPath, requestBody, initialAccessToken, r.URL.Query())
 	if err != nil {
 		return nil, nil, err
