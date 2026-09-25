@@ -345,7 +345,6 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
   }>>([]);
   const [isEditInitialized, setIsEditInitialized] = useState(false);
   const [initialEditSnapshot, setInitialEditSnapshot] = useState<string>('');
-  const [editLightboxIndex, setEditLightboxIndex] = useState<number | null>(null);
   const [cropModalIndex, setCropModalIndex] = useState<number | null>(null);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -1234,21 +1233,6 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
     }
   }, [tab, isEditInitialized, detail]);
 
-  useEffect(() => {
-    if (editLightboxIndex === null) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setEditLightboxIndex(null);
-      } else if (e.key === 'ArrowLeft') {
-        setEditLightboxIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : prev));
-      } else if (e.key === 'ArrowRight') {
-        setEditLightboxIndex((prev) => (prev !== null && prev < editMediaList.length - 1 ? prev + 1 : prev));
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editLightboxIndex, editMediaList.length]);
-
   const processFiles = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
 
@@ -1613,17 +1597,14 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
                             transition: 'all 0.15s ease-in-out',
                           }}
                         >
-                          {/* Image Preview Container (Tıklandığında Lightbox ile Büyür) */}
+                          {/* Image Preview Container */}
                           <div
                             className="position-relative overflow-hidden"
                             style={{
                               aspectRatio: '694.6 / 440',
                               minHeight: '125px',
                               backgroundColor: '#0a0d14',
-                              cursor: 'pointer',
                             }}
-                            onClick={() => setEditLightboxIndex(idx)}
-                            title="Büyütmek için tıklayın"
                           >
                             {/* Buğulu Arka Plan (Yayındaki ilan galerisi bokeh efekti) */}
                             <div
@@ -1664,23 +1645,6 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
                                   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150"><rect width="200" height="150" fill="%23f1f5f9"/><text x="100" y="80" text-anchor="middle" font-size="13" fill="%2394a3b8">Görsel Yüklenemedi</text></svg>';
                               }}
                             />
-
-                            {/* Hover Overlay with Zoom Icon */}
-                            <div
-                              className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-white"
-                              style={{
-                                backgroundColor: 'rgba(0, 0, 0, 0.4)',
-                                opacity: 0,
-                                transition: 'opacity 0.2s ease',
-                                zIndex: 2,
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                              onMouseLeave={(e) => (e.currentTarget.style.opacity = '0')}
-                            >
-                              <div className="d-flex align-items-center gap-1 bg-dark bg-opacity-75 px-2.5 py-1 rounded-pill small fw-semibold shadow-sm">
-                                <i className="fe fe-zoom-in" /> Büyüt
-                              </div>
-                            </div>
 
                             {/* Düzenle Butonu (Sol Üst) */}
                             <button
@@ -3403,156 +3367,6 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
       type="danger"
       isLoading={deleting}
     />
-
-    {/* Lightbox Büyütme Modalı */}
-    {editLightboxIndex !== null && editMediaList[editLightboxIndex] && (
-      <Modal
-        show={true}
-        onHide={() => setEditLightboxIndex(null)}
-        size="lg"
-        centered
-        contentClassName="bg-transparent border-0"
-      >
-        <div className="position-relative bg-dark rounded-4 overflow-hidden shadow-lg p-3 text-center border border-secondary border-opacity-25">
-          {/* Üst Bar: Sayı, Kapak Durumu ve Butonlar */}
-          <div className="d-flex justify-content-between align-items-center text-white px-2 py-1 mb-2">
-            <div className="d-flex align-items-center gap-2">
-              <span className="small fw-semibold">
-                Fotoğraf {editLightboxIndex + 1} / {editMediaList.length}
-              </span>
-              {editMediaList[editLightboxIndex].isCover ? (
-                <Badge bg="primary" className="fw-semibold px-2 py-1" style={{ fontSize: '10.5px' }}>
-                  ★ Kapak Fotoğrafı
-                </Badge>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline-light"
-                  className="py-0 px-2 fw-semibold"
-                  style={{ fontSize: '11px', height: '24px' }}
-                  onClick={() => handleSetCover(editLightboxIndex)}
-                >
-                  Kapak Yap
-                </Button>
-              )}
-            </div>
-            <div className="d-flex align-items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline-danger"
-                className="py-0 px-2"
-                style={{ fontSize: '11px', height: '24px' }}
-                onClick={() => {
-                  handleDeletePhoto(editLightboxIndex);
-                  if (editMediaList.length <= 1) {
-                    setEditLightboxIndex(null);
-                  } else if (editLightboxIndex >= editMediaList.length - 1) {
-                    setEditLightboxIndex(editMediaList.length - 2);
-                  }
-                }}
-                title="Fotoğrafı Sil"
-              >
-                <i className="fe fe-trash-2 me-1" /> Sil
-              </Button>
-              <Button
-                size="sm"
-                variant="link"
-                className="text-white p-0 fs-4 text-decoration-none lh-1 ms-2"
-                onClick={() => setEditLightboxIndex(null)}
-                title="Kapat (ESC)"
-              >
-                <i className="fe fe-x" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Büyük Görsel Alanı */}
-          <div
-            className="d-flex align-items-center justify-content-center position-relative rounded-3 overflow-hidden"
-            style={{ minHeight: '440px', backgroundColor: '#0a0d14' }}
-          >
-            {/* Buğulu Arka Plan */}
-            <div
-              className="position-absolute top-0 start-0 w-100 h-100 overflow-hidden"
-              style={{ pointerEvents: 'none' }}
-            >
-              <img
-                src={
-                  editMediaList[editLightboxIndex].previewUrl ||
-                  buildMediaUrl(editMediaList[editLightboxIndex].assetId, 'DETAIL')
-                }
-                alt=""
-                aria-hidden="true"
-                className="w-100 h-100"
-                style={{
-                  objectFit: 'cover',
-                  transform: 'scale(1.25)',
-                  opacity: 0.85,
-                  filter: 'blur(28px)',
-                  WebkitFilter: 'blur(28px)',
-                }}
-              />
-              <div
-                className="position-absolute top-0 start-0 w-100 h-100"
-                style={{ backgroundColor: 'rgba(0, 0, 0, 0.35)' }}
-              />
-            </div>
-
-            <img
-              src={
-                editMediaList[editLightboxIndex].previewUrl ||
-                buildMediaUrl(editMediaList[editLightboxIndex].assetId, 'DETAIL')
-              }
-              alt={`Fotoğraf ${editLightboxIndex + 1}`}
-              className="img-fluid rounded-2 position-relative"
-              style={{ maxHeight: '72vh', maxWidth: '100%', objectFit: 'contain', zIndex: 1 }}
-            />
-          </div>
-
-          {/* Önceki / Sonraki Ok Butonları */}
-          {editMediaList.length > 1 && (
-            <>
-              <Button
-                size="sm"
-                variant="dark"
-                className="rounded-circle position-absolute top-50 start-0 translate-middle-y ms-4 d-flex align-items-center justify-content-center shadow"
-                style={{
-                  width: '44px',
-                  height: '44px',
-                  backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                }}
-                disabled={editLightboxIndex === 0}
-                onClick={() => setEditLightboxIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : prev))}
-                title="Önceki (←)"
-              >
-                <i className="fe fe-chevron-left text-white fs-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="dark"
-                className="rounded-circle position-absolute top-50 end-0 translate-middle-y me-4 d-flex align-items-center justify-content-center shadow"
-                style={{
-                  width: '44px',
-                  height: '44px',
-                  backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                }}
-                disabled={editLightboxIndex === editMediaList.length - 1}
-                onClick={() =>
-                  setEditLightboxIndex((prev) =>
-                    prev !== null && prev < editMediaList.length - 1 ? prev + 1 : prev
-                  )
-                }
-                title="Sonraki (→)"
-              >
-                <i className="fe fe-chevron-right text-white fs-4" />
-              </Button>
-            </>
-          )}
-        </div>
-      </Modal>
-    )}
 
     {/* Görsel Kırpma ve Düzenleme Modalı */}
     {cropModalIndex !== null && editMediaList[cropModalIndex] && (

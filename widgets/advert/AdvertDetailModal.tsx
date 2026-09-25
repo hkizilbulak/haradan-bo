@@ -35,7 +35,6 @@ export default function AdvertDetailModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeMediaIndex, setActiveMediaIndex] = useState<number>(0);
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const fetchDetail = async () => {
@@ -63,7 +62,6 @@ export default function AdvertDetailModal({
   useEffect(() => {
     if (advert) {
       setActiveMediaIndex(0);
-      setLightboxIndex(null);
       void fetchDetail();
     } else {
       setDetail(null);
@@ -496,9 +494,7 @@ export default function AdvertDetailModal({
                           <>
                             <div
                               className="d-flex align-items-center justify-content-center w-100"
-                              style={{ height: '380px', cursor: 'pointer' }}
-                              onClick={() => setLightboxIndex(activeMediaIndex)}
-                              title="Büyütmek için tıklayın"
+                              style={{ height: '380px' }}
                             >
                               <img
                                 src={activeMediaUrl}
@@ -872,80 +868,6 @@ export default function AdvertDetailModal({
           </div>
         </Modal.Footer>
       </Modal>
-
-      {/* Lightbox Modal */}
-      {lightboxIndex !== null && mediaList[lightboxIndex] && (
-        <Modal
-          show={true}
-          onHide={() => setLightboxIndex(null)}
-          size="lg"
-          centered
-          contentClassName="bg-transparent border-0"
-        >
-          <div className="position-relative bg-dark rounded-3 overflow-hidden shadow-lg p-2 text-center">
-            <div className="d-flex justify-content-between align-items-center text-white px-3 py-2">
-              <span className="small">
-                Fotoğraf {lightboxIndex + 1} / {mediaList.length}
-                {mediaList[lightboxIndex].isCover && (
-                  <Badge bg="warning" text="dark" className="ms-2">
-                    Kapak
-                  </Badge>
-                )}
-              </span>
-              <Button
-                size="sm"
-                variant="link"
-                className="text-white p-0 fs-5 text-decoration-none"
-                onClick={() => setLightboxIndex(null)}
-              >
-                <i className="fe fe-x" />
-              </Button>
-            </div>
-
-            <div className="d-flex align-items-center justify-content-center" style={{ minHeight: '400px' }}>
-              <img
-                src={resolveMediaSrc(mediaList[lightboxIndex])}
-                alt={`Önizleme ${lightboxIndex + 1}`}
-                className="img-fluid rounded"
-                style={{ maxHeight: '75vh', objectFit: 'contain' }}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  if (!target.src.includes('placeholder-img.jpg')) {
-                    target.src = '/images/placeholder/placeholder-img.jpg';
-                  }
-                }}
-              />
-            </div>
-
-            {mediaList.length > 1 && (
-              <div className="d-flex justify-content-between position-absolute top-50 start-0 end-0 px-3 translate-middle-y">
-                <Button
-                  size="sm"
-                  variant="dark"
-                  className="rounded-circle bg-opacity-75"
-                  style={{ width: '40px', height: '40px' }}
-                  disabled={lightboxIndex === 0}
-                  onClick={() => setLightboxIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : prev))}
-                >
-                  <i className="fe fe-chevron-left" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="dark"
-                  className="rounded-circle bg-opacity-75"
-                  style={{ width: '40px', height: '40px' }}
-                  disabled={lightboxIndex === mediaList.length - 1}
-                  onClick={() =>
-                    setLightboxIndex((prev) => (prev !== null && prev < mediaList.length - 1 ? prev + 1 : prev))
-                  }
-                >
-                  <i className="fe fe-chevron-right" />
-                </Button>
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
     </>
   );
 }
