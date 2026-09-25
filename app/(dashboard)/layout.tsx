@@ -7,6 +7,7 @@ import NavbarTop from '@/layouts/navbars/NavbarTop';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import Loading from '@/components/Loading';
+import { useMediaQuery } from 'react-responsive';
 
 export default function DashboardLayout({
 	children,
@@ -17,6 +18,7 @@ export default function DashboardLayout({
 	const { status, hasAdminAccess, session } = useAuth();
 	const router = useRouter();
 	const pathname = usePathname();
+	const isMobile = useMediaQuery({ maxWidth: 767 });
 
 	useEffect(() => {
 		if (status === 'unauthenticated' || (status === 'authenticated' && !hasAdminAccess)) {
@@ -39,7 +41,16 @@ export default function DashboardLayout({
 	}
 
 	return (
-		<div id="db-wrapper" className={`${showMenu ? '' : 'toggled'}`}>
+		<div id="db-wrapper" className={`${showMenu ? '' : 'toggled'}`}
+			onClick={(e) => {
+				if (isMobile && !showMenu) {
+					const target = e.target as HTMLElement;
+					if (!target.closest('a') && !target.closest('button') && !target.closest('input')) {
+						setShowMenu(true);
+					}
+				}
+			}}
+		>
 			<div className="navbar-vertical navbar">
 				<NavbarVertical
 					showMenu={showMenu}

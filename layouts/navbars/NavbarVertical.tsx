@@ -101,7 +101,7 @@ const NavbarVertical = (props: IProps) => {
 					rel="noopener noreferrer"
 					className={`nav-link ${location === item.link ? 'active' : ''}`}
 					onClick={(e) =>
-						isMobile ? props.onClick(!props.showMenu) : props.showMenu
+						isMobile ? props.onClick(true) : null
 					}>
 					{item.name || item.title}
 					{item.badge ? (
@@ -122,7 +122,7 @@ const NavbarVertical = (props: IProps) => {
 				href={item.link || '#'}
 				className={`nav-link ${location === item.link ? 'active' : ''}`}
 				onClick={(e) =>
-					isMobile ? props.onClick(!props.showMenu) : props.showMenu
+					isMobile ? props.onClick(true) : null
 				}>
 				{item.name || item.title}
 				{item.badge ? (
@@ -248,7 +248,7 @@ const NavbarVertical = (props: IProps) => {
 								return (
 									<Card bsPrefix="nav-item" key={index}>
 										{isExternal ? (
-											<a href={menu.link} target="_blank" rel="noopener noreferrer" className={`nav-link ${location === menu.link ? 'active' : ''}`}>
+											<a href={menu.link} target="_blank" rel="noopener noreferrer" className={`nav-link ${location === menu.link ? 'active' : ''}`} onClick={() => isMobile ? props.onClick(true) : null}>
 												{typeof menu.icon === 'string' ? (
 													<i className={`nav-icon fe fe-${menu.icon} me-2`}></i>
 												) : (menu.icon)}
@@ -260,7 +260,7 @@ const NavbarVertical = (props: IProps) => {
 												) : ('')}
 											</a>
 										) : (
-											<Link href={menu.link || '#'} className={`nav-link ${location === menu.link ? 'active' : ''}`}>
+											<Link href={menu.link || '#'} className={`nav-link ${location === menu.link ? 'active' : ''}`} onClick={() => isMobile ? props.onClick(true) : null}>
 												{typeof menu.icon === 'string' ? (
 													<i className={`nav-icon fe fe-${menu.icon} me-2`}></i>
 												) : (menu.icon)}
