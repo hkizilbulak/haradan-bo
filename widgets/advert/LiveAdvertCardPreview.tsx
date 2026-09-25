@@ -358,7 +358,7 @@ export default function LiveAdvertCardPreview({
       <div
         style={{
           width: '100%',
-          aspectRatio: '4 / 3',
+          aspectRatio: '694.6 / 440',
           position: 'relative',
           borderTopLeftRadius: '19px',
           borderTopRightRadius: '19px',

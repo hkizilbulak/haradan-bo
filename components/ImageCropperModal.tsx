@@ -8,6 +8,7 @@ export type AspectRatioOption = 'FREE' | 'WEB';
 interface ImageCropperModalProps {
   show: boolean;
   imageUri: string;
+  originalUri?: string;
   fileName?: string;
   onClose: () => void;
   onSave: (croppedUri: string, croppedFile: File) => Promise<void> | void;
@@ -25,16 +26,18 @@ const WEB_GALLERY_ASPECT_RATIO = 694.6 / 440;
 
 const PRESETS: { key: AspectRatioOption; label: string; ratio: number | null }[] = [
   { key: 'FREE', label: 'Tüm Fotoğraf (Serbest)', ratio: null },
-  { key: 'WEB', label: 'Web Kalıbı', ratio: WEB_GALLERY_ASPECT_RATIO },
+  { key: 'WEB', label: 'İlan Kalıbı', ratio: WEB_GALLERY_ASPECT_RATIO },
 ];
 
 export default function ImageCropperModal({
   show,
   imageUri,
+  originalUri,
   fileName = 'cropped_image.jpg',
   onClose,
   onSave,
 }: ImageCropperModalProps) {
+  const [activeSourceUri, setActiveSourceUri] = useState<string>(imageUri);
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const [rotation, setRotation] = useState<number>(0);
   const [aspectRatio, setAspectRatio] = useState<AspectRatioOption>('FREE');
@@ -52,6 +55,8 @@ export default function ImageCropperModal({
     startY: number;
     startBox: CropBox;
   } | null>(null);
+  const activePointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchStartRef = useRef<{ dist: number; startBox: CropBox } | null>(null);
 
   // Responsive container bounds (ideal compact size)
   const [maxDisplayBounds, setMaxDisplayBounds] = useState({ width: 600, height: 390 });
@@ -71,9 +76,14 @@ export default function ImageCropperModal({
 
   const isFlipped = rotation === 90 || rotation === 270;
 
+  // Synchronize activeSourceUri when show or imageUri changes
+  useEffect(() => {
+    setActiveSourceUri(imageUri);
+  }, [show, imageUri]);
+
   // Load natural dimensions when image changes or modal opens
   useEffect(() => {
-    if (!show || !imageUri) {
+    if (!show || !activeSourceUri) {
       setNaturalSize(null);
       setLoading(true);
       setRotation(0);
@@ -90,12 +100,12 @@ export default function ImageCropperModal({
     let createdBlobUrl: string | null = null;
 
     const prepareImage = async () => {
-      let resolvedSrc = imageUri;
+      let resolvedSrc = activeSourceUri;
 
       // Convert remote/proxy image to local blob URL to prevent tainted canvas
-      if (imageUri && !imageUri.startsWith('blob:') && !imageUri.startsWith('data:')) {
+      if (activeSourceUri && !activeSourceUri.startsWith('blob:') && !activeSourceUri.startsWith('data:')) {
         try {
-          const resp = await axiosInstance.get(imageUri, { responseType: 'blob' });
+          const resp = await axiosInstance.get(activeSourceUri, { responseType: 'blob' });
           if (resp.data instanceof Blob) {
             createdBlobUrl = URL.createObjectURL(resp.data);
             resolvedSrc = createdBlobUrl;
@@ -103,7 +113,7 @@ export default function ImageCropperModal({
         } catch (axiosErr) {
           console.warn('Axios blob fetch failed, trying direct fetch:', axiosErr);
           try {
-            const resp = await fetch(imageUri, { cache: 'no-cache' });
+            const resp = await fetch(activeSourceUri, { cache: 'no-cache' });
             if (resp.ok) {
               const blob = await resp.blob();
               createdBlobUrl = URL.createObjectURL(blob);
@@ -111,7 +121,7 @@ export default function ImageCropperModal({
             }
           } catch (fetchErr) {
             console.warn('Direct fetch failed, falling back to original URI:', fetchErr);
-            resolvedSrc = imageUri;
+            resolvedSrc = activeSourceUri;
           }
         }
       }
@@ -158,7 +168,7 @@ export default function ImageCropperModal({
         URL.revokeObjectURL(createdBlobUrl);
       }
     };
-  }, [show, imageUri]);
+  }, [show, activeSourceUri]);
 
   const initCropBox = useCallback((dispW: number, dispH: number, preset: AspectRatioOption) => {
     const targetPreset = PRESETS.find((p) => p.key === preset);
@@ -220,12 +230,18 @@ export default function ImageCropperModal({
   };
 
 
-  // Drag handling
+  // Drag handling with Pointer Capture & Touch support
   const startDrag = (
     mode: 'move' | 'tl' | 'tr' | 'bl' | 'br' | 't' | 'b' | 'l' | 'r',
     clientX: number,
-    clientY: number
+    clientY: number,
+    event?: any
   ) => {
+    try {
+      if (event?.target?.setPointerCapture && event?.pointerId !== undefined) {
+        event.target.setPointerCapture(event.pointerId);
+      }
+    } catch {}
     dragInfoRef.current = {
       mode,
       startX: clientX,
@@ -237,10 +253,80 @@ export default function ImageCropperModal({
   useEffect(() => {
     if (!show) return;
 
+    const onPointerDownGlobal = (e: PointerEvent) => {
+      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      // When 2 fingers touch, switch to pinch-to-resize
+      if (activePointersRef.current.size === 2) {
+        const pts = Array.from(activePointersRef.current.values());
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        pinchStartRef.current = { dist, startBox: { ...cropBox } };
+        dragInfoRef.current = null;
+      }
+    };
+
     const onPointerMove = (e: PointerEvent) => {
+      if (activePointersRef.current.has(e.pointerId)) {
+        activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      }
+
+      // Handle 2-finger pinch resize on mobile
+      if (pinchStartRef.current && activePointersRef.current.size >= 2) {
+        e.preventDefault();
+        const pts = Array.from(activePointersRef.current.values());
+        const newDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        if (pinchStartRef.current.dist > 10) {
+          const scale = newDist / pinchStartRef.current.dist;
+          const { startBox } = pinchStartRef.current;
+          const dispW = displaySize.width;
+          const dispH = displaySize.height;
+          const activePreset = PRESETS.find((p) => p.key === aspectRatio);
+          const ratio = activePreset?.ratio;
+
+          const centerX = startBox.x + startBox.width / 2;
+          const centerY = startBox.y + startBox.height / 2;
+
+          let newW = Math.round(startBox.width * scale);
+          let newH = ratio ? Math.round(newW / ratio) : Math.round(startBox.height * scale);
+
+          const minSize = 40;
+          if (newW < minSize) {
+            newW = minSize;
+            if (ratio) newH = Math.round(newW / ratio);
+          }
+          if (newH < minSize) {
+            newH = minSize;
+            if (ratio) newW = Math.round(newH * ratio);
+          }
+
+          if (newW > dispW) {
+            newW = dispW;
+            if (ratio) newH = Math.round(newW / ratio);
+          }
+          if (newH > dispH) {
+            newH = dispH;
+            if (ratio) newW = Math.round(newH * ratio);
+          }
+
+          let newX = Math.round(centerX - newW / 2);
+          let newY = Math.round(centerY - newH / 2);
+
+          newX = Math.max(0, Math.min(dispW - newW, newX));
+          newY = Math.max(0, Math.min(dispH - newH, newY));
+
+          setCropBox({
+            x: newX,
+            y: newY,
+            width: newW,
+            height: newH,
+          });
+        }
+        return;
+      }
+
       const info = dragInfoRef.current;
       if (!info) return;
 
+      e.preventDefault();
       const dx = e.clientX - info.startX;
       const dy = e.clientY - info.startY;
       const { startBox, mode } = info;
@@ -259,8 +345,11 @@ export default function ImageCropperModal({
         let newW = Math.max(minSize, Math.min(dispW - startBox.x, startBox.width + dx));
         let newH = startBox.height;
         if (ratio) {
-          newH = Math.min(dispH - startBox.y, newW / ratio);
-          newW = newH * ratio;
+          newH = Math.round(newW / ratio);
+          if (startBox.y + newH > dispH) {
+            newH = dispH - startBox.y;
+            newW = Math.round(newH * ratio);
+          }
         }
         setCropBox((prev) => ({
           ...prev,
@@ -271,8 +360,11 @@ export default function ImageCropperModal({
         let newH = Math.max(minSize, Math.min(dispH - startBox.y, startBox.height + dy));
         let newW = startBox.width;
         if (ratio) {
-          newW = Math.min(dispW - startBox.x, newH * ratio);
-          newH = newW / ratio;
+          newW = Math.round(newH * ratio);
+          if (startBox.x + newW > dispW) {
+            newW = dispW - startBox.x;
+            newH = Math.round(newW / ratio);
+          }
         }
         setCropBox((prev) => ({
           ...prev,
@@ -280,42 +372,65 @@ export default function ImageCropperModal({
           height: Math.round(newH),
         }));
       } else if (mode === 't') {
-        let newY = Math.max(0, Math.min(startBox.y + startBox.height - minSize, startBox.y + dy));
-        let newH = startBox.height - (newY - startBox.y);
-        let newW = startBox.width;
-        if (ratio) {
-          newW = Math.min(dispW - startBox.x, newH * ratio);
-          newH = newW / ratio;
-          newY = startBox.y + (startBox.height - newH);
+        let newH = Math.max(minSize, startBox.height - dy);
+        let newY = startBox.y + (startBox.height - newH);
+        if (newY < 0) {
+          newH += newY;
+          newY = 0;
         }
-        setCropBox((prev) => ({
-          ...prev,
-          y: Math.round(newY),
-          height: Math.round(newH),
-          width: Math.round(newW),
-        }));
-      } else if (mode === 'l') {
-        let newX = Math.max(0, Math.min(startBox.x + startBox.width - minSize, startBox.x + dx));
-        let newW = startBox.width - (newX - startBox.x);
-        let newH = startBox.height;
+        let newW = startBox.width;
+        let newX = startBox.x;
         if (ratio) {
-          newH = Math.min(dispH - startBox.y, newW / ratio);
-          newW = newH * ratio;
-          newX = startBox.x + (startBox.width - newW);
+          newW = Math.round(newH * ratio);
+          if (startBox.x + newW > dispW) {
+            newW = dispW - startBox.x;
+            newH = Math.round(newW / ratio);
+            newY = startBox.y + (startBox.height - newH);
+          }
         }
         setCropBox((prev) => ({
           ...prev,
           x: Math.round(newX),
+          y: Math.round(newY),
+          width: Math.round(newW),
+          height: Math.round(newH),
+        }));
+      } else if (mode === 'l') {
+        let newW = Math.max(minSize, startBox.width - dx);
+        let newX = startBox.x + (startBox.width - newW);
+        if (newX < 0) {
+          newW += newX;
+          newX = 0;
+        }
+        let newH = startBox.height;
+        let newY = startBox.y;
+        if (ratio) {
+          newH = Math.round(newW / ratio);
+          if (startBox.y + newH > dispH) {
+            newH = dispH - startBox.y;
+            newW = Math.round(newH * ratio);
+            newX = startBox.x + (startBox.width - newW);
+          }
+        }
+        setCropBox((prev) => ({
+          ...prev,
+          x: Math.round(newX),
+          y: Math.round(newY),
           width: Math.round(newW),
           height: Math.round(newH),
         }));
       } else if (mode === 'br') {
-        let newW = Math.max(minSize, Math.min(dispW - startBox.x, startBox.width + dx));
-        let newH = ratio ? newW / ratio : Math.max(minSize, Math.min(dispH - startBox.y, startBox.height + dy));
+        const delta = ratio ? (Math.abs(dx) > Math.abs(dy * ratio) ? dx : dy * ratio) : 0;
+        let newW = ratio ? Math.max(minSize, startBox.width + delta) : Math.max(minSize, Math.min(dispW - startBox.x, startBox.width + dx));
+        let newH = ratio ? Math.round(newW / ratio) : Math.max(minSize, Math.min(dispH - startBox.y, startBox.height + dy));
 
-        if (ratio && startBox.y + newH > dispH) {
+        if (startBox.x + newW > dispW) {
+          newW = dispW - startBox.x;
+          if (ratio) newH = Math.round(newW / ratio);
+        }
+        if (startBox.y + newH > dispH) {
           newH = dispH - startBox.y;
-          newW = newH * ratio;
+          if (ratio) newW = Math.round(newH * ratio);
         }
 
         setCropBox((prev) => ({
@@ -324,8 +439,9 @@ export default function ImageCropperModal({
           height: Math.round(newH),
         }));
       } else if (mode === 'tl') {
-        let newW = Math.max(minSize, startBox.width - dx);
-        let newH = ratio ? newW / ratio : Math.max(minSize, startBox.height - dy);
+        const delta = ratio ? (Math.abs(dx) > Math.abs(dy * ratio) ? -dx : -dy * ratio) : 0;
+        let newW = ratio ? Math.max(minSize, startBox.width + delta) : Math.max(minSize, startBox.width - dx);
+        let newH = ratio ? Math.round(newW / ratio) : Math.max(minSize, startBox.height - dy);
 
         let newX = startBox.x + (startBox.width - newW);
         let newY = startBox.y + (startBox.height - newH);
@@ -333,12 +449,15 @@ export default function ImageCropperModal({
         if (newX < 0) {
           newW += newX;
           newX = 0;
-          if (ratio) newH = newW / ratio;
+          if (ratio) newH = Math.round(newW / ratio);
         }
         if (newY < 0) {
           newH += newY;
           newY = 0;
-          if (ratio) newW = newH * ratio;
+          if (ratio) {
+            newW = Math.round(newH * ratio);
+            newX = startBox.x + (startBox.width - newW);
+          }
         }
 
         setCropBox({
@@ -348,35 +467,41 @@ export default function ImageCropperModal({
           height: Math.round(newH),
         });
       } else if (mode === 'tr') {
-        let newW = Math.max(minSize, Math.min(dispW - startBox.x, startBox.width + dx));
-        let newH = ratio ? newW / ratio : Math.max(minSize, startBox.height - dy);
+        const delta = ratio ? (Math.abs(dx) > Math.abs(dy * ratio) ? dx : -dy * ratio) : 0;
+        let newW = ratio ? Math.max(minSize, startBox.width + delta) : Math.max(minSize, Math.min(dispW - startBox.x, startBox.width + dx));
+        let newH = ratio ? Math.round(newW / ratio) : Math.max(minSize, startBox.height - dy);
         let newY = startBox.y + (startBox.height - newH);
 
+        if (startBox.x + newW > dispW) {
+          newW = dispW - startBox.x;
+          if (ratio) newH = Math.round(newW / ratio);
+        }
         if (newY < 0) {
           newH += newY;
           newY = 0;
-          if (ratio) newW = newH * ratio;
+          if (ratio) newW = Math.round(newH * ratio);
         }
 
-        setCropBox({
-          x: Math.round(startBox.x),
+        setCropBox((prev) => ({
+          ...prev,
           y: Math.round(Math.max(0, newY)),
           width: Math.round(newW),
           height: Math.round(newH),
-        });
+        }));
       } else if (mode === 'bl') {
-        let newW = Math.max(minSize, startBox.width - dx);
-        let newH = ratio ? newW / ratio : Math.max(minSize, Math.min(dispH - startBox.y, startBox.height + dy));
+        const delta = ratio ? (Math.abs(dx) > Math.abs(dy * ratio) ? -dx : dy * ratio) : 0;
+        let newW = ratio ? Math.max(minSize, startBox.width + delta) : Math.max(minSize, startBox.width - dx);
+        let newH = ratio ? Math.round(newW / ratio) : Math.max(minSize, Math.min(dispH - startBox.y, startBox.height + dy));
         let newX = startBox.x + (startBox.width - newW);
 
         if (newX < 0) {
           newW += newX;
           newX = 0;
-          if (ratio) newH = newW / ratio;
+          if (ratio) newH = Math.round(newW / ratio);
         }
         if (ratio && startBox.y + newH > dispH) {
           newH = dispH - startBox.y;
-          newW = newH * ratio;
+          newW = Math.round(newH * ratio);
           newX = startBox.x + (startBox.width - newW);
         }
 
@@ -389,15 +514,30 @@ export default function ImageCropperModal({
       }
     };
 
-    const onPointerUp = () => {
-      dragInfoRef.current = null;
+    const onPointerUp = (e: PointerEvent) => {
+      activePointersRef.current.delete(e.pointerId);
+      if (activePointersRef.current.size < 2) {
+        pinchStartRef.current = null;
+      }
+      if (e && (e.target as HTMLElement)?.hasPointerCapture?.(e.pointerId)) {
+        try {
+          (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        } catch {}
+      }
+      if (activePointersRef.current.size === 0) {
+        dragInfoRef.current = null;
+      }
     };
 
-    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerdown', onPointerDownGlobal, { passive: true });
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
     window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
     return () => {
+      window.removeEventListener('pointerdown', onPointerDownGlobal);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
     };
   }, [show, aspectRatio, displaySize]);
 
@@ -423,7 +563,7 @@ export default function ImageCropperModal({
       if (imageElementRef.current && imageElementRef.current.complete && imageElementRef.current.naturalWidth > 0) {
         imgToDraw = imageElementRef.current;
       } else {
-        const targetSrc = sourceUrl || imageUri;
+        const targetSrc = sourceUrl || activeSourceUri || imageUri;
         const isLocalBlob = targetSrc.startsWith('blob:') || targetSrc.startsWith('data:');
         const img = new Image();
         if (!isLocalBlob) {
@@ -553,11 +693,9 @@ export default function ImageCropperModal({
             <i className="fe fe-x fs-4" />
           </button>
         </div>
-
-        {/* Viewport Area */}
         <div
           className="d-flex align-items-center justify-content-center p-3 position-relative overflow-hidden user-select-none"
-          style={{ minHeight: `${maxDisplayBounds.height + 30}px`, backgroundColor: '#090b10' }}
+          style={{ minHeight: `${maxDisplayBounds.height + 30}px`, backgroundColor: '#090b10', touchAction: 'none' }}
         >
           {loading ? (
             <div className="text-center py-5">
@@ -567,88 +705,99 @@ export default function ImageCropperModal({
           ) : (
             <div
               ref={containerRef}
-              className="position-relative overflow-hidden rounded-2"
+              className="position-relative"
               style={{
                 width: `${displaySize.width}px`,
                 height: `${displaySize.height}px`,
-                backgroundColor: '#ffffff',
+                overflow: 'visible',
+                touchAction: 'none',
               }}
             >
-              {/* Base Image with Rotation */}
-              <img
-                ref={imageElementRef}
-                src={sourceUrl || imageUri}
-                crossOrigin={
-                  (sourceUrl || imageUri).startsWith('blob:') || (sourceUrl || imageUri).startsWith('data:')
-                    ? undefined
-                    : 'anonymous'
-                }
-                alt="Kırpılacak görsel"
-                draggable={false}
+              {/* Layer 1: Strictly clipped image and shades */}
+              <div
+                className="position-relative overflow-hidden rounded-2"
                 style={{
-                  width: isFlipped ? `${displaySize.height}px` : '100%',
-                  height: isFlipped ? `${displaySize.width}px` : '100%',
-                  position: isFlipped ? 'absolute' : 'relative',
-                  top: isFlipped ? '50%' : undefined,
-                  left: isFlipped ? '50%' : undefined,
-                  transform: isFlipped
-                    ? `translate(-50%, -50%) rotate(${rotation}deg)`
-                    : `rotate(${rotation}deg)`,
-                  transformOrigin: 'center center',
-                  objectFit: 'contain',
-                  userSelect: 'none',
-                  pointerEvents: 'none',
-                  display: 'block',
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: '#ffffff',
                 }}
-              />
+              >
+                {/* Base Image with Rotation */}
+                <img
+                  ref={imageElementRef}
+                  src={sourceUrl || imageUri}
+                  crossOrigin={
+                    (sourceUrl || imageUri).startsWith('blob:') || (sourceUrl || imageUri).startsWith('data:')
+                      ? undefined
+                      : 'anonymous'
+                  }
+                  alt="Kırpılacak görsel"
+                  draggable={false}
+                  style={{
+                    width: isFlipped ? `${displaySize.height}px` : '100%',
+                    height: isFlipped ? `${displaySize.width}px` : '100%',
+                    position: isFlipped ? 'absolute' : 'relative',
+                    top: isFlipped ? '50%' : undefined,
+                    left: isFlipped ? '50%' : undefined,
+                    transform: isFlipped
+                      ? `translate(-50%, -50%) rotate(${rotation}deg)`
+                      : `rotate(${rotation}deg)`,
+                    transformOrigin: 'center center',
+                    objectFit: 'contain',
+                    userSelect: 'none',
+                    pointerEvents: 'none',
+                    display: 'block',
+                  }}
+                />
 
-              {/* Shaded Regions Around Crop Box */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: `${cropBox.y}px`,
-                  backgroundColor: 'rgba(0, 0, 0, 0.62)',
-                  pointerEvents: 'none',
-                }}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: `${cropBox.y + cropBox.height}px`,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: 'rgba(0, 0, 0, 0.62)',
-                  pointerEvents: 'none',
-                }}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: `${cropBox.y}px`,
-                  left: 0,
-                  width: `${cropBox.x}px`,
-                  height: `${cropBox.height}px`,
-                  backgroundColor: 'rgba(0, 0, 0, 0.62)',
-                  pointerEvents: 'none',
-                }}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: `${cropBox.y}px`,
-                  left: `${cropBox.x + cropBox.width}px`,
-                  right: 0,
-                  height: `${cropBox.height}px`,
-                  backgroundColor: 'rgba(0, 0, 0, 0.62)',
-                  pointerEvents: 'none',
-                }}
-              />
+                {/* Shaded Regions Around Crop Box */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: `${cropBox.y}px`,
+                    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: `${cropBox.y + cropBox.height}px`,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: `${cropBox.y}px`,
+                    left: 0,
+                    width: `${cropBox.x}px`,
+                    height: `${cropBox.height}px`,
+                    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: `${cropBox.y}px`,
+                    left: `${cropBox.x + cropBox.width}px`,
+                    right: 0,
+                    height: `${cropBox.height}px`,
+                    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+                    pointerEvents: 'none',
+                  }}
+                />
+              </div>
 
-              {/* The Crop Box Overlay */}
+              {/* Layer 2: Crop Box Overlay & Handles (overflow visible so handles are never clipped) */}
               <div
                 style={{
                   position: 'absolute',
@@ -656,13 +805,16 @@ export default function ImageCropperModal({
                   top: `${cropBox.y}px`,
                   width: `${cropBox.width}px`,
                   height: `${cropBox.height}px`,
-                  border: '1.5px solid #ffffff',
-                  boxShadow: '0 0 0 1px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(0,0,0,0.3)',
+                  border: '2px solid #ffffff',
+                  boxShadow: '0 0 0 1px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(0,0,0,0.3)',
                   cursor: 'move',
+                  touchAction: 'none',
+                  userSelect: 'none',
                 }}
                 onPointerDown={(e) => {
                   e.stopPropagation();
-                  startDrag('move', e.clientX, e.clientY);
+                  e.preventDefault();
+                  startDrag('move', e.clientX, e.clientY, e);
                 }}
               >
                 {/* Rule of Thirds Grid Lines */}
@@ -673,7 +825,7 @@ export default function ImageCropperModal({
                     left: 0,
                     right: 0,
                     height: '1px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.45)',
                     pointerEvents: 'none',
                   }}
                 />
@@ -684,7 +836,7 @@ export default function ImageCropperModal({
                     left: 0,
                     right: 0,
                     height: '1px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.45)',
                     pointerEvents: 'none',
                   }}
                 />
@@ -695,7 +847,7 @@ export default function ImageCropperModal({
                     top: 0,
                     bottom: 0,
                     width: '1px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.45)',
                     pointerEvents: 'none',
                   }}
                 />
@@ -706,163 +858,269 @@ export default function ImageCropperModal({
                     top: 0,
                     bottom: 0,
                     width: '1px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.45)',
                     pointerEvents: 'none',
                   }}
                 />
 
-                {/* Corner Handles */}
+                {/* Corner Handles with large 44x44 touch targets for mobile */}
                 <div
                   style={{
                     position: 'absolute',
-                    top: '-7px',
-                    left: '-7px',
-                    width: '14px',
-                    height: '14px',
-                    backgroundColor: '#ffffff',
-                    borderRadius: '50%',
-                    border: '2px solid #1e293b',
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.4)',
+                    top: '-22px',
+                    left: '-22px',
+                    width: '44px',
+                    height: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     cursor: 'nwse-resize',
+                    zIndex: 25,
+                    touchAction: 'none',
                   }}
                   onPointerDown={(e) => {
                     e.stopPropagation();
-                    startDrag('tl', e.clientX, e.clientY);
+                    e.preventDefault();
+                    startDrag('tl', e.clientX, e.clientY, e);
                   }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '-7px',
-                    right: '-7px',
-                    width: '14px',
-                    height: '14px',
-                    backgroundColor: '#ffffff',
-                    borderRadius: '50%',
-                    border: '2px solid #1e293b',
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.4)',
-                    cursor: 'nesw-resize',
-                  }}
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                    startDrag('tr', e.clientX, e.clientY);
-                  }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '-7px',
-                    left: '-7px',
-                    width: '14px',
-                    height: '14px',
-                    backgroundColor: '#ffffff',
-                    borderRadius: '50%',
-                    border: '2px solid #1e293b',
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.4)',
-                    cursor: 'nesw-resize',
-                  }}
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                    startDrag('bl', e.clientX, e.clientY);
-                  }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '-7px',
-                    right: '-7px',
-                    width: '14px',
-                    height: '14px',
-                    backgroundColor: '#ffffff',
-                    borderRadius: '50%',
-                    border: '2px solid #1e293b',
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.4)',
-                    cursor: 'nwse-resize',
-                  }}
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                    startDrag('br', e.clientX, e.clientY);
-                  }}
-                />
+                >
+                  <div
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '50%',
+                      border: '2.5px solid #0f172a',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.6)',
+                    }}
+                  />
+                </div>
 
-                {/* Edge Handles (Only in Free mode) */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '-22px',
+                    right: '-22px',
+                    width: '44px',
+                    height: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'nesw-resize',
+                    zIndex: 25,
+                    touchAction: 'none',
+                  }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    startDrag('tr', e.clientX, e.clientY, e);
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '50%',
+                      border: '2.5px solid #0f172a',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.6)',
+                    }}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '-22px',
+                    left: '-22px',
+                    width: '44px',
+                    height: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'nesw-resize',
+                    zIndex: 25,
+                    touchAction: 'none',
+                  }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    startDrag('bl', e.clientX, e.clientY, e);
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '50%',
+                      border: '2.5px solid #0f172a',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.6)',
+                    }}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '-22px',
+                    right: '-22px',
+                    width: '44px',
+                    height: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'nwse-resize',
+                    zIndex: 25,
+                    touchAction: 'none',
+                  }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    startDrag('br', e.clientX, e.clientY, e);
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '50%',
+                      border: '2.5px solid #0f172a',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.6)',
+                    }}
+                  />
+                </div>
+
+                {/* Edge Handles with large 40px touch targets (Only in Free mode - Hidden in İlan Kalıbı) */}
                 {aspectRatio === 'FREE' && (
                   <>
                     <div
                       style={{
                         position: 'absolute',
-                        top: '-5px',
-                        left: '20%',
-                        right: '20%',
-                        height: '10px',
+                        top: '-20px',
+                        left: '24px',
+                        right: '24px',
+                        height: '40px',
                         cursor: 'ns-resize',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        zIndex: 20,
+                        touchAction: 'none',
                       }}
                       onPointerDown={(e) => {
                         e.stopPropagation();
-                        startDrag('t', e.clientX, e.clientY);
+                        e.preventDefault();
+                        startDrag('t', e.clientX, e.clientY, e);
                       }}
                     >
-                      <div style={{ width: '28px', height: '3px', backgroundColor: '#ffffff', borderRadius: '2px' }} />
+                      <div
+                        style={{
+                          width: '34px',
+                          height: '6px',
+                          backgroundColor: '#ffffff',
+                          borderRadius: '3px',
+                          border: '1.5px solid #0f172a',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+                        }}
+                      />
                     </div>
+
                     <div
                       style={{
                         position: 'absolute',
-                        bottom: '-5px',
-                        left: '20%',
-                        right: '20%',
-                        height: '10px',
+                        bottom: '-20px',
+                        left: '24px',
+                        right: '24px',
+                        height: '40px',
                         cursor: 'ns-resize',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        zIndex: 20,
+                        touchAction: 'none',
                       }}
                       onPointerDown={(e) => {
                         e.stopPropagation();
-                        startDrag('b', e.clientX, e.clientY);
+                        e.preventDefault();
+                        startDrag('b', e.clientX, e.clientY, e);
                       }}
                     >
-                      <div style={{ width: '28px', height: '3px', backgroundColor: '#ffffff', borderRadius: '2px' }} />
+                      <div
+                        style={{
+                          width: '34px',
+                          height: '6px',
+                          backgroundColor: '#ffffff',
+                          borderRadius: '3px',
+                          border: '1.5px solid #0f172a',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+                        }}
+                      />
                     </div>
+
                     <div
                       style={{
                         position: 'absolute',
-                        top: '20%',
-                        bottom: '20%',
-                        left: '-5px',
-                        width: '10px',
+                        top: '24px',
+                        bottom: '24px',
+                        left: '-20px',
+                        width: '40px',
                         cursor: 'ew-resize',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        zIndex: 20,
+                        touchAction: 'none',
                       }}
                       onPointerDown={(e) => {
                         e.stopPropagation();
-                        startDrag('l', e.clientX, e.clientY);
+                        e.preventDefault();
+                        startDrag('l', e.clientX, e.clientY, e);
                       }}
                     >
-                      <div style={{ height: '28px', width: '3px', backgroundColor: '#ffffff', borderRadius: '2px' }} />
+                      <div
+                        style={{
+                          height: '34px',
+                          width: '6px',
+                          backgroundColor: '#ffffff',
+                          borderRadius: '3px',
+                          border: '1.5px solid #0f172a',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+                        }}
+                      />
                     </div>
+
                     <div
                       style={{
                         position: 'absolute',
-                        top: '20%',
-                        bottom: '20%',
-                        right: '-5px',
-                        width: '10px',
+                        top: '24px',
+                        bottom: '24px',
+                        right: '-20px',
+                        width: '40px',
                         cursor: 'ew-resize',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        zIndex: 20,
+                        touchAction: 'none',
                       }}
                       onPointerDown={(e) => {
                         e.stopPropagation();
-                        startDrag('r', e.clientX, e.clientY);
+                        e.preventDefault();
+                        startDrag('r', e.clientX, e.clientY, e);
                       }}
                     >
-                      <div style={{ height: '28px', width: '3px', backgroundColor: '#ffffff', borderRadius: '2px' }} />
+                      <div
+                        style={{
+                          height: '34px',
+                          width: '6px',
+                          backgroundColor: '#ffffff',
+                          borderRadius: '3px',
+                          border: '1.5px solid #0f172a',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+                        }}
+                      />
                     </div>
                   </>
                 )}
@@ -871,33 +1129,55 @@ export default function ImageCropperModal({
           )}
         </div>
 
-        {/* Controls Bar: Presets */}
+        {/* Controls Bar: Presets & Original Toggle */}
         <div
-          className="d-flex align-items-center px-4 py-3"
+          className="d-flex align-items-center justify-content-between px-4 py-3"
           style={{
             backgroundColor: '#11141c',
             borderTop: '1px solid rgba(255, 255, 255, 0.08)',
             gap: '8px',
+            flexWrap: 'wrap',
           }}
         >
-          {PRESETS.map((preset) => {
-            const isActive = aspectRatio === preset.key;
-            return (
-              <button
-                key={preset.key}
-                type="button"
-                className="btn btn-sm rounded-pill px-3 py-1 fw-semibold transition-all border-0 shadow-none"
-                style={{
-                  fontSize: '12px',
-                  backgroundColor: isActive ? '#22c55e' : 'rgba(255, 255, 255, 0.06)',
-                  color: isActive ? '#ffffff' : '#cbd5e1',
-                }}
-                onClick={() => handleSelectPreset(preset.key)}
-              >
-                {preset.label}
-              </button>
-            );
-          })}
+          <div className="d-flex align-items-center gap-2">
+            {PRESETS.map((preset) => {
+              const isActive = aspectRatio === preset.key;
+              return (
+                <button
+                  key={preset.key}
+                  type="button"
+                  className="btn btn-sm rounded-pill px-3 py-1 fw-semibold transition-all border-0 shadow-none"
+                  style={{
+                    fontSize: '12px',
+                    backgroundColor: isActive ? '#22c55e' : 'rgba(255, 255, 255, 0.06)',
+                    color: isActive ? '#ffffff' : '#cbd5e1',
+                  }}
+                  onClick={() => handleSelectPreset(preset.key)}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {Boolean(originalUri && originalUri !== imageUri) && (
+            <button
+              type="button"
+              className="btn btn-sm rounded-pill px-3 py-1 d-flex align-items-center gap-1.5 border-0 shadow-none fw-semibold"
+              style={{
+                fontSize: '12px',
+                backgroundColor: activeSourceUri === originalUri ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                color: activeSourceUri === originalUri ? '#22c55e' : '#cbd5e1',
+                border: activeSourceUri === originalUri ? '1px solid #22c55e' : '1px solid rgba(255, 255, 255, 0.12)',
+              }}
+              onClick={() =>
+                setActiveSourceUri((prev) => (prev === originalUri ? imageUri : (originalUri ?? imageUri)))
+              }
+            >
+              <i className={`fe ${activeSourceUri === originalUri ? 'fe-check-circle' : 'fe-refresh-cw'}`} style={{ fontSize: '11px' }} />
+              <span>{activeSourceUri === originalUri ? 'Orijinal Fotoğraf Açık' : 'Orijinalden Kırp'}</span>
+            </button>
+          )}
         </div>
 
         {/* Footer Actions */}

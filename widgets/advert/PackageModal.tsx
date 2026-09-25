@@ -340,6 +340,7 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
     displayOrder: number;
     isCover: boolean;
     previewUrl?: string;
+    originalUrl?: string;
     file?: File;
   }>>([]);
   const [isEditInitialized, setIsEditInitialized] = useState(false);
@@ -1079,12 +1080,16 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
       list = DEFAULT_MOCK_MEDIA[String(advertId)];
     }
 
-    const mediaMapped = list.map((m: any, idx: number) => ({
-      assetId: typeof m === 'string' ? m : (m.assetId || m.publicUrl || m.url),
-      displayOrder: idx,
-      isCover: Boolean(m.isCover ?? idx === 0),
-      previewUrl: resolveMediaSrc(m),
-    }));
+    const mediaMapped = list.map((m: any, idx: number) => {
+      const src = resolveMediaSrc(m);
+      return {
+        assetId: typeof m === 'string' ? m : (m.assetId || m.publicUrl || m.url),
+        displayOrder: idx,
+        isCover: Boolean(m.isCover ?? idx === 0),
+        previewUrl: src,
+        originalUrl: src,
+      };
+    });
 
     setEditMediaList(mediaMapped);
 
@@ -1261,11 +1266,13 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
         setUploadStage(`${file.name} yükleniyor (${i + 1}/${files.length})...`);
         const status = await mediaService.uploadAdminAsset(file);
         if (status?.assetId) {
+          const objUrl = URL.createObjectURL(file);
           newItems.push({
             assetId: status.assetId,
             displayOrder: newItems.length,
             isCover: newItems.length === 0,
-            previewUrl: URL.createObjectURL(file),
+            previewUrl: objUrl,
+            originalUrl: objUrl,
           });
           toast.success(`${file.name} başarıyla yüklendi.`);
         }
@@ -1331,10 +1338,12 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
       setEditMediaList((prev) => {
         const next = [...prev];
         if (next[targetIdx]) {
+          const prevItem = next[targetIdx];
           next[targetIdx] = {
-            ...next[targetIdx],
+            ...prevItem,
             assetId: status.assetId,
             previewUrl: croppedUri,
+            originalUrl: prevItem.originalUrl || prevItem.previewUrl || buildMediaUrl(prevItem.assetId, 'DETAIL'),
             file: croppedFile,
           };
         }
@@ -3551,6 +3560,10 @@ export default function PackageModal({ advert, onClose, onDone, initialTab = 'ed
         show={cropModalIndex !== null}
         imageUri={
           editMediaList[cropModalIndex].previewUrl ||
+          buildMediaUrl(editMediaList[cropModalIndex].assetId, 'DETAIL')
+        }
+        originalUri={
+          editMediaList[cropModalIndex].originalUrl ||
           buildMediaUrl(editMediaList[cropModalIndex].assetId, 'DETAIL')
         }
         fileName={`advert-media-${cropModalIndex + 1}.jpg`}
