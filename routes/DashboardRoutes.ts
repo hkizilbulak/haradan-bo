@@ -18,10 +18,8 @@ export const DashboardMenu: IMenuProps[] = [
 		id: uuid(),
 		title: 'İlanlar',
 		icon: 'database',
-		allowedRoles: ['admin'],
-		children: [
-			{ id: uuid(), link: '/listings', name: 'Tüm İlanlar', allowedRoles: ['admin'] },
-		]
+		link: '/listings',
+		allowedRoles: ['admin']
 	},
 	{
 		id: uuid(),
