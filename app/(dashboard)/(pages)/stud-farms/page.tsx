@@ -8,12 +8,14 @@ import { studFarmService } from '@/services';
 import CustomPagination from '@/components/Pagination';
 import { Skeleton } from '@/components/Skeleton';
 import { Col, Row, Container, Card, Table, Button, Alert, Form } from 'react-bootstrap';
-import { Plus, ChevronDown, ChevronUp, Edit } from 'react-feather';
+import { Plus, ChevronDown, ChevronUp, Edit, MessageCircle } from 'react-feather';
 import AddStudFarmModal from './components/AddStudFarmModal';
 import AddStudFarmNoteModal from './components/AddStudFarmNoteModal';
 import StudFarmNotesTimeline from './components/StudFarmNotesTimeline';
+import { useRouter } from 'next/navigation';
 
 export default function StudFarms() {
+    const router = useRouter();
     const [{ data, parameters, isLoading, isError, handleFilter, handlePageChange, setParameters, refetch }] = useApi<StudFarm>({
         service: studFarmService,
     });
@@ -57,7 +59,7 @@ export default function StudFarms() {
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [searchTerm]);
+    }, [searchTerm, handleFilter]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -196,6 +198,21 @@ export default function StudFarms() {
                                                             <td>{formatDateForText(item.createdAt)}</td>
                                                             <td className="text-center">
                                                                 <div className="d-flex justify-content-center align-items-center gap-2">
+                                                                    <Button 
+                                                                        variant="outline-info" 
+                                                                        className="d-inline-flex align-items-center justify-content-center p-0"
+                                                                        style={{ width: '28px', height: '28px' }}
+                                                                        title="Yazışma Hazırla"
+                                                                        aria-label="Yazışma Hazırla"
+                                                                        onClick={() => {
+                                                                            const personName = item.lastName || '';
+                                                                            const studName = item.firstName || '';
+                                                                            const phone = item.phone || '';
+                                                                            router.push(`/communication-templates?stud_name=${encodeURIComponent(studName)}&person_name=${encodeURIComponent(personName)}&phone=${encodeURIComponent(phone)}`);
+                                                                        }}
+                                                                    >
+                                                                        <MessageCircle size={14} />
+                                                                    </Button>
                                                                     <Button
                                                                         variant="outline-success"
                                                                         className="d-inline-flex align-items-center justify-content-center p-0"

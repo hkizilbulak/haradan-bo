@@ -16,6 +16,13 @@ export const DashboardMenu: IMenuProps[] = [
 	},
 	{
 		id: uuid(),
+		title: 'Yazışma / Konuşma',
+		icon: 'message-circle',
+		link: '/communication-templates',
+		allowedRoles: ['admin', 'CALL_CENTER']
+	},
+	{
+		id: uuid(),
 		title: 'İlanlar',
 		icon: 'database',
 		link: '/listings',
