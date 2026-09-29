@@ -24,7 +24,7 @@ export default function DashboardLayout({
 		if (status === 'unauthenticated' || (status === 'authenticated' && !hasAdminAccess)) {
 			router.replace('/login');
 		} else if (status === 'authenticated' && session?.user?.role === 'CALL_CENTER') {
-			const allowedPaths = ['/stud-farms', '/comments'];
+			const allowedPaths = ['/stud-farms', '/comments', '/communication-templates'];
 			const isAllowed = allowedPaths.some(p => pathname.startsWith(p));
 			if (!isAllowed) {
 				router.replace('/stud-farms');
