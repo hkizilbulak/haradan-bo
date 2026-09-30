@@ -174,7 +174,7 @@ function CommunicationTemplatesContent() {
                     <h3 className="fw-bold m-0 text-dark">Yazışma & Konuşma Şablonları</h3>
                     <p className="text-muted mb-0 mt-1">Hızlı ve profesyonel iletişim için hazır metinleri kullanın.</p>
                 </div>
-                <Button variant="primary" onClick={() => openEditModal()}><Plus size={16} className="me-2" /> Yeni Şablon Ekle</Button>
+                <Button variant="primary" onClick={() => openEditModal()}><Plus size={16} className="me-0 me-md-2" /> <span className="d-none d-md-inline">Yeni Şablon Ekle</span></Button>
             </div>
 
             <Row>
