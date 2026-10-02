@@ -4,6 +4,15 @@ import { useSearchParams } from 'next/navigation';
 import { Container, Row, Col, Card, Form, Button, Toast, ToastContainer, ButtonGroup, ToggleButton, Dropdown, Modal } from 'react-bootstrap';
 import { Copy, Send, Phone, MessageCircle, Mail, Smartphone, Edit2, Plus, Trash2 } from 'react-feather';
 import { communicationTemplateService, CommunicationTemplate } from '@/services/communication-template.service';
+import { useSession } from '@/context/AuthContext';
+
+interface TemplateFormState {
+  title: string;
+  activeChannel: string;
+  contents: {
+    [key: string]: string;
+  };
+}
 
 function CommunicationTemplatesContent() {
     const searchParams = useSearchParams();
@@ -22,11 +31,24 @@ function CommunicationTemplatesContent() {
     
     const [showToast, setShowToast] = useState(false);
     const [previewText, setPreviewText] = useState('');
+    
+    const { data: session } = useSession();
+    const [agentName, setAgentName] = useState('');
+
+    useEffect(() => {
+        if (session?.user && !agentName) {
+            setAgentName(`${session.user.firstName} ${session.user.lastName}`.trim());
+        }
+    }, [session?.user, agentName]);
 
     // Modal state for CRUD
     const [showModal, setShowModal] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState<CommunicationTemplate | null>(null);
-    const [formData, setFormData] = useState({ title: '', channel: 'PHONE', content: '', subject: '' });
+    const [formData, setFormData] = useState<TemplateFormState>({
+        title: '',
+        activeChannel: 'PHONE',
+        contents: {}
+    });
 
     // Confirmation Modal state
     const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -36,35 +58,47 @@ function CommunicationTemplatesContent() {
         message: string;
     }>({ show: false, type: 'TEMPLATE', target: '', message: '' });
 
-    useEffect(() => {
-        loadTemplates();
-    }, []);
-
-    const loadTemplates = async () => {
+    const loadTemplates = React.useCallback(async () => {
         try {
             setLoading(true);
             const data = await communicationTemplateService.getAll();
             const validData = Array.isArray(data) ? data : (data && typeof data === 'object' && 'data' in data && Array.isArray((data as any).data) ? (data as any).data : []);
             setTemplates(validData);
-            if (validData.length > 0 && !topic) {
-                setTopic(validData[0].title); // using title as topic
-            }
         } catch (error) {
             console.error('Failed to load templates:', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        loadTemplates();
+    }, [loadTemplates]);
+
+    const uniqueTopics = React.useMemo(() => {
+        return Array.isArray(templates) 
+            ? Array.from(new Set(templates.filter(t => t.channel === channel).map(t => t.title))) 
+            : [];
+    }, [templates, channel]);
+
+    useEffect(() => {
+        if (uniqueTopics.length > 0 && (!topic || !uniqueTopics.includes(topic))) {
+            setTopic(uniqueTopics[0]);
+        } else if (uniqueTopics.length === 0 && topic) {
+            setTopic('');
+        }
+    }, [uniqueTopics, topic]);
 
     const activeTemplate = Array.isArray(templates) ? templates.find(t => t.channel === channel && t.title === topic) : undefined;
 
     const getFormattedText = React.useCallback((text: string) => {
         if (!text) return '';
         let formatted = text;
-        formatted = formatted.replace(/{person_name}/g, personName || '[Yetkili Adı]');
-        formatted = formatted.replace(/{stud_name}/g, studName || '[Hara Adı]');
+        formatted = formatted.replace(/\{person_name\}/g, personName || '[Yetkili Adı]');
+        formatted = formatted.replace(/\{stud_name\}/g, studName || '[Hara Adı]');
+        formatted = formatted.replace(/\{agent_name\}/g, agentName || '[Temsilci Adı]');
         return formatted;
-    }, [personName, studName]);
+    }, [personName, studName, agentName]);
 
     const previewSubject = activeTemplate?.subject ? getFormattedText(activeTemplate.subject) : null;
 
@@ -74,7 +108,7 @@ function CommunicationTemplatesContent() {
         } else {
             setPreviewText('');
         }
-    }, [personName, studName, channel, topic, activeTemplate, getFormattedText]);
+    }, [personName, studName, agentName, channel, topic, activeTemplate, getFormattedText]);
 
     const handleCopy = () => {
         let textToCopy = previewText;
@@ -96,13 +130,37 @@ function CommunicationTemplatesContent() {
 
     const handleSaveTemplate = async () => {
         try {
-            if (editingTemplate) {
-                await communicationTemplateService.update(editingTemplate.id, formData);
-            } else {
-                await communicationTemplateService.create(formData);
+            const allChannels = Array.from(new Set([
+                ...Object.keys(formData.contents),
+                ...(editingTemplate ? templates.filter(t => t.title === editingTemplate.title).map(t => t.channel) : [])
+            ]));
+
+            for (const ch of allChannels) {
+                const content = formData.contents[ch] || '';
+                const existingTemplate = editingTemplate 
+                    ? templates.find(t => t.title === editingTemplate.title && t.channel === ch)
+                    : null;
+
+                if (content.trim().length > 0) {
+                    const payload = {
+                        title: formData.title,
+                        channel: ch,
+                        content: content.trim()
+                    };
+                    if (existingTemplate) {
+                        await communicationTemplateService.update(existingTemplate.id, payload);
+                    } else {
+                        await communicationTemplateService.create(payload);
+                    }
+                } else {
+                    if (existingTemplate) {
+                        await communicationTemplateService.delete(existingTemplate.id);
+                    }
+                }
             }
+
             setShowModal(false);
-            setChannel(formData.channel);
+            setChannel(formData.activeChannel);
             setTopic(formData.title);
             loadTemplates();
         } catch (error) {
@@ -150,15 +208,25 @@ function CommunicationTemplatesContent() {
     const openEditModal = (template?: CommunicationTemplate) => {
         if (template) {
             setEditingTemplate(template);
-            setFormData({ title: template.title, channel: template.channel, content: template.content, subject: template.subject || '' });
+            
+            const topicTemplates = templates.filter(t => t.title === template.title);
+            const contents: Record<string, string> = {};
+            topicTemplates.forEach(t => {
+                contents[t.channel] = t.content;
+            });
+
+            setFormData({ 
+                title: template.title, 
+                activeChannel: template.channel, 
+                contents 
+            });
         } else {
             setEditingTemplate(null);
-            setFormData({ title: '', channel: 'PHONE', content: '', subject: '' });
+            setFormData({ title: '', activeChannel: 'PHONE', contents: {} });
         }
         setShowModal(true);
     };
 
-    const uniqueTopics = Array.isArray(templates) ? Array.from(new Set(templates.map(t => t.title))) : [];
 
     const channels = [
         { name: 'Konuşma', value: 'PHONE', icon: <Phone size={20} /> },
@@ -168,7 +236,7 @@ function CommunicationTemplatesContent() {
     if (loading) return <div className="p-4">Yükleniyor...</div>;
 
     return (
-        <Container fluid className="page-container" style={{ backgroundColor: '#f8f9fa' }}>
+        <Container fluid className="page-container px-2 px-md-4" style={{ backgroundColor: '#f8f9fa' }}>
             <div className="page-heading-wrapper mb-4 d-flex justify-content-between align-items-center">
                 <div>
                     <h3 className="fw-bold m-0 text-dark">Yazışma & Konuşma Şablonları</h3>
@@ -179,12 +247,12 @@ function CommunicationTemplatesContent() {
 
             <Row>
                 {/* Input Panel */}
-                <Col lg={5} md={12} className="mb-4">
+                <Col lg={4} md={12} className="mb-4">
                     <Card className="border-0 shadow-sm rounded-3 h-100">
-                        <Card.Header className="bg-white border-bottom pt-4 pb-3">
+                        <Card.Header className="bg-white border-bottom pt-3 pb-3 px-3 px-md-4">
                             <h5 className="mb-0 fw-semibold">Girdi ve Parametreler</h5>
                         </Card.Header>
-                        <Card.Body>
+                        <Card.Body className="p-2 p-md-4">
                             <Form>
                                 <Form.Group className="mb-3">
                                     <Form.Label className="text-muted small fw-medium">Hara Adı</Form.Label>
@@ -206,6 +274,16 @@ function CommunicationTemplatesContent() {
                                     />
                                 </Form.Group>
                                 
+                                <Form.Group className="mb-3">
+                                    <Form.Label className="text-muted small fw-medium">Görüşmeyi Yapan (Temsilci)</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        placeholder="Örn. Temsilci Adı"
+                                        value={agentName}
+                                        onChange={(e) => setAgentName(e.target.value)}
+                                    />
+                                </Form.Group>
+
                                 {channel === 'WHATSAPP' && (
                                     <Form.Group className="mb-4">
                                         <Form.Label className="text-muted small fw-medium">Telefon Numarası</Form.Label>
@@ -272,9 +350,9 @@ function CommunicationTemplatesContent() {
                 </Col>
 
                 {/* Output Panel */}
-                <Col lg={7} md={12} className="mb-4">
+                <Col lg={8} md={12} className="mb-4">
                     <Card className="border-0 shadow-sm rounded-3 h-100">
-                        <Card.Header className="bg-white border-bottom pt-4 pb-3 d-flex justify-content-between align-items-center flex-wrap">
+                        <Card.Header className="bg-white border-bottom pt-3 pb-3 px-3 px-md-4 d-flex justify-content-between align-items-center flex-wrap">
                             <h5 className="mb-0 fw-semibold">Şablon Önizleme</h5>
                             <div className="d-flex gap-2 mt-2 mt-sm-0">
                                 {activeTemplate && (
@@ -297,7 +375,7 @@ function CommunicationTemplatesContent() {
                                 )}
                             </div>
                         </Card.Header>
-                        <Card.Body className="bg-light">
+                        <Card.Body className="bg-light p-2 p-md-4">
                             {previewSubject && (
                                 <div className="mb-3 p-3 bg-white rounded border">
                                     <div className="text-muted small mb-1 fw-bold">E-Posta Konusu:</div>
@@ -308,7 +386,7 @@ function CommunicationTemplatesContent() {
                             <Form.Control
                                 as="textarea"
                                 className="bg-white rounded border"
-                                style={{ minHeight: '300px', resize: 'vertical', lineHeight: '1.6' }}
+                                style={{ minHeight: '600px', resize: 'vertical', lineHeight: '1.6' }}
                                 value={previewText}
                                 onChange={(e) => setPreviewText(e.target.value)}
                                 placeholder="Şablon bulunamadı veya düzenlenecek metin yok."
@@ -336,8 +414,8 @@ function CommunicationTemplatesContent() {
                         <Form.Group className="mb-3">
                             <Form.Label>Kanal</Form.Label>
                             <Form.Select 
-                                value={formData.channel}
-                                onChange={e => setFormData({...formData, channel: e.target.value})}
+                                value={formData.activeChannel}
+                                onChange={e => setFormData({...formData, activeChannel: e.target.value})}
                             >
                                 {channels.map(c => <option key={c.value} value={c.value}>{c.name}</option>)}
                             </Form.Select>
@@ -348,12 +426,18 @@ function CommunicationTemplatesContent() {
                             <Form.Control 
                                 as="textarea" 
                                 rows={8}
-                                value={formData.content} 
-                                onChange={e => setFormData({...formData, content: e.target.value})} 
+                                value={formData.contents[formData.activeChannel] || ''} 
+                                onChange={e => setFormData({
+                                    ...formData, 
+                                    contents: {
+                                        ...formData.contents,
+                                        [formData.activeChannel]: e.target.value
+                                    }
+                                })} 
                                 placeholder="Merhaba {person_name}, {stud_name} için..."
                             />
                             <Form.Text className="text-muted">
-                                Değişkenler: <code>{`{person_name}`}</code>, <code>{`{stud_name}`}</code>
+                                Değişkenler: <code>{`{person_name}`}</code>, <code>{`{stud_name}`}</code>, <code>{`{agent_name}`}</code>
                             </Form.Text>
                         </Form.Group>
                     </Form>
