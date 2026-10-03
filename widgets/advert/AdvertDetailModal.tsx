@@ -11,6 +11,7 @@ import { useResolvedLocation } from '@/helpers/location';
 import { ModerationAdvertResponse } from '@/models';
 import { advertService, ModerationAdvertDetail, AdvertPackageAssignment, DEFAULT_MOCK_MEDIA } from '@/services/advert.service';
 import { buildModerationAdvertSpecRows, resolveDisplayAdvertNo, SpecRow } from '@/helpers/advertCategoryHelper';
+import { parseVideoUrl, openVideoUrl } from '@/helpers/videoUrl';
 
 interface AdvertDetailModalProps {
   advert: ModerationAdvertResponse | null;
@@ -35,6 +36,7 @@ export default function AdvertDetailModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeMediaIndex, setActiveMediaIndex] = useState<number>(0);
+  const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const fetchDetail = async () => {
@@ -62,11 +64,13 @@ export default function AdvertDetailModal({
   useEffect(() => {
     if (advert) {
       setActiveMediaIndex(0);
+      setIsVideoPlaying(false);
       void fetchDetail();
     } else {
       setDetail(null);
       setPackageAssignment(null);
       setError(null);
+      setIsVideoPlaying(false);
     }
   }, [advertId]);
 
@@ -243,6 +247,35 @@ export default function AdvertDetailModal({
     return [];
   }, [detail, advert, advertId]);
 
+  const rawVideoUrl = detail?.videoUrl || advert?.videoUrl;
+  const parsedVideo = useMemo(() => parseVideoUrl(rawVideoUrl), [rawVideoUrl]);
+  const hasVideo = parsedVideo.isValid;
+  const photosCount = mediaList.length;
+  const totalCount = photosCount + (hasVideo ? 1 : 0);
+  const videoIndex = hasVideo ? photosCount : -1;
+  const isVideoActive = hasVideo && activeMediaIndex === videoIndex;
+
+  const embedUrl = useMemo(() => {
+    if (!hasVideo) return null;
+    if (parsedVideo.platform === 'youtube' && parsedVideo.videoId) {
+      return `https://www.youtube-nocookie.com/embed/${parsedVideo.videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+    }
+    if (parsedVideo.platform === 'vimeo' && parsedVideo.videoId) {
+      return `https://player.vimeo.com/video/${parsedVideo.videoId}?autoplay=1`;
+    }
+    if (parsedVideo.platform === 'dailymotion' && parsedVideo.videoId) {
+      return `https://www.dailymotion.com/embed/video/${parsedVideo.videoId}?autoplay=1`;
+    }
+    return null;
+  }, [hasVideo, parsedVideo.platform, parsedVideo.videoId]);
+
+  const changeMediaIndex = (newIndex: number) => {
+    if (newIndex !== activeMediaIndex) {
+      setIsVideoPlaying(false);
+    }
+    setActiveMediaIndex(newIndex);
+  };
+
   const resolveMediaSrc = (m: any): string => {
     if (!m) return '';
     if (typeof m === 'string') return buildMediaUrl(m, 'DETAIL');
@@ -414,7 +447,7 @@ export default function AdvertDetailModal({
     }
   };
 
-  const activeMedia = mediaList[activeMediaIndex] ?? mediaList[0];
+  const activeMedia = !isVideoActive ? (mediaList[activeMediaIndex] ?? mediaList[0]) : null;
   const activeMediaUrl = activeMedia ? resolveMediaSrc(activeMedia) : null;
 
   if (!advert) return null;
@@ -489,11 +522,164 @@ export default function AdvertDetailModal({
                   <Col lg={7}>
                     {/* Main Gallery Showcase */}
                     <Card className="border-0 shadow-sm rounded-4 overflow-hidden mb-4 bg-white">
-                      <div className="position-relative bg-white" style={{ minHeight: '380px' }}>
-                        {activeMediaUrl ? (
+                      <div
+                        className="position-relative overflow-hidden"
+                        style={{ height: '380px', backgroundColor: isVideoActive ? '#000000' : '#ffffff' }}
+                      >
+                        {isVideoActive ? (
+                          isVideoPlaying && embedUrl ? (
+                            <div className="position-relative w-100 h-100 bg-black">
+                              <iframe
+                                src={embedUrl}
+                                title="İlan Videosu"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allowFullScreen
+                                className="w-100 h-100 border-0"
+                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+                              />
+                              {/* Floating Kapat & Dışarıda Aç Çubuğu */}
+                              <div
+                                className="position-absolute top-0 start-0 end-0 p-3 d-flex justify-content-between align-items-center"
+                                style={{
+                                  zIndex: 5,
+                                  background: 'linear-gradient(180deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%)',
+                                }}
+                              >
+                                <Button
+                                  variant="dark"
+                                  size="sm"
+                                  className="rounded-pill px-3 py-1.5 fw-semibold d-flex align-items-center gap-1.5 bg-opacity-75 border-0 shadow text-white"
+                                  style={{ fontSize: '12px' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsVideoPlaying(false);
+                                  }}
+                                >
+                                  <i className="fe fe-x" />
+                                  <span>Kapat</span>
+                                </Button>
+
+                                <Button
+                                  variant="light"
+                                  size="sm"
+                                  className="rounded-pill px-3 py-1.5 fw-semibold d-flex align-items-center gap-1.5 shadow"
+                                  style={{ fontSize: '12px' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openVideoUrl(parsedVideo.url);
+                                  }}
+                                >
+                                  <span>{parsedVideo.platformName}'da Aç</span>
+                                  <i className="fe fe-external-link" />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              className="position-relative w-100 h-100 overflow-hidden"
+                              style={{
+                                backgroundColor: '#000000',
+                                cursor: 'pointer',
+                              }}
+                              onClick={() => {
+                                if (embedUrl) {
+                                  setIsVideoPlaying(true);
+                                } else {
+                                  openVideoUrl(parsedVideo.url);
+                                }
+                              }}
+                            >
+                              {/* Video Poster Image */}
+                              {parsedVideo.thumbnailUrl ? (
+                                <img
+                                  src={parsedVideo.thumbnailUrl}
+                                  alt={parsedVideo.platformName}
+                                  className="w-100 h-100 object-fit-cover"
+                                />
+                              ) : (
+                                <div className="w-100 h-100 d-flex align-items-center justify-content-center bg-black">
+                                  <i className="fe fe-film text-white opacity-25" style={{ fontSize: '64px' }} />
+                                </div>
+                              )}
+
+                              {/* Ambient Scrim Overlay */}
+                              <div
+                                className="position-absolute top-0 start-0 w-100 h-100"
+                                style={{
+                                  background:
+                                    'linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.75) 100%)',
+                                  pointerEvents: 'none',
+                                }}
+                              />
+
+                              {/* Top Right: Open External link button */}
+                              <div
+                                className="position-absolute top-0 end-0 m-3"
+                                style={{ zIndex: 3 }}
+                              >
+                                <Button
+                                  variant="dark"
+                                  size="sm"
+                                  className="rounded-pill px-3 py-1.5 fw-semibold d-flex align-items-center gap-1.5 bg-opacity-75 border-0 shadow text-white"
+                                  style={{ fontSize: '12px' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openVideoUrl(parsedVideo.url);
+                                  }}
+                                >
+                                  <span>{parsedVideo.platformName}'da Aç</span>
+                                  <i className="fe fe-external-link" />
+                                </Button>
+                              </div>
+
+                              {/* Centered Glowing Play Button */}
+                              <div
+                                className="position-absolute top-50 start-50 translate-middle d-flex flex-column align-items-center justify-content-center text-center gap-2"
+                                style={{ pointerEvents: 'none' }}
+                              >
+                                <div
+                                  className="rounded-circle d-flex align-items-center justify-content-center"
+                                  style={{
+                                    padding: '8px',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                                  }}
+                                >
+                                  <div
+                                    className="rounded-circle d-flex align-items-center justify-content-center text-white"
+                                    style={{
+                                      width: '64px',
+                                      height: '64px',
+                                      backgroundColor: '#dc2626',
+                                      border: '3px solid rgba(255, 255, 255, 0.95)',
+                                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+                                    }}
+                                  >
+                                    <i
+                                      className="fe fe-play"
+                                      style={{
+                                        fontSize: '26px',
+                                        marginLeft: '3px',
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                <span
+                                  className="text-white fw-bold"
+                                  style={{
+                                    textShadow: '0 1px 4px rgba(0, 0, 0, 0.9)',
+                                    letterSpacing: '0.02em',
+                                    fontSize: '13px',
+                                  }}
+                                >
+                                  {parsedVideo.platformName} üzerinde oynat
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        ) : activeMediaUrl ? (
                           <>
                             <div
-                              className="d-flex align-items-center justify-content-center w-100"
+                              className="d-flex align-items-center justify-content-center w-100 bg-white"
                               style={{ height: '380px' }}
                             >
                               <img
@@ -510,66 +696,80 @@ export default function AdvertDetailModal({
                             </div>
 
                             {/* Badges on image */}
-                            <div className="position-absolute top-0 start-0 m-3 d-flex gap-2">
-                              {activeMedia?.isCover && (
+                            {activeMedia?.isCover && (
+                              <div className="position-absolute top-0 start-0 m-3 d-flex gap-2" style={{ zIndex: 3 }}>
                                 <Badge bg="warning" text="dark" className="shadow-sm py-2 px-3 fw-bold">
                                   ★ Kapak Fotoğrafı
                                 </Badge>
-                              )}
-                            </div>
-
-                            <div className="position-absolute bottom-0 end-0 m-3 px-3 py-1 bg-dark bg-opacity-75 text-white rounded-pill small fw-semibold shadow">
-                              <i className="fe fe-camera me-1" /> {activeMediaIndex + 1} / {mediaList.length}
-                            </div>
-
-                            {/* Arrow buttons */}
-                            {mediaList.length > 1 && (
-                              <>
-                                <Button
-                                  variant="dark"
-                                  size="sm"
-                                  className="position-absolute top-50 start-0 translate-middle-y ms-2 rounded-circle bg-opacity-75 border-0 shadow"
-                                  style={{ width: '40px', height: '40px' }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveMediaIndex((prev) => (prev > 0 ? prev - 1 : mediaList.length - 1));
-                                  }}
-                                >
-                                  <i className="fe fe-chevron-left" />
-                                </Button>
-                                <Button
-                                  variant="dark"
-                                  size="sm"
-                                  className="position-absolute top-50 end-0 translate-middle-y me-2 rounded-circle bg-opacity-75 border-0 shadow"
-                                  style={{ width: '40px', height: '40px' }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveMediaIndex((prev) => (prev < mediaList.length - 1 ? prev + 1 : 0));
-                                  }}
-                                >
-                                  <i className="fe fe-chevron-right" />
-                                </Button>
-                              </>
+                              </div>
                             )}
                           </>
                         ) : (
-                          <div className="d-flex flex-column align-items-center justify-content-center py-5 text-muted" style={{ height: '380px' }}>
+                          <div className="d-flex flex-column align-items-center justify-content-center py-5 text-muted bg-white" style={{ height: '380px' }}>
                             <i className="fe fe-camera fs-1 mb-2 opacity-50" />
                             <span className="fw-semibold">Bu ilan için henüz fotoğraf yüklenmemiş.</span>
                           </div>
                         )}
+
+                        {/* Sayaç Rozeti */}
+                        {!isVideoPlaying && totalCount > 0 && (
+                          <div
+                            className="position-absolute bottom-0 end-0 m-3 px-3 py-1 bg-dark bg-opacity-75 text-white rounded-pill small fw-semibold shadow"
+                            style={{ zIndex: 3 }}
+                          >
+                            {isVideoActive ? (
+                              <>
+                                <i className="fe fe-video me-1" /> {videoIndex + 1} / {totalCount}
+                              </>
+                            ) : (
+                              <>
+                                <i className="fe fe-camera me-1" /> {activeMediaIndex + 1} / {totalCount}
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Arrow buttons */}
+                        {totalCount > 1 && !isVideoPlaying && (
+                          <>
+                            <Button
+                              variant="dark"
+                              size="sm"
+                              className="position-absolute top-50 start-0 translate-middle-y ms-2 rounded-circle bg-opacity-75 border-0 shadow d-flex align-items-center justify-content-center"
+                              style={{ width: '40px', height: '40px', zIndex: 4 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                changeMediaIndex(activeMediaIndex > 0 ? activeMediaIndex - 1 : totalCount - 1);
+                              }}
+                            >
+                              <i className="fe fe-chevron-left fs-5" />
+                            </Button>
+                            <Button
+                              variant="dark"
+                              size="sm"
+                              className="position-absolute top-50 end-0 translate-middle-y me-2 rounded-circle bg-opacity-75 border-0 shadow d-flex align-items-center justify-content-center"
+                              style={{ width: '40px', height: '40px', zIndex: 4 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                changeMediaIndex(activeMediaIndex < totalCount - 1 ? activeMediaIndex + 1 : 0);
+                              }}
+                            >
+                              <i className="fe fe-chevron-right fs-5" />
+                            </Button>
+                          </>
+                        )}
                       </div>
 
                       {/* Thumbnail Bar */}
-                      {mediaList.length > 1 && (
-                        <div className="p-3 bg-white border-top d-flex gap-2 overflow-auto">
+                      {totalCount > 1 && (
+                        <div className="p-3 bg-white border-top d-flex gap-2 overflow-auto align-items-center">
                           {mediaList.map((m: any, idx: number) => {
                             const isCurrent = idx === activeMediaIndex;
                             return (
                               <div
                                 key={m.assetId || m.publicUrl || idx}
-                                onClick={() => setActiveMediaIndex(idx)}
-                                className={`rounded-3 overflow-hidden flex-shrink-0 border ${
+                                onClick={() => changeMediaIndex(idx)}
+                                className={`rounded-3 overflow-hidden flex-shrink-0 border position-relative ${
                                   isCurrent ? 'border-primary border-3 shadow-sm' : 'border-light'
                                 }`}
                                 style={{ width: '74px', height: '56px', cursor: 'pointer' }}
@@ -588,6 +788,73 @@ export default function AdvertDetailModal({
                               </div>
                             );
                           })}
+
+                          {/* Video Thumbnail (En sonda) */}
+                          {hasVideo && (
+                            <div
+                              key="advert-modal-video-thumb"
+                              onClick={() => changeMediaIndex(videoIndex)}
+                              className={`rounded-3 overflow-hidden flex-shrink-0 border position-relative ${
+                                activeMediaIndex === videoIndex
+                                  ? 'border-danger border-3 shadow-sm'
+                                  : 'border-light'
+                              }`}
+                              style={{
+                                width: '74px',
+                                height: '56px',
+                                cursor: 'pointer',
+                                backgroundColor: '#0a0d14',
+                              }}
+                              title="İlan Videosu"
+                            >
+                              {parsedVideo.thumbnailUrl ? (
+                                <img
+                                  src={parsedVideo.thumbnailUrl}
+                                  alt={parsedVideo.platformName}
+                                  className="w-100 h-100 object-fit-cover"
+                                />
+                              ) : (
+                                <div className="w-100 h-100 d-flex align-items-center justify-content-center bg-dark text-white opacity-50">
+                                  <i className="fe fe-film fs-5" />
+                                </div>
+                              )}
+
+                              {/* Dark Scrim */}
+                              <div
+                                className="position-absolute top-0 start-0 w-100 h-100"
+                                style={{ backgroundColor: 'rgba(0, 0, 0, 0.35)', pointerEvents: 'none' }}
+                              />
+
+                              {/* Centered Mini Play Button */}
+                              <div
+                                className="position-absolute top-50 start-50 translate-middle rounded-circle d-flex align-items-center justify-content-center shadow-sm"
+                                style={{
+                                  width: '22px',
+                                  height: '22px',
+                                  backgroundColor: '#dc2626',
+                                  color: '#ffffff',
+                                  pointerEvents: 'none',
+                                }}
+                              >
+                                <i className="fe fe-play" style={{ fontSize: '10px', marginLeft: '2px' }} />
+                              </div>
+
+                              {/* Bottom VİDEO Pill */}
+                              <div
+                                className="position-absolute bottom-0 start-0 end-0 text-center py-0.5"
+                                style={{
+                                  backgroundColor: 'rgba(0, 0, 0, 0.72)',
+                                  fontSize: '8.5px',
+                                  fontWeight: 800,
+                                  color: '#ffffff',
+                                  letterSpacing: '0.5px',
+                                  pointerEvents: 'none',
+                                }}
+                              >
+                                VİDEO
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </Card>

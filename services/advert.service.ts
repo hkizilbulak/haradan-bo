@@ -27,6 +27,7 @@ type OwnerAdvertItem = {
     locationName?: string | null;
     location?: { districtId?: string; districtName?: string; provinceId?: string; provinceName?: string; name?: string } | null;
     sellerPhone?: string | null;
+    videoUrl?: string | null;
     media?: Array<{
         assetId: string;
         displayOrder: number;
@@ -141,6 +142,7 @@ export type AdminUpdateAdvertPayload = {
     expectedVersion?: number;
     title?: string;
     description?: string;
+    videoUrl?: string | null;
     price?: { amountMinor?: number; currency?: string };
     districtId?: string;
     horseId?: string;
@@ -216,6 +218,7 @@ function toModerationAdvert(item: any): ModerationAdvertResponse {
         locationName: locationName ?? undefined,
         location: loc ?? (provinceName || districtName ? { districtId, districtName, provinceId, provinceName, name: locationName } : undefined),
         sellerPhone: item.sellerPhone ?? item.properties?.sellerPhone ?? item.properties?.phone ?? undefined,
+        videoUrl: item.videoUrl ?? item.video_url ?? item.properties?.videoUrl ?? item.properties?.video_url ?? undefined,
     };
 }
 
@@ -706,6 +709,7 @@ class AdvertService {
         const res = await apiRequest<ModerationAdvertDetail>('PATCH', `${moderationRootUrl}/${advertId}`, payload);
         updateLocalMockAdvert(advertId, {
             title: payload.title,
+            videoUrl: payload.videoUrl,
             properties: payload.properties,
             media: payload.media,
             version: res?.version,

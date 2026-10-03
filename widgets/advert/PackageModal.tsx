@@ -46,6 +46,7 @@ import {
 } from "@/helpers/advertCategoryHelper";
 import LiveAdvertCardPreview from "./LiveAdvertCardPreview";
 import ImageCropperModal from "@/components/ImageCropperModal";
+import { openVideoUrl } from "@/helpers/videoUrl";
 
 const HORSE_BREED_OPTIONS = [
   "Safkan Arap",
@@ -309,6 +310,7 @@ export default function PackageModal({
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadStage, setUploadStage] = useState("");
   const [editTitle, setEditTitle] = useState("");
+  const [editVideoUrl, setEditVideoUrl] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editPrice, setEditPrice] = useState("");
   const [editProvinceId, setEditProvinceId] = useState("");
@@ -1182,6 +1184,12 @@ export default function PackageModal({
           : getProp(["fiyat", "price", "ucret", "satisfiyati"]);
 
     setEditTitle(d?.title || advert.title || "");
+    setEditVideoUrl(
+      d?.videoUrl ||
+        (advert as any)?.videoUrl ||
+        getProp(["videourl", "video_url", "video"]) ||
+        "",
+    );
     setEditDescription(d?.description || "");
     setEditPrice(rawPrice || "");
 
@@ -1614,6 +1622,12 @@ export default function PackageModal({
     const initialSnapshot = JSON.stringify({
       title: (d?.title || advert.title || "").trim(),
       description: (d?.description || "").trim(),
+      videoUrl: (
+        d?.videoUrl ||
+        (advert as any)?.videoUrl ||
+        getProp(["videourl", "video_url", "video"]) ||
+        ""
+      ).trim(),
       price: String(rawPrice || "").trim(),
       provinceId: String(provId ? String(provId) : ""),
       districtId: String(distId ? String(distId) : ""),
@@ -1979,6 +1993,7 @@ export default function PackageModal({
     return JSON.stringify({
       title: editTitle.trim(),
       description: editDescription.trim(),
+      videoUrl: editVideoUrl.trim(),
       price: String(editPrice || "").trim(),
       provinceId: String(editProvinceId || ""),
       districtId: String(editDistrictId || ""),
@@ -2037,6 +2052,7 @@ export default function PackageModal({
   }, [
     editTitle,
     editDescription,
+    editVideoUrl,
     editPrice,
     editProvinceId,
     editDistrictId,
@@ -2252,6 +2268,14 @@ export default function PackageModal({
         >),
       };
 
+      if (editVideoUrl.trim()) {
+        currentProps["videoUrl"] = editVideoUrl.trim();
+        currentProps["video_url"] = editVideoUrl.trim();
+      } else {
+        delete currentProps["videoUrl"];
+        delete currentProps["video_url"];
+      }
+
       // Horse / Breeding - DB code'larıyla birlikte kaydet (REGISTERED_NAME, SIRE, DAM, DAMSIRE, TJK_NUMBER, HORSE_BREED, HORSE_AGE, HORSE_GENDER, COAT_COLOR)
       currentProps["REGISTERED_NAME"] = editHorseName;
       currentProps["atAdi"] = editHorseName;
@@ -2440,6 +2464,7 @@ export default function PackageModal({
         expectedVersion: detail?.version ?? advert?.version,
         title: editTitle.trim(),
         description: editDescription.trim(),
+        videoUrl: editVideoUrl.trim() || null,
         price: priceMinor
           ? { amountMinor: priceMinor, currency: "TRY" }
           : undefined,
@@ -2470,6 +2495,7 @@ export default function PackageModal({
         <Row className="g-3">
           {/* SOL KOLON: FOTOĞRAF YÖNETİMİ & AÇIKLAMA */}
           <Col lg={6}>
+
             {/* Fotoğraf Yönetimi Card */}
             <Card className="border-0 shadow-sm rounded-3 mb-3">
               <Card.Header className="bg-white border-bottom py-2.5 d-flex justify-content-between align-items-center">
@@ -2756,8 +2782,57 @@ export default function PackageModal({
             </Card>
           </Col>
 
-          {/* SAĞ KOLON: FİYAT, LOKASYON & AT BİLGİLERİ */}
+          {/* SAĞ KOLON: VİDEO, FİYAT, LOKASYON & AT BİLGİLERİ */}
           <Col lg={6}>
+            {/* İlan Videosu Card */}
+            <Card className="border-0 shadow-sm rounded-3 mb-3">
+              <Card.Header className="bg-white border-bottom py-2.5 d-flex justify-content-between align-items-center">
+                <span className="fw-bold text-dark small d-flex align-items-center gap-2">
+                  <i className="fe fe-video text-danger fs-5" />
+                  <span>İlan Videosu</span>
+                </span>
+                {editVideoUrl.trim() ? (
+                  <Button
+                    size="sm"
+                    variant="link"
+                    className="text-danger p-0 text-decoration-none small fw-semibold"
+                    onClick={() => setEditVideoUrl("")}
+                  >
+                    <i className="fe fe-trash-2 me-1" /> Temizle
+                  </Button>
+                ) : null}
+              </Card.Header>
+              <Card.Body className="p-3">
+                <Form.Group className="mb-0">
+                  <Form.Label className="small fw-semibold text-secondary mb-1">
+                    Video Bağlantısı
+                  </Form.Label>
+                  <div className="input-group input-group-sm">
+                    <span className="input-group-text bg-white border-end-0 text-muted">
+                      <i className="fe fe-link" />
+                    </span>
+                    <Form.Control
+                      type="url"
+                      placeholder="YouTube, Vimeo veya Dailymotion video linki yapıştırın..."
+                      value={editVideoUrl}
+                      onChange={(e) => setEditVideoUrl(e.target.value)}
+                      className="border-start-0 ps-1"
+                    />
+                    {editVideoUrl.trim() ? (
+                      <Button
+                        variant="outline-secondary"
+                        size="sm"
+                        onClick={() => openVideoUrl(editVideoUrl)}
+                        title="Yeni sekmede aç"
+                      >
+                        <i className="fe fe-external-link" />
+                      </Button>
+                    ) : null}
+                  </div>
+                </Form.Group>
+              </Card.Body>
+            </Card>
+
             {/* Fiyat ve Lokasyon Card */}
             <Card className="border-0 shadow-sm rounded-3 mb-3">
               <Card.Header className="bg-white border-bottom py-2">
