@@ -328,28 +328,16 @@ export default function StudFarms() {
                                                             <tr>
                                                                 <td colSpan={8} className="p-0 border-0">
                                                                     <div className="p-3 bg-light border-bottom">
-                                                                        <div className="card border shadow-none mb-3 bg-white">
-                                                                            <div className="card-body py-2 px-3">
-                                                                                <Row className="g-3 align-items-center">
-                                                                                    <Col xs={12} md={6} className="d-flex align-items-center gap-2">
-                                                                                        <div className="rounded-circle bg-primary bg-opacity-10 p-2 d-flex align-items-center justify-content-center flex-shrink-0" style={{ width: '32px', height: '32px' }}>
-                                                                                            <Mail size={16} className="text-primary" />
-                                                                                        </div>
-                                                                                        <div className="overflow-hidden">
-                                                                                            <span className="text-muted d-block" style={{ fontSize: '0.75rem', lineHeight: '1.2' }}>E-Posta</span>
-                                                                                            <span className="fw-medium text-dark small text-truncate d-block">{item.email || '-'}</span>
-                                                                                        </div>
-                                                                                    </Col>
-                                                                                    <Col xs={12} md={6} className="d-flex align-items-center gap-2">
-                                                                                        <div className="rounded-circle bg-danger bg-opacity-10 p-2 d-flex align-items-center justify-content-center flex-shrink-0" style={{ width: '32px', height: '32px' }}>
-                                                                                            <MapPin size={16} className="text-danger" />
-                                                                                        </div>
-                                                                                        <div className="overflow-hidden">
-                                                                                            <span className="text-muted d-block" style={{ fontSize: '0.75rem', lineHeight: '1.2' }}>Konum</span>
-                                                                                            <span className="fw-medium text-dark small text-truncate d-block" title={item.location || undefined}>{item.location || '-'}</span>
-                                                                                        </div>
-                                                                                    </Col>
-                                                                                </Row>
+                                                                        <div className="d-flex align-items-center flex-wrap gap-3 gap-md-4 py-2 px-3 mb-3 bg-white rounded border">
+                                                                            <div className="d-flex align-items-center gap-1 text-nowrap">
+                                                                                <Mail size={13} className="text-primary flex-shrink-0 me-1" />
+                                                                                <span className="text-muted small">E-Posta:</span>
+                                                                                <span className="fw-medium text-dark small">{item.email || '-'}</span>
+                                                                            </div>
+                                                                            <div className="d-flex align-items-center gap-1">
+                                                                                <MapPin size={13} className="text-danger flex-shrink-0 me-1" />
+                                                                                <span className="text-muted small">Konum:</span>
+                                                                                <span className="fw-medium text-dark small">{item.location || '-'}</span>
                                                                             </div>
                                                                         </div>
                                                                         <div className="bg-white rounded border overflow-hidden">
