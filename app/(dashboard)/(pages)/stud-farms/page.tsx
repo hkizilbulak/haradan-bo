@@ -8,7 +8,7 @@ import { studFarmService } from '@/services';
 import CustomPagination from '@/components/Pagination';
 import { Skeleton } from '@/components/Skeleton';
 import { Col, Row, Container, Card, Table, Button, Alert, Form } from 'react-bootstrap';
-import { Plus, ChevronDown, ChevronUp, Edit, MessageCircle, ArrowUp, ArrowDown } from 'react-feather';
+import { Plus, ChevronDown, ChevronUp, Edit, MessageCircle, ArrowUp, ArrowDown, Mail, MapPin } from 'react-feather';
 import AddStudFarmModal from './components/AddStudFarmModal';
 import AddStudFarmNoteModal from './components/AddStudFarmNoteModal';
 import StudFarmNotesTimeline from './components/StudFarmNotesTimeline';
@@ -209,9 +209,7 @@ export default function StudFarms() {
                                             <th style={{ width: '40px' }}></th>
                                             {renderSortHeader('Hara Adı', 'firstName')}
                                             {renderSortHeader('Sorumlu', 'lastName')}
-                                            <th className="text-muted fw-semibold">E-Posta</th>
                                             <th className="text-muted fw-semibold">Telefon</th>
-                                            <th className="text-muted fw-semibold" style={{ maxWidth: '37ch' }}>Konum</th>
                                             {renderSortHeader('Son Görüşme', 'latestInterviewDate')}
                                             {renderSortHeader('Görüşme Sayısı', 'interviewCount')}
                                             {renderSortHeader('Eklenme Tarihi', 'createdAt')}
@@ -225,9 +223,7 @@ export default function StudFarms() {
                                                     <td></td>
                                                     <td><Skeleton width="75%" height="1rem" /></td>
                                                     <td><Skeleton width="75%" height="1rem" /></td>
-                                                    <td><Skeleton width="60%" height="1rem" /></td>
                                                     <td><Skeleton width="50%" height="1rem" /></td>
-                                                    <td><Skeleton width="40%" height="1rem" /></td>
                                                     <td><Skeleton width="40%" height="1rem" /></td>
                                                     <td><Skeleton width="30%" height="1rem" /></td>
                                                     <td><Skeleton width="50%" height="1rem" /></td>
@@ -256,9 +252,7 @@ export default function StudFarms() {
                                                             <td className="fw-medium text-dark">
                                                                 {item.lastName ? capitalizeSentence(item.lastName) : '-'}
                                                             </td>
-                                                            <td>{item.email || '-'}</td>
                                                             <td>{item.phone || '-'}</td>
-                                                            <td style={{ maxWidth: '37ch', whiteSpace: 'normal', wordWrap: 'break-word' }}>{item.location || '-'}</td>
                                                             <td>
                                                                 {item.latestInterviewDate ? (
                                                                     <span className="text-dark fw-medium">
@@ -332,16 +326,42 @@ export default function StudFarms() {
                                                         
                                                         {isExpanded && (
                                                             <tr>
-                                                                <td colSpan={10} className="p-0 border-0">
-                                                                    <div className="bg-white">
-                                                                        <StudFarmNotesTimeline 
-                                                                            studFarmId={item.id} 
-                                                                            refreshTrigger={notesRefreshTrigger}
-                                                                            onNoteDeleted={() => {
-                                                                                setNotesRefreshTrigger(prev => prev + 1);
-                                                                                refetch();
-                                                                            }}
-                                                                        />
+                                                                <td colSpan={8} className="p-0 border-0">
+                                                                    <div className="p-3 bg-light border-bottom">
+                                                                        <div className="card border shadow-none mb-3 bg-white">
+                                                                            <div className="card-body py-2 px-3">
+                                                                                <Row className="g-3 align-items-center">
+                                                                                    <Col xs={12} md={6} className="d-flex align-items-center gap-2">
+                                                                                        <div className="rounded-circle bg-primary bg-opacity-10 p-2 d-flex align-items-center justify-content-center flex-shrink-0" style={{ width: '32px', height: '32px' }}>
+                                                                                            <Mail size={16} className="text-primary" />
+                                                                                        </div>
+                                                                                        <div className="overflow-hidden">
+                                                                                            <span className="text-muted d-block" style={{ fontSize: '0.75rem', lineHeight: '1.2' }}>E-Posta</span>
+                                                                                            <span className="fw-medium text-dark small text-truncate d-block">{item.email || '-'}</span>
+                                                                                        </div>
+                                                                                    </Col>
+                                                                                    <Col xs={12} md={6} className="d-flex align-items-center gap-2">
+                                                                                        <div className="rounded-circle bg-danger bg-opacity-10 p-2 d-flex align-items-center justify-content-center flex-shrink-0" style={{ width: '32px', height: '32px' }}>
+                                                                                            <MapPin size={16} className="text-danger" />
+                                                                                        </div>
+                                                                                        <div className="overflow-hidden">
+                                                                                            <span className="text-muted d-block" style={{ fontSize: '0.75rem', lineHeight: '1.2' }}>Konum</span>
+                                                                                            <span className="fw-medium text-dark small text-truncate d-block" title={item.location || undefined}>{item.location || '-'}</span>
+                                                                                        </div>
+                                                                                    </Col>
+                                                                                </Row>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="bg-white rounded border overflow-hidden">
+                                                                            <StudFarmNotesTimeline 
+                                                                                studFarmId={item.id} 
+                                                                                refreshTrigger={notesRefreshTrigger}
+                                                                                onNoteDeleted={() => {
+                                                                                    setNotesRefreshTrigger(prev => prev + 1);
+                                                                                    refetch();
+                                                                                }}
+                                                                            />
+                                                                        </div>
                                                                     </div>
                                                                 </td>
                                                             </tr>
@@ -351,7 +371,7 @@ export default function StudFarms() {
                                             })
                                         ) : (
                                             <tr>
-                                                <td colSpan={10} className="text-center py-4 text-muted">
+                                                <td colSpan={8} className="text-center py-4 text-muted">
                                                     Henüz kayıt bulunamadı.
                                                 </td>
                                             </tr>
