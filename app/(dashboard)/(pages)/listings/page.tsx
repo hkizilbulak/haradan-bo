@@ -1,5 +1,5 @@
 "use client"
-import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button, Col, Container, Form, Modal, Row, Badge, Table, Alert, Nav, Card } from 'react-bootstrap';
 import { toast } from 'react-toastify';
@@ -42,40 +42,10 @@ function AdvertsContent() {
   const [reason, setReason] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
   const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
-  const [userMap, setUserMap] = useState<Map<string, OwnerAccountInfo>>(new Map());
   const [advertOwnerMap, setAdvertOwnerMap] = useState<Map<string, OwnerAccountInfo>>(new Map());
-
-  useEffect(() => {
-    userService.fetchAll()
-      .then((users) => {
-        const map = new Map<string, OwnerAccountInfo>();
-        for (const u of users) {
-          const id = u.identifier ?? u.id;
-          if (id) {
-            const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
-            const info: OwnerAccountInfo = {
-              name: fullName || undefined,
-              email: u.email || undefined,
-            };
-            map.set(id, info);
-            map.set(id.toLowerCase(), info);
-          }
-        }
-        const defaultAdmin: OwnerAccountInfo = {
-          name: 'Sistem Yöneticisi',
-          email: 'admin@haradan.com',
-        };
-        map.set('u1000000-0000-4000-8000-000000000001', defaultAdmin);
-        setUserMap((prev) => {
-          const next = new Map(prev);
-          map.forEach((v, k) => {
-            next.set(k, v);
-          });
-          return next;
-        });
-      })
-      .catch(() => {});
-  }, []);
+  const ownerCacheRef = useRef<Map<string, OwnerAccountInfo>>(new Map([
+    ['u1000000-0000-4000-8000-000000000001', { name: 'Sistem Yöneticisi', email: 'admin@haradan.com' }],
+  ]));
 
   useEffect(() => {
     categoryService.search({ pageRequest: { page: 0, size: 100 } })
@@ -116,87 +86,83 @@ function AdvertsContent() {
     } as any,
   });
 
-  // Effect to resolve missing ownerUserIds and owner details for displayed adverts
+  // Effect to resolve missing owner details for currently displayed adverts
   useEffect(() => {
     const adverts = data?.content ?? [];
     if (adverts.length === 0) return;
 
     let isMounted = true;
 
-    adverts.forEach(async (adv) => {
-      const advId = adv.identifier ?? adv.id;
-      if (!advId) return;
+    const resolveOwners = async () => {
+      const newEntries: [string, OwnerAccountInfo][] = [];
 
-      if (advertOwnerMap.has(advId)) return;
+      for (const adv of adverts) {
+        const advId = adv.identifier ?? adv.id;
+        if (!advId || ownerCacheRef.current.has(advId)) continue;
 
-      let ownerId = adv.ownerUserId;
-
-      // If ownerUserId is not present on the advert summary, fetch advert detail
-      if (!ownerId) {
-        try {
-          const detail = await advertService.getDetail(advId);
-          ownerId = detail.ownerUserId;
-        } catch {
-          // ignore
+        let ownerId = adv.ownerUserId;
+        if (!ownerId && (adv as any).properties?.ownerUserId) {
+          ownerId = (adv as any).properties.ownerUserId;
         }
-      }
 
-      if (!isMounted) return;
+        const fallbackName = (adv as any).properties?.ownerName || (adv as any).ownerName;
+        const fallbackEmail = (adv as any).properties?.ownerEmail || (adv as any).ownerEmail;
 
-      if (ownerId) {
-        const found = userMap.get(ownerId) || userMap.get(ownerId.toLowerCase());
-        if (found) {
-          if (isMounted) {
-            setAdvertOwnerMap((prev) => new Map(prev).set(advId, found));
+        if (ownerId) {
+          const cached = ownerCacheRef.current.get(ownerId) || ownerCacheRef.current.get(ownerId.toLowerCase());
+          if (cached) {
+            ownerCacheRef.current.set(advId, cached);
+            newEntries.push([advId, cached]);
+            continue;
           }
-          return;
-        }
 
-        try {
-          const u = await userService.getById(ownerId);
-          if (u && isMounted) {
-            const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
-            const info: OwnerAccountInfo = {
-              name: fullName || undefined,
-              email: u.email || undefined,
-            };
-            setUserMap((prev) => {
-              const next = new Map(prev);
-              next.set(ownerId!, info);
+          try {
+            const u = await userService.getById(ownerId);
+            if (u) {
+              const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+              const info: OwnerAccountInfo = {
+                name: fullName || fallbackName || undefined,
+                email: u.email || fallbackEmail || undefined,
+              };
+              ownerCacheRef.current.set(ownerId, info);
               const uId = u.identifier ?? u.id;
-              if (uId) next.set(uId, info);
-              return next;
-            });
-            setAdvertOwnerMap((prev) => new Map(prev).set(advId, info));
-          }
-        } catch {
-          if (isMounted) {
-            const pName = (adv as any).properties?.ownerName || (adv as any).ownerName;
-            const pEmail = (adv as any).properties?.ownerEmail || (adv as any).ownerEmail;
-            if (pName || pEmail) {
-              setAdvertOwnerMap((prev) => new Map(prev).set(advId, {
-                name: pName || undefined,
-                email: pEmail || undefined,
-              }));
+              if (uId) ownerCacheRef.current.set(uId, info);
+              ownerCacheRef.current.set(advId, info);
+              newEntries.push([advId, info]);
+              continue;
             }
+          } catch {
+            // ignore
           }
         }
-      } else {
-        const pName = (adv as any).properties?.ownerName || (adv as any).ownerName;
-        const pEmail = (adv as any).properties?.ownerEmail || (adv as any).ownerEmail;
-        if (pName || pEmail) {
-          setAdvertOwnerMap((prev) => new Map(prev).set(advId, {
-            name: pName || undefined,
-            email: pEmail || undefined,
-          }));
+
+        if (fallbackName || fallbackEmail) {
+          const info: OwnerAccountInfo = {
+            name: fallbackName || undefined,
+            email: fallbackEmail || undefined,
+          };
+          ownerCacheRef.current.set(advId, info);
+          newEntries.push([advId, info]);
         }
       }
-    });
+
+      if (isMounted && newEntries.length > 0) {
+        setAdvertOwnerMap((prev) => {
+          const next = new Map(prev);
+          for (const [k, v] of newEntries) {
+            next.set(k, v);
+          }
+          return next;
+        });
+      }
+    };
+
+    resolveOwners();
 
     return () => {
       isMounted = false;
     };
-  }, [data?.content, userMap, advertOwnerMap]);
+  }, [data?.content]);
 
   const pageIndex = parameters?.pageRequest?.page ?? 0;
   const pageSize = parameters?.pageRequest?.size ?? 10;
@@ -343,7 +309,7 @@ function AdvertsContent() {
     
     // İlanı Gönderen Hesap Bilgisi
     const ownerInfo = (advertId ? advertOwnerMap.get(advertId) : undefined)
-      || (advert.ownerUserId ? (userMap.get(advert.ownerUserId) || userMap.get(advert.ownerUserId.toLowerCase())) : undefined)
+      || (advert.ownerUserId ? (ownerCacheRef.current.get(advert.ownerUserId) || ownerCacheRef.current.get(advert.ownerUserId.toLowerCase())) : undefined)
       || (advert.ownerName ? { name: advert.ownerName, email: (advert as any).properties?.ownerEmail } : undefined)
       || ((advert as any).properties?.ownerName ? { name: (advert as any).properties.ownerName, email: (advert as any).properties?.ownerEmail } : undefined);
 
