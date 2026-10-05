@@ -17,7 +17,8 @@ interface TemplateFormState {
 function CommunicationTemplatesContent() {
     const searchParams = useSearchParams();
     const initialStudName = searchParams?.get('stud_name') || '';
-    const initialPersonName = searchParams?.get('person_name') || '';
+    const rawPersonName = searchParams?.get('person_name') || '';
+    const initialPersonName = rawPersonName.trim().split(/\s+/)[0] || '';
     const initialPhone = searchParams?.get('phone') || '';
 
     const [templates, setTemplates] = useState<CommunicationTemplate[]>([]);
@@ -37,7 +38,7 @@ function CommunicationTemplatesContent() {
 
     useEffect(() => {
         if (session?.user && !agentName) {
-            setAgentName(`${session.user.firstName} ${session.user.lastName}`.trim());
+            setAgentName((session.user.firstName || '').trim());
         }
     }, [session?.user, agentName]);
 

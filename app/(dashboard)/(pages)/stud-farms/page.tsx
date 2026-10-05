@@ -205,7 +205,8 @@ export default function StudFarms() {
                                                                         title="Yazışma Hazırla"
                                                                         aria-label="Yazışma Hazırla"
                                                                         onClick={() => {
-                                                                            const personName = item.lastName || '';
+                                                                            const rawPersonName = (item.lastName || '').trim();
+                                                                            const personName = rawPersonName.split(/\s+/)[0] || '';
                                                                             const studName = item.firstName || '';
                                                                             const phone = item.phone || '';
                                                                             router.push(`/communication-templates?stud_name=${encodeURIComponent(studName)}&person_name=${encodeURIComponent(personName)}&phone=${encodeURIComponent(phone)}`);
