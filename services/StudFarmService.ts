@@ -7,33 +7,45 @@ const baseUrl = `${API_URL}v1/stud-farms`;
 
 export const studFarmService = {
     search: async (params: SearchParams<StudFarm>): Promise<PagedResponse<StudFarm>> => {
-        const limit = params.pageRequest.size ?? 10;
+        const limit = params.pageRequest?.size ?? 10;
+        const pageNumber = params.pageRequest?.page ?? 0;
+        const offset = pageNumber * limit;
         
         let filterParams: any = {};
         if (params.filter) {
-            // Very simple filter parsing for search=...
-            const match = params.filter.match(/search=([^;]+)/);
-            if (match) {
-                filterParams.q = match[1];
-                filterParams.search = match[1];
-            } else if (!params.filter.includes('=')) {
-                filterParams.q = params.filter;
-                filterParams.search = params.filter;
+            const pairs = params.filter.split(';');
+            for (const pair of pairs) {
+                const [key, val] = pair.includes('==') ? pair.split('==') : pair.split('=');
+                if (key && val) {
+                    if (key === 'search' || key === 'q') {
+                        filterParams.q = val;
+                    } else if (key === 'sortBy' || key === 'sortField' || key === 'sort_by') {
+                        filterParams.sortBy = val;
+                    } else if (key === 'sortDir' || key === 'sortDirection' || key === 'sort_dir') {
+                        filterParams.sortDir = val;
+                    }
+                } else if (!pair.includes('=')) {
+                    filterParams.q = pair;
+                }
             }
+        }
+
+        if (params.pageRequest?.sort && params.pageRequest.sort.length > 0) {
+            filterParams.sortBy = params.pageRequest.sort[0].property;
+            filterParams.sortDir = params.pageRequest.sort[0].direction;
         }
 
         const response = await axiosInstance.get(baseUrl, {
             params: {
                 cursor: params.cursor || undefined,
                 limit,
+                offset,
                 ...filterParams
             }
         });
 
         // Backend response is expected to match StudFarmListResponse
-        // Let's map it safely if needed or directly return if it matches.
         const data = response.data;
-        const pageNumber = params.pageRequest.page ?? 0;
 
         const content = (data.items ?? []).map((item: any) => ({
             id: item.id,
@@ -50,16 +62,18 @@ export const studFarmService = {
             interviewNotesUrl: item.interview_notes_url,
         }));
 
+        const totalElements = data.totalCount ?? content.length;
+        const totalPages = Math.max(1, Math.ceil(totalElements / limit));
+
         return {
             content,
             page: {
                 size: limit,
                 number: pageNumber,
-                totalElements: data.totalCount ?? (data.items ?? []).length,
-                totalPages: data.totalCount ? Math.max(1, Math.ceil(data.totalCount / limit)) : (data.hasMore ? pageNumber + 2 : pageNumber + 1),
+                totalElements,
+                totalPages,
                 hasMore: Boolean(data.hasMore),
                 nextCursor: data.nextCursor ?? null,
-                cursorMode: true,
             }
         };
     },

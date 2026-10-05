@@ -21,6 +21,14 @@ export default function StudFarms() {
     const router = useRouter();
     const [{ data, parameters, isLoading, isError, handleFilter, handlePageChange, setParameters, refetch }] = useApi<StudFarm>({
         service: studFarmService,
+        params: {
+            filter: '',
+            pageRequest: {
+                page: 0,
+                size: 10,
+                sort: [{ direction: 'DESC', property: 'createdAt' }],
+            },
+        } as any,
     });
 
     const [showAddModal, setShowAddModal] = useState(false);
@@ -83,46 +91,25 @@ export default function StudFarms() {
     };
 
     const handleSort = (field: SortField) => {
+        let newDir: SortDirection = 'desc';
         if (sortField === field) {
-            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+            newDir = sortDirection === 'asc' ? 'desc' : 'asc';
         } else {
-            setSortField(field);
-            setSortDirection(field === 'firstName' || field === 'lastName' ? 'asc' : 'desc');
+            newDir = field === 'firstName' || field === 'lastName' ? 'asc' : 'desc';
         }
+        setSortField(field);
+        setSortDirection(newDir);
+        setParameters({
+            ...parameters,
+            pageRequest: {
+                ...parameters?.pageRequest,
+                page: 0,
+                sort: [{ property: field, direction: newDir.toUpperCase() }],
+            },
+        });
     };
 
     const rows = data?.content ?? [];
-
-    const sortedRows = React.useMemo(() => {
-        const list = [...rows];
-        if (!sortField) return list;
-
-        return list.sort((a, b) => {
-            let valA: any = a[sortField];
-            let valB: any = b[sortField];
-
-            if (sortField === 'firstName' || sortField === 'lastName') {
-                valA = (valA || '').toString().toLowerCase();
-                valB = (valB || '').toString().toLowerCase();
-                const cmp = valA.localeCompare(valB, 'tr');
-                return sortDirection === 'asc' ? cmp : -cmp;
-            }
-
-            if (sortField === 'interviewCount') {
-                valA = Number(valA || 0);
-                valB = Number(valB || 0);
-                return sortDirection === 'asc' ? valA - valB : valB - valA;
-            }
-
-            if (sortField === 'createdAt' || sortField === 'latestInterviewDate') {
-                const timeA = valA ? new Date(valA).getTime() : 0;
-                const timeB = valB ? new Date(valB).getTime() : 0;
-                return sortDirection === 'asc' ? timeA - timeB : timeB - timeA;
-            }
-
-            return 0;
-        });
-    }, [rows, sortField, sortDirection]);
 
     const renderSortHeader = (label: string, field: SortField) => {
         const isActive = sortField === field;
@@ -230,8 +217,8 @@ export default function StudFarms() {
                                                     <td className="text-end"><Skeleton width="60px" height="1rem" /></td>
                                                 </tr>
                                             ))
-                                        ) : sortedRows.length > 0 ? (
-                                            sortedRows.map((item) => {
+                                        ) : rows.length > 0 ? (
+                                            rows.map((item) => {
                                                 const isExpanded = expandedRow === item.id;
                                                 return (
                                                     <React.Fragment key={item.id}>
