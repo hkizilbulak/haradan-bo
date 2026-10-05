@@ -8,11 +8,14 @@ import { studFarmService } from '@/services';
 import CustomPagination from '@/components/Pagination';
 import { Skeleton } from '@/components/Skeleton';
 import { Col, Row, Container, Card, Table, Button, Alert, Form } from 'react-bootstrap';
-import { Plus, ChevronDown, ChevronUp, Edit, MessageCircle } from 'react-feather';
+import { Plus, ChevronDown, ChevronUp, Edit, MessageCircle, ArrowUp, ArrowDown } from 'react-feather';
 import AddStudFarmModal from './components/AddStudFarmModal';
 import AddStudFarmNoteModal from './components/AddStudFarmNoteModal';
 import StudFarmNotesTimeline from './components/StudFarmNotesTimeline';
 import { useRouter } from 'next/navigation';
+
+type SortField = 'firstName' | 'lastName' | 'latestInterviewDate' | 'interviewCount' | 'createdAt';
+type SortDirection = 'asc' | 'desc';
 
 export default function StudFarms() {
     const router = useRouter();
@@ -26,9 +29,16 @@ export default function StudFarms() {
     const [selectedStudFarmId, setSelectedStudFarmId] = useState<string | null>(null);
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
     const [notesRefreshTrigger, setNotesRefreshTrigger] = useState(0);
+
+    // Search and debounce handling (avoids duplicate/looping requests)
     const [searchTerm, setSearchTerm] = useState('');
-    const isFirstRender = useRef(true);
-    const activeSearchRef = useRef(false);
+    const lastFilterRef = useRef<string>('');
+    const handleFilterRef = useRef(handleFilter);
+    handleFilterRef.current = handleFilter;
+
+    // Sorting state
+    const [sortField, setSortField] = useState<SortField | null>('createdAt');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
     const toggleRow = (id: string) => {
         if (expandedRow === id) {
@@ -39,51 +49,103 @@ export default function StudFarms() {
     };
 
     useEffect(() => {
-        if (isFirstRender.current) {
-            isFirstRender.current = false;
-            return;
-        }
-
         const timer = setTimeout(() => {
             const trimmed = searchTerm.trim();
-            if (trimmed.length >= 3) {
-                activeSearchRef.current = true;
-                handleFilter(`search=${trimmed}`);
-            } else if (trimmed.length === 0) {
-                if (activeSearchRef.current) {
-                    activeSearchRef.current = false;
-                    handleFilter('');
+            const targetFilter = trimmed.length >= 3 ? `search=${trimmed}` : '';
+
+            if (trimmed.length === 0 || trimmed.length >= 3) {
+                if (targetFilter !== lastFilterRef.current) {
+                    lastFilterRef.current = targetFilter;
+                    handleFilterRef.current(targetFilter);
                 }
             }
-            // 1 veya 2 harf girilirken hiçbir istek/arama yapılmaz
-        }, 300);
+        }, 400);
 
         return () => clearTimeout(timer);
-    }, [searchTerm, handleFilter]);
+    }, [searchTerm]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         const trimmed = searchTerm.trim();
-        if (trimmed.length >= 3) {
-            activeSearchRef.current = true;
-            handleFilter(`search=${trimmed}`);
-        } else if (trimmed.length === 0) {
-            if (activeSearchRef.current) {
-                activeSearchRef.current = false;
-                handleFilter('');
-            }
+        const targetFilter = trimmed.length >= 3 ? `search=${trimmed}` : '';
+        if (targetFilter !== lastFilterRef.current) {
+            lastFilterRef.current = targetFilter;
+            handleFilter(targetFilter);
         }
     };
 
     const handleClear = () => {
         setSearchTerm('');
-        if (activeSearchRef.current) {
-            activeSearchRef.current = false;
+        if (lastFilterRef.current !== '') {
+            lastFilterRef.current = '';
             handleFilter('');
         }
     };
 
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection(field === 'firstName' || field === 'lastName' ? 'asc' : 'desc');
+        }
+    };
+
     const rows = data?.content ?? [];
+
+    const sortedRows = React.useMemo(() => {
+        const list = [...rows];
+        if (!sortField) return list;
+
+        return list.sort((a, b) => {
+            let valA: any = a[sortField];
+            let valB: any = b[sortField];
+
+            if (sortField === 'firstName' || sortField === 'lastName') {
+                valA = (valA || '').toString().toLowerCase();
+                valB = (valB || '').toString().toLowerCase();
+                const cmp = valA.localeCompare(valB, 'tr');
+                return sortDirection === 'asc' ? cmp : -cmp;
+            }
+
+            if (sortField === 'interviewCount') {
+                valA = Number(valA || 0);
+                valB = Number(valB || 0);
+                return sortDirection === 'asc' ? valA - valB : valB - valA;
+            }
+
+            if (sortField === 'createdAt' || sortField === 'latestInterviewDate') {
+                const timeA = valA ? new Date(valA).getTime() : 0;
+                const timeB = valB ? new Date(valB).getTime() : 0;
+                return sortDirection === 'asc' ? timeA - timeB : timeB - timeA;
+            }
+
+            return 0;
+        });
+    }, [rows, sortField, sortDirection]);
+
+    const renderSortHeader = (label: string, field: SortField) => {
+        const isActive = sortField === field;
+        return (
+            <th
+                className="text-muted fw-semibold user-select-none"
+                style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}
+                onClick={() => handleSort(field)}
+                title={`${label} ile sırala`}
+            >
+                <div className="d-inline-flex align-items-center gap-1">
+                    <span>{label}</span>
+                    <span className="text-secondary" style={{ opacity: isActive ? 1 : 0.35, display: 'inline-flex' }}>
+                        {isActive ? (
+                            sortDirection === 'asc' ? <ArrowUp size={13} className="text-primary" /> : <ArrowDown size={13} className="text-primary" />
+                        ) : (
+                            <ArrowDown size={13} />
+                        )}
+                    </span>
+                </div>
+            </th>
+        );
+    };
 
     return (
         <Container fluid className="page-container" style={{ backgroundColor: '#f8f9fa' }}>
@@ -108,7 +170,7 @@ export default function StudFarms() {
                                     <div className="position-relative">
                                         <Form.Control
                                             type="text"
-                                            placeholder="Arama"
+                                            placeholder="Hara adı, sorumlu, telefon veya e-posta ile ara..."
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                             style={{ paddingLeft: '35px' }}
@@ -145,13 +207,14 @@ export default function StudFarms() {
                                     <thead style={{ backgroundColor: '#f4f5f7' }}>
                                         <tr>
                                             <th style={{ width: '40px' }}></th>
-                                            <th className="text-muted fw-semibold">Hara Adı</th>
-                                            <th className="text-muted fw-semibold">Hara Sorumlusu Ad Soyadı</th>
+                                            {renderSortHeader('Hara Adı', 'firstName')}
+                                            {renderSortHeader('Sorumlu', 'lastName')}
                                             <th className="text-muted fw-semibold">E-Posta</th>
                                             <th className="text-muted fw-semibold">Telefon</th>
                                             <th className="text-muted fw-semibold" style={{ maxWidth: '37ch' }}>Konum</th>
-                                            <th className="text-muted fw-semibold">Görüşme Sayısı</th>
-                                            <th className="text-muted fw-semibold">Eklenme Tarihi</th>
+                                            {renderSortHeader('Son Görüşme', 'latestInterviewDate')}
+                                            {renderSortHeader('Görüşme Sayısı', 'interviewCount')}
+                                            {renderSortHeader('Eklenme Tarihi', 'createdAt')}
                                             <th className="text-center text-muted fw-semibold">İşlemler</th>
                                         </tr>
                                     </thead>
@@ -165,13 +228,14 @@ export default function StudFarms() {
                                                     <td><Skeleton width="60%" height="1rem" /></td>
                                                     <td><Skeleton width="50%" height="1rem" /></td>
                                                     <td><Skeleton width="40%" height="1rem" /></td>
+                                                    <td><Skeleton width="40%" height="1rem" /></td>
                                                     <td><Skeleton width="30%" height="1rem" /></td>
                                                     <td><Skeleton width="50%" height="1rem" /></td>
                                                     <td className="text-end"><Skeleton width="60px" height="1rem" /></td>
                                                 </tr>
                                             ))
-                                        ) : rows.length > 0 ? (
-                                            rows.map((item) => {
+                                        ) : sortedRows.length > 0 ? (
+                                            sortedRows.map((item) => {
                                                 const isExpanded = expandedRow === item.id;
                                                 return (
                                                     <React.Fragment key={item.id}>
@@ -181,6 +245,7 @@ export default function StudFarms() {
                                                                     onClick={() => toggleRow(item.id)}
                                                                     style={{ cursor: 'pointer', padding: '5px' }}
                                                                     className="text-muted"
+                                                                    title="Görüşme geçmişini aç / kapat"
                                                                 >
                                                                     {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                                                                 </span>
@@ -194,7 +259,28 @@ export default function StudFarms() {
                                                             <td>{item.email || '-'}</td>
                                                             <td>{item.phone || '-'}</td>
                                                             <td style={{ maxWidth: '37ch', whiteSpace: 'normal', wordWrap: 'break-word' }}>{item.location || '-'}</td>
-                                                            <td>{item.interviewCount || 0}</td>
+                                                            <td>
+                                                                {item.latestInterviewDate ? (
+                                                                    <span className="text-dark fw-medium">
+                                                                        {formatDateForText(item.latestInterviewDate)}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-muted">-</span>
+                                                                )}
+                                                            </td>
+                                                            <td>
+                                                                <span
+                                                                    role="button"
+                                                                    tabIndex={0}
+                                                                    onClick={() => toggleRow(item.id)}
+                                                                    className="badge bg-light text-primary border px-2 py-1 fw-semibold d-inline-flex align-items-center gap-1 user-select-none"
+                                                                    style={{ cursor: 'pointer', fontSize: '0.85rem' }}
+                                                                    title="Görüşme geçmişini aç / kapat"
+                                                                >
+                                                                    {item.interviewCount || 0}
+                                                                    <MessageCircle size={12} className="text-muted" />
+                                                                </span>
+                                                            </td>
                                                             <td>{formatDateForText(item.createdAt)}</td>
                                                             <td className="text-center">
                                                                 <div className="d-flex justify-content-center align-items-center gap-2">
@@ -246,7 +332,7 @@ export default function StudFarms() {
                                                         
                                                         {isExpanded && (
                                                             <tr>
-                                                                <td colSpan={9} className="p-0 border-0">
+                                                                <td colSpan={10} className="p-0 border-0">
                                                                     <div className="bg-white">
                                                                         <StudFarmNotesTimeline 
                                                                             studFarmId={item.id} 
@@ -265,7 +351,7 @@ export default function StudFarms() {
                                             })
                                         ) : (
                                             <tr>
-                                                <td colSpan={9} className="text-center py-4 text-muted">
+                                                <td colSpan={10} className="text-center py-4 text-muted">
                                                     Henüz kayıt bulunamadı.
                                                 </td>
                                             </tr>
