@@ -79,6 +79,13 @@ export const DashboardMenu: IMenuProps[] = [
 	},
 	{
 		id: uuid(),
+		title: 'Banka Hesapları',
+		icon: 'credit-card',
+		link: '/bank-accounts',
+		allowedRoles: ['admin']
+	},
+	{
+		id: uuid(),
 		title: 'Bildirim Şablonları',
 		icon: 'mail',
 		link: '/notifications',
