@@ -1,5 +1,5 @@
-"use client"
-import { Alert, Badge, Button, Card, Col, Container, Form, Offcanvas, Row } from 'react-bootstrap';
+"use client";
+import { Alert, Badge, Button, Card, Col, Container, Form, Nav, Offcanvas, Row } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { Trash2 } from 'react-feather';
@@ -19,7 +19,8 @@ import { packageService, PackageRequest, PackageResponse } from '@/services/pack
 import { PageHeading } from '@/widgets';
 import { toast } from 'react-toastify';
 
-const headItems = ['Ad', 'Fiyat', 'Durum', 'Oluşturulma', 'İşlemler'];
+const headItemsIndividual = ['Ad', 'Fiyat', 'Durum', 'Oluşturulma', 'İşlemler'];
+const headItemsEkuri = ['Ad', 'At Kapasitesi', 'Fiyat', 'Durum', 'Oluşturulma', 'İşlemler'];
 
 const initialValues: PackageRequest = {
   displayName: '',
@@ -32,6 +33,8 @@ const initialValues: PackageRequest = {
   showcaseEligible: false,
   searchPriority: 0,
   broadcastOnPublish: false,
+  packageType: 'INDIVIDUAL',
+  horseLimit: null,
   isActive: true,
 };
 
@@ -45,9 +48,18 @@ function PackagePreview({ value }: { value: PackageRequest }) {
 
   return (
     <Card className="border-primary-subtle shadow-sm mb-4">
-      <Card.Header className="small text-muted">Canlı Önizleme</Card.Header>
+      <Card.Header className="small text-muted d-flex justify-content-between align-items-center">
+        <span>Canlı Önizleme</span>
+        {value.packageType === 'EKURI' ? (
+          <Badge bg="info">Eküri Paketi ({value.horseLimit ? `${value.horseLimit} At` : 'Kapasite girilmedi'})</Badge>
+        ) : (
+          <Badge bg="secondary">Bireysel Paket</Badge>
+        )}
+      </Card.Header>
       <Card.Body>
-        {value.badgeText?.trim() && <Badge bg="primary" className="mb-2">{value.badgeText}</Badge>}
+        <div className="d-flex gap-2 mb-2">
+          {value.badgeText?.trim() && <Badge bg="primary">{value.badgeText}</Badge>}
+        </div>
         <Card.Title>{value.displayName.trim() || 'Paket adı'}</Card.Title>
         <SafeRichText value={value.description} className="text-muted mb-3" />
         <div className="fs-3 fw-semibold mb-1">{value.amountMinor == null ? 'Fiyat belirtilmedi' : formatMoney(value.amountMinor, 'TRY')}</div>
@@ -71,11 +83,13 @@ function PackagePreview({ value }: { value: PackageRequest }) {
 
 function PackageModal({
   selectedPackage,
+  defaultPackageType = 'INDIVIDUAL',
   onClose,
   onSave,
   onDelete,
 }: {
   selectedPackage?: PackageResponse;
+  defaultPackageType?: 'INDIVIDUAL' | 'EKURI';
   onClose: () => void;
   onSave: (value: PackageRequest) => Promise<void>;
   onDelete?: () => Promise<void>;
@@ -97,13 +111,25 @@ function PackageModal({
     showcaseEligible: selectedPackage.showcaseEligible,
     searchPriority: selectedPackage.searchPriority,
     broadcastOnPublish: selectedPackage.broadcastOnPublish,
+    packageType: selectedPackage.packageType || 'INDIVIDUAL',
+    horseLimit: selectedPackage.horseLimit ?? null,
     isActive: selectedPackage.isActive,
-  } : initialValues;
+  } : {
+    ...initialValues,
+    packageType: defaultPackageType,
+    horseLimit: defaultPackageType === 'EKURI' ? 5 : null,
+  };
   const [priceInput, setPriceInput] = useState(() => formatMoneyInput(values.amountMinor));
   const parsedPrice = parseMoneyInput(priceInput);
 
   const schema = Yup.object().shape({
     displayName: Yup.string().required('Ad zorunludur'),
+    packageType: Yup.string().oneOf(['INDIVIDUAL', 'EKURI']).required(),
+    horseLimit: Yup.number().nullable().when('packageType', {
+      is: 'EKURI',
+      then: (s) => s.required('Eküri paketi için at kapasitesi zorunludur').min(2, 'En az 2 at olmalıdır').max(50, 'En fazla 50 at olabilir'),
+      otherwise: (s) => s.nullable(),
+    }),
     benefits: Yup.array().of(Yup.string()).test('benefits', 'En az bir fayda yazın', (items) =>
       Boolean(items?.some((item) => String(item ?? '').trim())),
     ),
@@ -136,6 +162,52 @@ function PackageModal({
             const isFormChanged = isNew ? true : (dirty || priceInput !== formatMoneyInput(selectedPackage?.displayPrice?.amountMinor));
             return (
               <Form noValidate onSubmit={handleSubmit}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Paket Türü</Form.Label>
+                  <div className="d-flex gap-3">
+                    <Form.Check
+                      type="radio"
+                      id="package-type-individual"
+                      label="Bireysel Paket"
+                      name="packageType"
+                      value="INDIVIDUAL"
+                      checked={values.packageType !== 'EKURI'}
+                      onChange={() => {
+                        void setFieldValue('packageType', 'INDIVIDUAL');
+                        void setFieldValue('horseLimit', null);
+                      }}
+                    />
+                    <Form.Check
+                      type="radio"
+                      id="package-type-ekuri"
+                      label="Eküri Paketi (Toplu İlan)"
+                      name="packageType"
+                      value="EKURI"
+                      checked={values.packageType === 'EKURI'}
+                      onChange={() => {
+                        void setFieldValue('packageType', 'EKURI');
+                        if (!values.horseLimit) void setFieldValue('horseLimit', 5);
+                      }}
+                    />
+                  </div>
+                </Form.Group>
+                {values.packageType === 'EKURI' && (
+                  <Form.Group className="mb-3">
+                    <Form.Label>At Kapasitesi (İlan Sayısı)</Form.Label>
+                    <Form.Control
+                      type="number"
+                      min={2}
+                      max={50}
+                      name="horseLimit"
+                      value={values.horseLimit ?? ''}
+                      onChange={handleChange}
+                      isInvalid={touched.horseLimit && !!errors.horseLimit}
+                      placeholder="Örn. 5 veya 10"
+                    />
+                    <Form.Text muted>Bu eküri paketinin kapsadığı sabit at / ilan kapasitesi.</Form.Text>
+                    <Form.Control.Feedback type="invalid">{errors.horseLimit as string}</Form.Control.Feedback>
+                  </Form.Group>
+                )}
                 <Form.Group className="mb-3">
                   <Form.Label>Ad</Form.Label>
                   <Form.Control name="displayName" value={values.displayName} onChange={handleChange} isInvalid={touched.displayName && !!errors.displayName} />
@@ -288,6 +360,7 @@ function PackageModal({
 }
 
 export default function PackagesPage() {
+  const [activeTab, setActiveTab] = useState<'INDIVIDUAL' | 'EKURI'>('INDIVIDUAL');
   const [{ data, isLoading, refetch }] = useApi<PackageResponse>({
     service: packageService,
     params: {
@@ -302,6 +375,7 @@ export default function PackagesPage() {
     openModal(
       <PackageModal
         selectedPackage={pkg}
+        defaultPackageType={activeTab}
         onClose={closeModal}
         onSave={handleSave}
         onDelete={pkg ? () => handleDelete(pkg.code) : undefined}
@@ -339,8 +413,15 @@ export default function PackagesPage() {
     }
   };
 
+  const filteredPackages = (data?.content ?? []).filter((pkg) => {
+    if (activeTab === 'EKURI') {
+      return pkg.packageType === 'EKURI';
+    }
+    return pkg.packageType !== 'EKURI';
+  });
+
   const movePackage = async (index: number, direction: -1 | 1) => {
-    const rows = data?.content ?? [];
+    const rows = filteredPackages;
     const target = index + direction;
     if (reorderBusy || target < 0 || target >= rows.length) {
       return;
@@ -369,16 +450,28 @@ export default function PackagesPage() {
     }
   };
 
-  const content = data?.content?.map((pkg, index) => (
+  const headItems = activeTab === 'EKURI' ? headItemsEkuri : headItemsIndividual;
+
+  const content = filteredPackages.map((pkg, index) => (
     <tr key={pkg.code}>
-      <td>{pkg.displayName}</td>
+      <td>
+        <span className="fw-semibold">{pkg.displayName}</span>
+        {pkg.badgeText && <Badge bg="primary" className="ms-2">{pkg.badgeText}</Badge>}
+      </td>
+      {activeTab === 'EKURI' && (
+        <td>
+          <Badge bg="info" className="fs-6 px-2 py-1">
+            {pkg.horseLimit ? `${pkg.horseLimit} At` : 'Belirtilmedi'}
+          </Badge>
+        </td>
+      )}
       <td>{formatMoney(pkg.displayPrice?.amountMinor, pkg.displayPrice?.currency ?? pkg.currencyCode)}</td>
       <td><StatusBadge status={pkg.isActive ? 'ACTIVE' : 'INACTIVE'} /></td>
       <td>{formatDateTimeForText(pkg.createdAt)}</td>
       <td className="text-center text-nowrap">
         <div className="d-flex flex-wrap gap-1 justify-content-center align-items-center">
           <Button size="sm" variant="outline-secondary" disabled={reorderBusy || index === 0} onClick={() => void movePackage(index, -1)}>↑</Button>
-          <Button size="sm" variant="outline-secondary" disabled={reorderBusy || index === (data?.content?.length ?? 0) - 1} onClick={() => void movePackage(index, 1)}>↓</Button>
+          <Button size="sm" variant="outline-secondary" disabled={reorderBusy || index === filteredPackages.length - 1} onClick={() => void movePackage(index, 1)}>↓</Button>
           <Button size="sm" variant="outline-primary" onClick={() => openPackageModal(pkg)}>
             <i className="fe fe-edit"></i>
           </Button>
@@ -391,15 +484,37 @@ export default function PackagesPage() {
     <Container fluid className="p-3 lg:p-6">
       <Row>
         <Col lg={12}>
-          <PageHeading heading="Paketler" createButtonText="Paket Ekle" onCreate={() => openPackageModal(undefined)} />
+          <PageHeading
+            heading="Paketler"
+            createButtonText={activeTab === 'EKURI' ? 'Eküri Paketi Ekle' : 'Bireysel Paket Ekle'}
+            onCreate={() => openPackageModal(undefined)}
+          />
         </Col>
       </Row>
+
+      <Nav variant="tabs" className="mb-4" activeKey={activeTab} onSelect={(k) => setActiveTab((k as 'INDIVIDUAL' | 'EKURI') || 'INDIVIDUAL')}>
+        <Nav.Item>
+          <Nav.Link eventKey="INDIVIDUAL" className="fw-medium">
+            Bireysel Paketler ({data?.content?.filter((p) => p.packageType !== 'EKURI').length ?? 0})
+          </Nav.Link>
+        </Nav.Item>
+        <Nav.Item>
+          <Nav.Link eventKey="EKURI" className="fw-medium">
+            Eküri Paketleri ({data?.content?.filter((p) => p.packageType === 'EKURI').length ?? 0})
+          </Nav.Link>
+        </Nav.Item>
+      </Nav>
+
       {isModalOpen && modalContent}
       {isLoading && <Loading />}
-      {!isLoading && (data?.content?.length ?? 0) === 0 && (
-        <Alert variant="light" className="border text-muted">Henüz paket yok. Yeni paket ekleyebilirsiniz.</Alert>
+      {!isLoading && filteredPackages.length === 0 && (
+        <Alert variant="light" className="border text-muted">
+          {activeTab === 'EKURI'
+            ? 'Henüz eküri paketi bulunmuyor. Yeni eküri paketi ekleyebilirsiniz.'
+            : 'Henüz bireysel paket bulunmuyor. Yeni paket ekleyebilirsiniz.'}
+        </Alert>
       )}
-      {!isLoading && (data?.content?.length ?? 0) > 0 && (
+      {!isLoading && filteredPackages.length > 0 && (
         <PrepareTable headItems={headItems} content={content} page={undefined} onHandlePageChange={() => undefined} />
       )}
     </Container>

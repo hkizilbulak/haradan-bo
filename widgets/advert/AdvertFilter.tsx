@@ -4,7 +4,7 @@ import { ModerationAdvertStatus } from '@/models';
 import { useFormik } from 'formik';
 import { appendOperator } from '@/helpers/HelperUtils';
 
-export type AdvertCategoryGroup = '' | 'at' | 'at-hizmetleri' | 'asim';
+export type AdvertCategoryGroup = '' | 'at' | 'at-hizmetleri' | 'asim' | 'ekuri';
 
 export type IAdvertFilterForm = {
     status?: ModerationAdvertStatus;
@@ -226,6 +226,13 @@ const CATEGORY_OPTIONS: CategoryOption[] = [
         icon: FlameIcon,
         color: '#ec4899',
         bgColor: '#fdf2f8',
+    },
+    {
+        value: 'ekuri',
+        label: 'Eküri',
+        icon: LayersIcon,
+        color: '#6366f1',
+        bgColor: '#eef2ff',
     },
 ];
 

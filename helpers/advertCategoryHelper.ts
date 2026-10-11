@@ -388,6 +388,8 @@ export const EXCLUDED_PROP_KEYS = new Set([
   'boxcount', 'bokskapasitesi', 'kapasite',
   'totalaream2', 'toplamalan', 'alan',
   'waterelectricity', 'elektriksu', 'altyapi',
+  // Ekuri bundle metadata
+  'ekuri_code', 'ekuricode', 'ekuribundlecode', 'ekuribundle_code', 'ekuribundleid', 'ekuri_bundle_id', 'bundleid', 'bundle_id',
 ].map(normText));
 
 export function resolveDisplayAdvertNo(rawId?: string | number | null, props?: Record<string, any>): string {
@@ -781,6 +783,11 @@ export function buildModerationAdvertSpecRows(
       .split(' ')
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');
+
+    // Prevent duplicate rows with identical labels
+    if (list.some((existing) => existing.label.toLowerCase() === readableKey.toLowerCase())) {
+      continue;
+    }
 
     const isBool = typeof val === 'boolean' || val === 'true' || val === 'false' || val === 'Evet' || val === 'Hayır';
     const formattedVal =

@@ -1,5 +1,5 @@
 "use client"
-import React, { Suspense, useCallback, useEffect, useState, useRef } from 'react';
+import React, { Suspense, useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button, Col, Container, Form, Modal, Row, Badge, Table, Alert, Nav, Card } from 'react-bootstrap';
 import { toast } from 'react-toastify';
@@ -15,6 +15,7 @@ import {
   categoryService,
   userService,
   ModerationReasonRequest,
+  getEkuriBundleId,
 } from '@/services';
 import { PageHeading, AdvertDetailModal, PackageModal } from '@/widgets';
 import AdvertFilter from '@/widgets/advert/AdvertFilter';
@@ -34,8 +35,10 @@ function AdvertsContent() {
   const [pendingAction, setPendingAction] = useState<{
     advert: ModerationAdvertResponse;
     action: 'reject' | 'requestChanges' | 'suspend';
+    bundleAdverts?: ModerationAdvertResponse[];
   } | null>(null);
   const [pendingApprove, setPendingApprove] = useState<ModerationAdvertResponse | null>(null);
+  const [pendingApproveBundle, setPendingApproveBundle] = useState<ModerationAdvertResponse[] | null>(null);
   const [packageAdvert, setPackageAdvert] = useState<ModerationAdvertResponse | null>(null);
   const [packageInitialTab, setPackageInitialTab] = useState<'manage' | 'edit' | 'card' | 'history' | 'payments'>('edit');
   const [detailAdvert, setDetailAdvert] = useState<ModerationAdvertResponse | null>(null);
@@ -67,7 +70,7 @@ function AdvertsContent() {
         }
         setCategoryMap(map);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -189,6 +192,19 @@ function AdvertsContent() {
     setReason('');
   };
 
+  const openActionModalBundle = (
+    bundleAdverts: ModerationAdvertResponse[],
+    action: 'reject' | 'requestChanges' | 'suspend'
+  ) => {
+    if (bundleAdverts.length === 0) return;
+    setPendingAction({
+      advert: bundleAdverts[0],
+      action,
+      bundleAdverts,
+    });
+    setReason('');
+  };
+
   const handleConfirmApprove = async () => {
     if (!pendingApprove) return;
     const advert = pendingApprove;
@@ -210,33 +226,100 @@ function AdvertsContent() {
     }
   };
 
-  const handleReasonedAction = async () => {
-    const advertId = pendingAction?.advert.identifier ?? pendingAction?.advert.id;
-    if (!advertId || !pendingAction?.advert.version || actionBusy) {
-      return;
+  const handleConfirmApproveBundle = async () => {
+    if (!pendingApproveBundle || pendingApproveBundle.length === 0 || actionBusy) return;
+    setActionBusy(true);
+    try {
+      const results = await Promise.allSettled(
+        pendingApproveBundle.map((adv) => {
+          const id = adv.identifier ?? adv.id;
+          if (id && adv.version) {
+            return advertService.approve(id, adv.version);
+          }
+          return Promise.resolve();
+        })
+      );
+      const successful = results.filter((r) => r.status === 'fulfilled').length;
+      toast.success(`Eküri paketindeki ${successful} ilan onaylandı ve yayına alındı.`);
+      setPendingApproveBundle(null);
+      refetch();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setActionBusy(false);
     }
+  };
+
+  const handleReasonedAction = async () => {
+    if (!pendingAction || actionBusy) return;
 
     if (reason.trim().length === 0) {
       toast.error('Gerekçe zorunludur');
       return;
     }
 
-    const payload: ModerationReasonRequest = {
-      expectedVersion: pendingAction.advert.version,
-      reason: reason.trim(),
-    };
+    const trimmedReason = reason.trim();
+    const isBundle = Boolean(pendingAction.bundleAdverts && pendingAction.bundleAdverts.length > 1);
 
     setActionBusy(true);
     try {
-      if (pendingAction.action === 'reject') {
-        await advertService.reject(advertId, payload);
-      } else if (pendingAction.action === 'requestChanges') {
-        await advertService.requestChanges(advertId, payload);
+      if (isBundle && pendingAction.bundleAdverts) {
+        const results = await Promise.allSettled(
+          pendingAction.bundleAdverts.map(async (adv) => {
+            const id = adv.identifier ?? adv.id;
+            if (!id) return;
+            let version = adv.version;
+            if (!version) {
+              try {
+                const fresh = await advertService.getDetail(id);
+                version = fresh?.version || 1;
+              } catch {
+                version = 1;
+              }
+            }
+            const payload: ModerationReasonRequest = {
+              expectedVersion: version,
+              reason: trimmedReason,
+            };
+            if (pendingAction.action === 'reject') {
+              return advertService.reject(id, payload);
+            } else if (pendingAction.action === 'requestChanges') {
+              return advertService.requestChanges(id, payload);
+            } else {
+              return advertService.suspend(id, payload);
+            }
+          })
+        );
+        const successful = results.filter((r) => r.status === 'fulfilled').length;
+        const actionLabel =
+          pendingAction.action === 'reject'
+            ? 'reddedildi'
+            : pendingAction.action === 'requestChanges'
+              ? 'için düzeltme talep edildi'
+              : 'yayından kaldırıldı';
+        toast.success(`Eküri paketindeki ${successful} ilan ${actionLabel}.`);
       } else {
-        await advertService.suspend(advertId, payload);
+        const advertId = pendingAction.advert.identifier ?? pendingAction.advert.id;
+        if (!advertId || !pendingAction.advert.version) {
+          return;
+        }
+
+        const payload: ModerationReasonRequest = {
+          expectedVersion: pendingAction.advert.version,
+          reason: trimmedReason,
+        };
+
+        if (pendingAction.action === 'reject') {
+          await advertService.reject(advertId, payload);
+        } else if (pendingAction.action === 'requestChanges') {
+          await advertService.requestChanges(advertId, payload);
+        } else {
+          await advertService.suspend(advertId, payload);
+        }
+
+        toast.success('Moderasyon işlemi tamamlandı');
       }
 
-      toast.success('Moderasyon işlemi tamamlandı');
       closeActionModal();
       refetch();
     } catch (error) {
@@ -248,20 +331,20 @@ function AdvertsContent() {
 
   const headItems = tab === 'published'
     ? [
-        'İlanı Gönderen',
-        'Gönderim Tarihi',
-        'Yayın Tarihi',
-        'Kategori',
-        'Durum',
-        'İşlemler',
-      ]
+      'İlanı Gönderen',
+      'Gönderim Tarihi',
+      'Yayın Tarihi',
+      'Kategori',
+      'Durum',
+      'İşlemler',
+    ]
     : [
-        'İlanı Gönderen',
-        'Gönderim Tarihi',
-        'Kategori',
-        'Durum',
-        'İşlemler',
-      ];
+      'İlanı Gönderen',
+      'Gönderim Tarihi',
+      'Kategori',
+      'Durum',
+      'İşlemler',
+    ];
 
   const activeStatus = (() => {
     if (!parameters?.filter) return undefined;
@@ -277,36 +360,50 @@ function AdvertsContent() {
     return clause.slice('mainCategory=='.length).trim();
   })();
 
-  const filteredItems = (data?.content ?? []).filter((advert) => {
-    if (tab === 'unpublished') {
-      if (advert.status === 'CHANGES_REQUESTED') return false;
-      if (activeStatus && activeStatus !== 'UNPUBLISHED') {
-        if (activeStatus === 'SUSPENDED') {
-          if (advert.status !== 'SUSPENDED' && advert.status !== 'ARCHIVED') return false;
-        } else if (advert.status !== activeStatus) {
-          return false;
-        }
-      } else {
-        if (advert.status !== 'PENDING_REVIEW' && advert.status !== 'REJECTED' && advert.status !== 'SUSPENDED' && advert.status !== 'ARCHIVED') {
-          return false;
+  // Eküri Bundle ID eşleme haritası (sayfadaki tüm ilanlar içinden)
+  const bundleMap = useMemo(() => {
+    const map = new Map<string, ModerationAdvertResponse[]>();
+    for (const item of (data?.content ?? [])) {
+      const bId = getEkuriBundleId(item);
+      if (bId) {
+        if (item.bundleAdverts && Array.isArray(item.bundleAdverts) && item.bundleAdverts.length > 0) {
+          map.set(bId, item.bundleAdverts);
+        } else {
+          const list = map.get(bId) ?? [];
+          list.push(item);
+          map.set(bId, list);
         }
       }
     }
-    if (tab === 'published') {
-      if (advert.status !== 'PUBLISHED') return false;
-    }
-    if (activeCategory) {
-      const catName = advert.categoryId ? (categoryMap.get(advert.categoryId) || advert.categoryId) : undefined;
-      const cat = getAdvertMainCategory(advert.categoryId, catName, (advert as any).properties);
-      if (cat !== activeCategory) return false;
-    }
-    return true;
-  });
+    return map;
+  }, [data?.content]);
 
-  const content = filteredItems.map((advert) => {
+  // Eküri ilanları serviste her paket 1 satır olarak gruplanmış gelir
+  const displayItems = useMemo(() => {
+    const list: ModerationAdvertResponse[] = [];
+    const seenBundles = new Set<string>();
+
+    for (const advert of (data?.content ?? [])) {
+      const bId = getEkuriBundleId(advert);
+      if (bId) {
+        if (seenBundles.has(bId)) {
+          continue; // Aynı eküri paketindeki mükerrer satırları engelle
+        }
+        seenBundles.add(bId);
+      }
+      list.push(advert);
+    }
+    return list;
+  }, [data?.content]);
+
+  const content = displayItems.map((advert) => {
     const advertId = advert.identifier ?? advert.id ?? '';
     const categoryName = advert.categoryId ? (categoryMap.get(advert.categoryId) || advert.categoryId) : '-';
-    
+    const ekuriBundleId = getEkuriBundleId(advert);
+    const isEkuri = Boolean(ekuriBundleId);
+    const bundleItems = advert.bundleAdverts || (ekuriBundleId ? bundleMap.get(ekuriBundleId) : undefined);
+    const bundleCount = advert.bundleCount || (bundleItems ? bundleItems.length : undefined);
+
     // İlanı Gönderen Hesap Bilgisi
     const ownerInfo = (advertId ? advertOwnerMap.get(advertId) : undefined)
       || (advert.ownerUserId ? (ownerCacheRef.current.get(advert.ownerUserId) || ownerCacheRef.current.get(advert.ownerUserId.toLowerCase())) : undefined)
@@ -349,8 +446,22 @@ function AdvertsContent() {
         </td>
         <td className="text-nowrap">{createdDateText}</td>
         {tab === 'published' && <td className="text-nowrap">{publishedDateText}</td>}
-        <td className="text-truncate" style={{ maxWidth: '160px' }} title={advert.categoryId || undefined}>
-          {categoryName}
+        <td style={{ maxWidth: '190px' }} title={isEkuri ? (bundleCount && bundleCount > 1 ? `Eküri Paketi (${bundleCount} İlan)` : 'Eküri') : (advert.categoryId || undefined)}>
+          <div className="d-flex align-items-center gap-1.5 flex-wrap">
+            {isEkuri ? (
+              <Badge
+                bg="primary-subtle"
+                className="text-primary border border-primary-subtle d-inline-flex align-items-center gap-1.5 px-2 py-1"
+                style={{ fontSize: '11.5px', fontWeight: 600 }}
+                title={bundleCount && bundleCount > 1 ? `Eküri Paketi (${bundleCount} İlan)` : 'Eküri İlanı'}
+              >
+                <i className="fe fe-layers" style={{ fontSize: '11px' }} />
+                <span>Eküri{bundleCount && bundleCount > 1 ? ` (${bundleCount})` : ''}</span>
+              </Badge>
+            ) : (
+              <span className="text-truncate">{categoryName}</span>
+            )}
+          </div>
         </td>
         <td className="text-nowrap">
           <StatusBadge status={advert.status} />
@@ -362,7 +473,7 @@ function AdvertsContent() {
               variant="outline-primary"
               className="d-inline-flex align-items-center justify-content-center"
               style={{ width: '32px', height: '32px', padding: 0 }}
-              title="Detay"
+              title={isEkuri ? "Detay (Eküri Paketi)" : "Detay"}
               onClick={() => setDetailAdvert(advert)}
             >
               <i className="fe fe-eye" />
@@ -372,7 +483,7 @@ function AdvertsContent() {
               variant="outline-primary"
               className="d-inline-flex align-items-center justify-content-center"
               style={{ width: '32px', height: '32px', padding: 0 }}
-              title="İlanı Düzenle"
+              title={isEkuri ? "İlanı Düzenle (Eküri Paketi)" : "İlanı Düzenle"}
               onClick={() => {
                 setPackageInitialTab('edit');
                 setPackageAdvert(advert);
@@ -405,9 +516,8 @@ function AdvertsContent() {
             <Nav.Link
               active={tab === 'unpublished'}
               onClick={() => setTab('unpublished')}
-              className={`px-2 px-sm-3 py-2 fw-semibold d-flex align-items-center justify-content-center gap-1 gap-sm-2 rounded-2 text-center text-nowrap ${
-                tab === 'unpublished' ? 'active shadow-sm text-white' : 'text-muted'
-              }`}
+              className={`px-2 px-sm-3 py-2 fw-semibold d-flex align-items-center justify-content-center gap-1 gap-sm-2 rounded-2 text-center text-nowrap ${tab === 'unpublished' ? 'active shadow-sm text-white' : 'text-muted'
+                }`}
               style={{ cursor: 'pointer', fontSize: '13px' }}
             >
               <i className="fe fe-inbox" />
@@ -421,9 +531,8 @@ function AdvertsContent() {
             <Nav.Link
               active={tab === 'published'}
               onClick={() => setTab('published')}
-              className={`px-2 px-sm-3 py-2 fw-semibold d-flex align-items-center justify-content-center gap-1 gap-sm-2 rounded-2 text-center text-nowrap ${
-                tab === 'published' ? 'active shadow-sm text-white' : 'text-muted'
-              }`}
+              className={`px-2 px-sm-3 py-2 fw-semibold d-flex align-items-center justify-content-center gap-1 gap-sm-2 rounded-2 text-center text-nowrap ${tab === 'published' ? 'active shadow-sm text-white' : 'text-muted'
+                }`}
               style={{ cursor: 'pointer', fontSize: '13px' }}
             >
               <i className="fe fe-check-circle" />
@@ -446,52 +555,66 @@ function AdvertsContent() {
         <Modal.Header closeButton className="border-bottom-0 pb-1">
           <div className="d-flex align-items-center gap-3">
             <div
-              className={`rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${
-                pendingAction?.action === 'reject'
+              className={`rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${pendingAction?.action === 'reject'
                   ? 'bg-danger-subtle text-danger'
                   : pendingAction?.action === 'suspend'
-                  ? 'bg-secondary-subtle text-secondary'
-                  : 'bg-primary-subtle text-primary'
-              }`}
+                    ? 'bg-secondary-subtle text-secondary'
+                    : 'bg-primary-subtle text-primary'
+                }`}
               style={{ width: '44px', height: '44px' }}
             >
               <i
-                className={`fs-4 ${
-                  pendingAction?.action === 'reject'
+                className={`fs-4 ${pendingAction?.action === 'reject'
                     ? 'fe fe-x-circle'
                     : pendingAction?.action === 'suspend'
-                    ? 'fe fe-pause-circle'
-                    : 'fe fe-edit-3'
-                }`}
+                      ? 'fe fe-pause-circle'
+                      : 'fe fe-edit-3'
+                  }`}
               />
             </div>
             <div>
               <Modal.Title className="h5 mb-0 fw-bold">
-                {pendingAction?.action === 'reject'
-                  ? 'İlanı Reddet'
-                  : pendingAction?.action === 'suspend'
-                  ? 'Yayından Kaldır'
-                  : 'Düzeltme Talebi'}
+                {pendingAction?.bundleAdverts && pendingAction.bundleAdverts.length > 1
+                  ? pendingAction.action === 'reject'
+                    ? 'Tüm Eküriyi Reddet'
+                    : 'Eküri Paketini Yayından Kaldır'
+                  : pendingAction?.action === 'reject'
+                    ? 'İlanı Reddet'
+                    : pendingAction?.action === 'suspend'
+                      ? 'Yayından Kaldır'
+                      : 'Düzeltme Talebi'}
               </Modal.Title>
               <small className="text-muted">
-                {pendingAction?.action === 'reject'
-                  ? 'İlanın reddedilme gerekçesini belirtiniz.'
-                  : pendingAction?.action === 'suspend'
-                  ? 'İlanın yayından kaldırılma gerekçesini belirtiniz.'
-                  : 'Kullanıcıya iletilecek notu belirtiniz.'}
+                {pendingAction?.bundleAdverts && pendingAction.bundleAdverts.length > 1
+                  ? `Eküri paketindeki ${pendingAction.bundleAdverts.length} ilanın tümü reddedilecektir.`
+                  : pendingAction?.action === 'reject'
+                    ? 'İlanın reddedilme gerekçesini belirtiniz.'
+                    : pendingAction?.action === 'suspend'
+                      ? 'İlanın yayından kaldırılma gerekçesini belirtiniz.'
+                      : 'Kullanıcıya iletilecek notu belirtiniz.'}
               </small>
             </div>
           </div>
         </Modal.Header>
         <Modal.Body className="pt-3">
-          {pendingAction?.advert && (
+          {pendingAction?.bundleAdverts && pendingAction.bundleAdverts.length > 1 ? (
+            <div className="p-3 bg-light rounded-3 mb-3 border">
+              <div className="text-muted small mb-1">İşlem Yapılan Eküri Paketi:</div>
+              <div className="fw-semibold text-dark">
+                Eküri Paketi ({pendingAction.bundleAdverts.length} İlan)
+              </div>
+              <div className="small text-muted mt-1">
+                {pendingAction.bundleAdverts.map((a, i) => a.title || `${i + 1}. İlan`).join(' • ')}
+              </div>
+            </div>
+          ) : pendingAction?.advert ? (
             <div className="p-3 bg-light rounded-3 mb-3 border">
               <div className="text-muted small mb-1">İşlem Yapılan İlan:</div>
               <div className="fw-semibold text-dark text-truncate">
                 {pendingAction.advert.title || 'Başlıksız İlan'}
               </div>
             </div>
-          )}
+          ) : null}
           <Form.Group>
             <Form.Label className="small fw-semibold text-secondary">
               Gerekçe <span className="text-danger">*</span>
@@ -520,8 +643,8 @@ function AdvertsContent() {
               pendingAction?.action === 'reject'
                 ? 'danger'
                 : pendingAction?.action === 'suspend'
-                ? 'secondary'
-                : 'primary'
+                  ? 'secondary'
+                  : 'primary'
             }
             className="rounded-3 px-4 fw-semibold text-white"
             disabled={reason.trim().length === 0 || actionBusy}
@@ -532,6 +655,10 @@ function AdvertsContent() {
                 <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
                 İşleniyor...
               </>
+            ) : pendingAction?.bundleAdverts && pendingAction.bundleAdverts.length > 1 ? (
+              pendingAction.action === 'reject'
+                ? 'Tüm Eküriyi Reddet'
+                : 'Tümünü Yayından Kaldır'
             ) : pendingAction?.action === 'reject' ? (
               'İlanı Reddet'
             ) : pendingAction?.action === 'suspend' ? (
@@ -610,9 +737,94 @@ function AdvertsContent() {
         </Modal.Footer>
       </Modal>
 
+      {/* Eküri Paketi Toplu Onaylama Onay Penceresi (Modal) */}
+      <Modal show={pendingApproveBundle !== null} onHide={() => !actionBusy && setPendingApproveBundle(null)} centered backdrop="static">
+        <Modal.Header closeButton={!actionBusy} className="border-bottom-0 pb-1">
+          <div className="d-flex align-items-center gap-3">
+            <div
+              className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 bg-primary-subtle text-primary"
+              style={{ width: '44px', height: '44px' }}
+            >
+              <i className="fs-4 fe fe-layers" />
+            </div>
+            <div>
+              <Modal.Title className="h5 mb-0 fw-bold">Eküri Paketini Onayla</Modal.Title>
+              <small className="text-muted">
+                Eküri paketindeki tüm ilanları onaylayıp yayına almak üzeresiniz.
+              </small>
+            </div>
+          </div>
+        </Modal.Header>
+        <Modal.Body className="pt-3">
+          {pendingApproveBundle && pendingApproveBundle.length > 0 && (
+            <div className="p-3 bg-light rounded-3 mb-3 border">
+              <div className="text-muted small mb-2 fw-semibold">
+                Onaylanacak İlanlar ({pendingApproveBundle.length} İlan):
+              </div>
+              <div className="d-flex flex-column gap-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                {pendingApproveBundle.map((adv, idx) => (
+                  <div
+                    key={adv.identifier ?? adv.id ?? idx}
+                    className="d-flex align-items-center justify-content-between p-2 bg-white rounded border"
+                  >
+                    <div className="d-flex align-items-center gap-2 overflow-hidden">
+                      <span className="badge bg-light text-dark border" style={{ fontSize: '11px' }}>
+                        {idx + 1}. İlan
+                      </span>
+                      <span className="fw-semibold text-dark text-truncate" style={{ fontSize: '13px' }}>
+                        {adv.title || 'Başlıksız İlan'}
+                      </span>
+                    </div>
+                    <StatusBadge status={adv.status} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="text-muted mb-0" style={{ fontSize: '14.5px', lineHeight: '1.5' }}>
+            Bu eküri paketine ait {pendingApproveBundle?.length ?? 0} ilan eş zamanlı olarak onaylanıp yayına alınacaktır. Devam etmek istiyor musunuz?
+          </p>
+        </Modal.Body>
+        <Modal.Footer className="border-top-0 pt-1">
+          <Button
+            variant="outline-secondary"
+            className="rounded-3 px-3"
+            onClick={() => setPendingApproveBundle(null)}
+            disabled={actionBusy}
+          >
+            Vazgeç
+          </Button>
+          <Button
+            variant="success"
+            className="rounded-3 px-4 fw-semibold text-white d-inline-flex align-items-center gap-2"
+            disabled={actionBusy}
+            onClick={() => void handleConfirmApproveBundle()}
+          >
+            {actionBusy ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
+                İşleniyor...
+              </>
+            ) : (
+              <>
+                <i className="fe fe-check" />
+                Tümünü Onayla ({pendingApproveBundle?.length ?? 0})
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
       {packageAdvert && (
         <PackageModal
           advert={packageAdvert}
+          bundleAdverts={
+            packageAdvert.bundleAdverts ||
+            (() => {
+              const bId = getEkuriBundleId(packageAdvert);
+              return bId ? bundleMap.get(bId) : undefined;
+            })()
+          }
           initialTab={packageInitialTab}
           onClose={() => setPackageAdvert(null)}
           onDone={() => {
@@ -624,14 +836,24 @@ function AdvertsContent() {
 
       <AdvertDetailModal
         advert={detailAdvert}
+        bundleAdverts={
+          detailAdvert?.bundleAdverts ||
+          (() => {
+            const bId = getEkuriBundleId(detailAdvert);
+            return bId ? bundleMap.get(bId) : undefined;
+          })()
+        }
         categoryName={
           detailAdvert?.categoryId
             ? categoryMap.get(detailAdvert.categoryId) || detailAdvert.categoryId
             : undefined
         }
+        categoryMap={categoryMap}
         onClose={() => setDetailAdvert(null)}
         onApprove={(adv) => setPendingApprove(adv)}
+        onApproveBundle={(adverts) => setPendingApproveBundle(adverts)}
         onReject={(adv) => openActionModal(adv, 'reject')}
+        onRejectBundle={(adverts) => openActionModalBundle(adverts, 'reject')}
         onSuspend={(adv) => openActionModal(adv, 'suspend')}
       />
 
@@ -644,30 +866,30 @@ function AdvertsContent() {
         </Alert>
       )}
 
-      {!isLoading && !isError && filteredItems.length === 0 && (
+      {!isLoading && !isError && displayItems.length === 0 && (
         <Alert variant="light" className="border text-muted">
           {activeCategory || (activeStatus && activeStatus !== 'UNPUBLISHED')
             ? 'Seçilen filtre kriterlerine uygun ilan bulunamadı.'
             : tab === 'published'
-            ? 'Yayında ilan bulunmuyor.'
-            : 'Moderasyon kuyruğunda ilan bulunmuyor.'}
+              ? 'Yayında ilan bulunmuyor.'
+              : 'Moderasyon kuyruğunda ilan bulunmuyor.'}
         </Alert>
       )}
 
-      {!isLoading && !isError && filteredItems.length > 0 && (
+      {!isLoading && !isError && displayItems.length > 0 && (
         <>
           <Card className="border-0 shadow-sm rounded-3 overflow-hidden mb-3">
             <PrepareTable headItems={headItems} content={content} page={undefined} onHandlePageChange={() => undefined} />
           </Card>
-          
+
           <div className="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mt-3 pt-3 border-top">
             <div className="d-flex flex-wrap align-items-center justify-content-center justify-content-md-start gap-2 text-muted small w-100 w-md-auto">
               <span className="text-nowrap fw-medium">Sayfa başına:</span>
-              <Form.Select 
-                size="sm" 
-                className="rounded-2 shadow-none border text-center fw-medium" 
-                style={{ width: '85px', minWidth: '85px', display: 'inline-block', cursor: 'pointer' }} 
-                value={pageSize} 
+              <Form.Select
+                size="sm"
+                className="rounded-2 shadow-none border text-center fw-medium"
+                style={{ width: '85px', minWidth: '85px', display: 'inline-block', cursor: 'pointer' }}
+                value={pageSize}
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
               >
                 <option value={10}>10</option>
@@ -679,7 +901,7 @@ function AdvertsContent() {
                 Toplam <strong>{data?.page?.totalElements ?? 0}</strong> kayıt (Sayfa {pageIndex + 1} / {data?.page?.totalPages ?? 1})
               </span>
             </div>
-            
+
             <div className="d-flex justify-content-center align-items-center w-100 w-md-auto overflow-auto">
               <CustomPagination page={data?.page} onPageChange={handlePageChange} />
             </div>

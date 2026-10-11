@@ -35,6 +35,7 @@ export default function Home() {
     const [pendingAction, setPendingAction] = useState<{
         advert: ModerationAdvertResponse;
         action: 'reject' | 'suspend';
+        bundleAdverts?: ModerationAdvertResponse[];
     } | null>(null);
     const [reason, setReason] = useState('');
     const [actionBusy, setActionBusy] = useState(false);
@@ -185,7 +186,18 @@ export default function Home() {
                 activeCampaigns: activeCampaignCount,
             });
 
-            setRecentAdverts(advertList.slice(0, 5));
+            // Deduplicate eküri bundle items so only 1 row appears per bundle
+            const uniqueRecent: ModerationAdvertResponse[] = [];
+            const seenBundles = new Set<string>();
+            for (const adv of advertList) {
+                const bId = adv.ekuriBundleId || (adv as any).properties?.ekuriBundleId;
+                if (bId) {
+                    if (seenBundles.has(bId)) continue;
+                    seenBundles.add(bId);
+                }
+                uniqueRecent.push(adv);
+            }
+            setRecentAdverts(uniqueRecent.slice(0, 5));
         } catch (error) {
             toast.error(getErrorMessage(error));
         } finally {
@@ -270,31 +282,77 @@ export default function Home() {
         setReason('');
     };
 
+    const openActionModalBundle = (bundleAdverts: ModerationAdvertResponse[], action: 'reject' | 'suspend') => {
+        if (bundleAdverts.length === 0) return;
+        setPendingAction({
+            advert: bundleAdverts[0],
+            action,
+            bundleAdverts,
+        });
+        setReason('');
+    };
+
     const handleReasonedAction = async () => {
-        const advertId = pendingAction?.advert.identifier ?? pendingAction?.advert.id;
-        if (!advertId || !pendingAction?.advert.version || actionBusy) {
-            return;
-        }
+        if (!pendingAction || actionBusy) return;
 
         if (reason.trim().length === 0) {
             toast.error('Gerekçe zorunludur');
             return;
         }
 
-        const payload: ModerationReasonRequest = {
-            expectedVersion: pendingAction.advert.version,
-            reason: reason.trim(),
-        };
+        const trimmedReason = reason.trim();
+        const isBundle = Boolean(pendingAction.bundleAdverts && pendingAction.bundleAdverts.length > 1);
 
         setActionBusy(true);
         try {
-            if (pendingAction.action === 'reject') {
-                await advertService.reject(advertId, payload);
-                toast.success('İlan reddedildi');
+            if (isBundle && pendingAction.bundleAdverts) {
+                const results = await Promise.allSettled(
+                    pendingAction.bundleAdverts.map(async (adv) => {
+                        const id = adv.identifier ?? adv.id;
+                        if (!id) return;
+                        let version = adv.version;
+                        if (!version) {
+                            try {
+                                const fresh = await advertService.getDetail(id);
+                                version = fresh?.version || 1;
+                            } catch {
+                                version = 1;
+                            }
+                        }
+                        const payload: ModerationReasonRequest = {
+                            expectedVersion: version,
+                            reason: trimmedReason,
+                        };
+                        if (pendingAction.action === 'reject') {
+                            return advertService.reject(id, payload);
+                        } else {
+                            return advertService.suspend(id, payload);
+                        }
+                    })
+                );
+                const successful = results.filter((r) => r.status === 'fulfilled').length;
+                const actionLabel = pendingAction.action === 'reject' ? 'reddedildi' : 'yayından kaldırıldı';
+                toast.success(`Eküri paketindeki ${successful} ilan ${actionLabel}.`);
             } else {
-                await advertService.suspend(advertId, payload);
-                toast.success('İlan yayından kaldırıldı');
+                const advertId = pendingAction.advert.identifier ?? pendingAction.advert.id;
+                if (!advertId || !pendingAction.advert.version) {
+                    return;
+                }
+
+                const payload: ModerationReasonRequest = {
+                    expectedVersion: pendingAction.advert.version,
+                    reason: trimmedReason,
+                };
+
+                if (pendingAction.action === 'reject') {
+                    await advertService.reject(advertId, payload);
+                    toast.success('İlan reddedildi');
+                } else {
+                    await advertService.suspend(advertId, payload);
+                    toast.success('İlan yayından kaldırıldı');
+                }
             }
+
             closeActionModal();
             void loadDashboardData();
         } catch (error) {
@@ -655,8 +713,20 @@ export default function Home() {
                                                             <tr key={advertId}>
                                                                 <td style={{ maxWidth: '240px', padding: '12px 16px' }} title={tooltipText}>
                                                                     <div>
-                                                                        <div className="fw-semibold text-dark text-truncate">
-                                                                            {primaryText}
+                                                                        <div className="d-flex align-items-center gap-1.5 flex-wrap">
+                                                                            <span className="fw-semibold text-dark text-truncate">
+                                                                                {primaryText}
+                                                                            </span>
+                                                                            {advert.ekuriBundleId && (
+                                                                                <Badge
+                                                                                    bg="primary-subtle"
+                                                                                    className="text-primary border border-primary-subtle d-inline-flex align-items-center gap-1 px-1.5 py-0.5"
+                                                                                    style={{ fontSize: '10px' }}
+                                                                                >
+                                                                                    <i className="fe fe-layers" style={{ fontSize: '9px' }} />
+                                                                                    <span>Eküri</span>
+                                                                                </Badge>
+                                                                            )}
                                                                         </div>
                                                                         {secondaryText && (
                                                                             <div className="text-muted text-truncate" style={{ fontSize: '0.78rem', lineHeight: '1.2' }}>
@@ -847,14 +917,38 @@ export default function Home() {
                             ? categoryMap.get(detailAdvert.categoryId) || detailAdvert.categoryId
                             : undefined
                     }
+                    categoryMap={categoryMap}
                     onClose={() => setDetailAdvert(null)}
                     onApprove={async (adv) => {
                         setDetailAdvert(null);
                         await handleApprove(adv);
                     }}
+                    onApproveBundle={async (adverts) => {
+                        setDetailAdvert(null);
+                        try {
+                            const results = await Promise.allSettled(
+                                adverts.map((adv) => {
+                                    const id = adv.identifier ?? adv.id;
+                                    if (id && adv.version) {
+                                        return advertService.approve(id, adv.version);
+                                    }
+                                    return Promise.resolve();
+                                })
+                            );
+                            const successful = results.filter((r) => r.status === 'fulfilled').length;
+                            toast.success(`Eküri paketindeki ${successful} ilan onaylandı ve yayına alındı.`);
+                            void loadDashboardData();
+                        } catch (error) {
+                            toast.error(getErrorMessage(error));
+                        }
+                    }}
                     onReject={(adv) => {
                         setDetailAdvert(null);
                         openActionModal(adv, 'reject');
+                    }}
+                    onRejectBundle={(adverts) => {
+                        setDetailAdvert(null);
+                        openActionModalBundle(adverts, 'reject');
                     }}
                     onSuspend={(adv) => {
                         setDetailAdvert(null);
@@ -885,12 +979,18 @@ export default function Home() {
                         </div>
                         <div>
                             <Modal.Title className="h5 mb-0 fw-bold">
-                                {pendingAction?.action === 'reject'
+                                {pendingAction?.bundleAdverts && pendingAction.bundleAdverts.length > 1
+                                    ? pendingAction.action === 'reject'
+                                        ? 'Tüm Eküriyi Reddet'
+                                        : 'Eküri Paketini Yayından Kaldır'
+                                    : pendingAction?.action === 'reject'
                                     ? 'İlanı Reddet'
                                     : 'Yayından Kaldır'}
                             </Modal.Title>
                             <small className="text-muted">
-                                {pendingAction?.action === 'reject'
+                                {pendingAction?.bundleAdverts && pendingAction.bundleAdverts.length > 1
+                                    ? `Eküri paketindeki ${pendingAction.bundleAdverts.length} ilanın tümü reddedilecektir.`
+                                    : pendingAction?.action === 'reject'
                                     ? 'İlanın reddedilme gerekçesini belirtiniz.'
                                     : 'İlanın yayından kaldırılma gerekçesini belirtiniz.'}
                             </small>
@@ -898,14 +998,24 @@ export default function Home() {
                     </div>
                 </Modal.Header>
                 <Modal.Body className="pt-3">
-                    {pendingAction?.advert && (
+                    {pendingAction?.bundleAdverts && pendingAction.bundleAdverts.length > 1 ? (
+                        <div className="p-3 bg-light rounded-3 mb-3 border">
+                            <div className="text-muted small mb-1">İşlem Yapılan Eküri Paketi:</div>
+                            <div className="fw-semibold text-dark">
+                                Eküri Paketi ({pendingAction.bundleAdverts.length} İlan)
+                            </div>
+                            <div className="small text-muted mt-1">
+                                {pendingAction.bundleAdverts.map((a, i) => a.title || `${i + 1}. İlan`).join(' • ')}
+                            </div>
+                        </div>
+                    ) : pendingAction?.advert ? (
                         <div className="p-3 bg-light rounded-3 mb-3 border">
                             <div className="text-muted small mb-1">İşlem Yapılan İlan:</div>
                             <div className="fw-semibold text-dark text-truncate">
                                 {pendingAction.advert.title || 'Başlıksız İlan'}
                             </div>
                         </div>
-                    )}
+                    ) : null}
                     <Form.Group>
                         <Form.Label className="small fw-semibold text-secondary">
                             Gerekçe <span className="text-danger">*</span>
@@ -940,6 +1050,10 @@ export default function Home() {
                                 <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
                                 İşleniyor...
                             </>
+                        ) : pendingAction?.bundleAdverts && pendingAction.bundleAdverts.length > 1 ? (
+                            pendingAction.action === 'reject'
+                                ? 'Tüm Eküriyi Reddet'
+                                : 'Tümünü Yayından Kaldır'
                         ) : pendingAction?.action === 'reject' ? (
                             'İlanı Reddet'
                         ) : (

@@ -28,6 +28,7 @@ type OwnerAdvertItem = {
     location?: { districtId?: string; districtName?: string; provinceId?: string; provinceName?: string; name?: string } | null;
     sellerPhone?: string | null;
     videoUrl?: string | null;
+    ekuriBundleId?: string | null;
     media?: Array<{
         assetId: string;
         displayOrder: number;
@@ -171,6 +172,19 @@ function parseStatusFilter(filter?: string): string | undefined {
     return clause.slice('status=='.length).trim() || undefined;
 }
 
+export function getEkuriBundleId(item: any): string | undefined {
+    if (!item) return undefined;
+    const bId = item.ekuriBundleId
+        ?? item.ekuri_bundle_id
+        ?? item.bundleId
+        ?? item.properties?.ekuriBundleId
+        ?? item.properties?.ekuri_bundle_id
+        ?? item.properties?.ekuriBundleCode
+        ?? item.properties?.ekuriCode
+        ?? item.properties?.bundleId;
+    return bId ? String(bId).trim() : undefined;
+}
+
 function toModerationAdvert(item: any): ModerationAdvertResponse {
     const mapped = withIdentifier(item);
     const rawCreated = item.createdAt
@@ -219,6 +233,12 @@ function toModerationAdvert(item: any): ModerationAdvertResponse {
         location: loc ?? (provinceName || districtName ? { districtId, districtName, provinceId, provinceName, name: locationName } : undefined),
         sellerPhone: item.sellerPhone ?? item.properties?.sellerPhone ?? item.properties?.phone ?? undefined,
         videoUrl: item.videoUrl ?? item.video_url ?? item.properties?.videoUrl ?? item.properties?.video_url ?? undefined,
+        ekuriBundleId: getEkuriBundleId(item) ?? undefined,
+        bundleAdverts: Array.isArray(item.bundleAdverts) ? item.bundleAdverts : undefined,
+        bundleCount: typeof item.bundleCount === 'number' ? item.bundleCount : undefined,
+        cover: item.cover ?? undefined,
+        media: Array.isArray(item.media) ? item.media : (Array.isArray(item.properties?.media) ? item.properties.media : undefined),
+        imageUrl: item.imageUrl ?? item.properties?.imageUrl ?? item.properties?.coverImageUrl ?? undefined,
     };
 }
 
@@ -304,20 +324,20 @@ function getLocalMockAdverts(): OwnerAdvertItem[] {
                             const itemMedia = Array.isArray(item.media) && item.media.length > 0
                                 ? item.media
                                 : Array.isArray(item.gallery) && item.gallery.length > 0
-                                ? item.gallery.map((g: any, i: number) => ({
-                                    assetId: g.publicUrl || g.assetId || g.url || g.uri,
-                                    displayOrder: i,
-                                    isCover: Boolean(g.isCover ?? (i === 0)),
-                                }))
-                                : item.cover?.publicUrl || item.cover?.assetId || item.imageUrl
-                                ? [{
-                                    assetId: item.cover?.publicUrl || item.cover?.assetId || item.imageUrl,
-                                    displayOrder: 0,
-                                    isCover: true,
-                                }]
-                                : DEFAULT_MOCK_MEDIA[item.id] || [
-                                    { assetId: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
-                                ];
+                                    ? item.gallery.map((g: any, i: number) => ({
+                                        assetId: g.publicUrl || g.assetId || g.url || g.uri,
+                                        displayOrder: i,
+                                        isCover: Boolean(g.isCover ?? (i === 0)),
+                                    }))
+                                    : item.cover?.publicUrl || item.cover?.assetId || item.imageUrl
+                                        ? [{
+                                            assetId: item.cover?.publicUrl || item.cover?.assetId || item.imageUrl,
+                                            displayOrder: 0,
+                                            isCover: true,
+                                        }]
+                                        : DEFAULT_MOCK_MEDIA[item.id] || [
+                                            { assetId: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&w=1200&q=80', displayOrder: 0, isCover: true },
+                                        ];
 
                             list.unshift({
                                 id: item.id,
@@ -376,12 +396,12 @@ function updateLocalMockAdvert(id: string, patch: Partial<OwnerAdvertItem> & { r
                                 patch.status === 'PUBLISHED'
                                     ? 'published'
                                     : patch.status === 'REJECTED'
-                                    ? 'rejected'
-                                    : (patch.status === 'ARCHIVED' || patch.status === 'SUSPENDED' || patch.status === 'SOLD')
-                                    ? 'sold'
-                                    : patch.status === 'PENDING_REVIEW'
-                                    ? 'pending'
-                                    : 'draft';
+                                        ? 'rejected'
+                                        : (patch.status === 'ARCHIVED' || patch.status === 'SUSPENDED' || patch.status === 'SOLD')
+                                            ? 'sold'
+                                            : patch.status === 'PENDING_REVIEW'
+                                                ? 'pending'
+                                                : 'draft';
                         }
                         if (patch.title) parsed[itemIdx].title = patch.title;
                         if (patch.price) parsed[itemIdx].price = patch.price;
@@ -438,90 +458,21 @@ function isLocalEnvironment(): boolean {
 class AdvertService {
     async search(params: SearchParams<ModerationAdvertResponse>) {
         const status = parseStatusFilter(params.filter);
-        const limit = params.pageRequest.size ?? 10;
-
-        const needsClientFiltering = params.filter
-            ? (params.filter.includes('!=')
-               || (params.filter.split(';').filter(Boolean).length > 1)
-               || params.filter.includes('mainCategory')
-               || params.filter.includes('categoryId'))
-            : false;
-
-        if (params.cursor !== undefined && !needsClientFiltering) {
-            let rawItems: OwnerAdvertItem[] = [];
-            let hasMore = false;
-            let nextCursor: string | null = null;
-            let totalCount: number | undefined;
-            try {
-                const response = await apiRequest<ModerationQueueResponse>('GET', baseUrl, undefined, {
-                    params: {
-                        cursor: params.cursor || undefined,
-                        limit,
-                        status: (status && status !== 'UNPUBLISHED') ? status : undefined,
-                    },
-                });
-                rawItems = response?.items ?? [];
-                hasMore = Boolean(response?.hasMore);
-                nextCursor = response?.nextCursor ?? null;
-                totalCount = response?.totalCount;
-            } catch (err) {
-                console.error('Moderation API fetch error:', err);
-            }
-
-            if (status && status !== 'UNPUBLISHED') {
-                if (status === 'SUSPENDED') {
-                    rawItems = rawItems.filter((item) => item.status === 'SUSPENDED' || item.status === 'ARCHIVED');
-                } else {
-                    rawItems = rawItems.filter((item) => item.status === status);
-                }
-            } else if (status === 'UNPUBLISHED') {
-                rawItems = rawItems.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED' || item.status === 'ARCHIVED');
-            }
-
-            if (rawItems.length === 0) {
-                const localAdverts = getLocalMockAdverts().filter((a) => {
-                    if (!status) return true;
-                    if (status === 'SUSPENDED') return a.status === 'SUSPENDED' || a.status === 'ARCHIVED';
-                    if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED' || a.status === 'SUSPENDED' || a.status === 'ARCHIVED';
-                    return a.status === status;
-                });
-                rawItems.push(...localAdverts);
-            }
-            const STATUS_PRIORITY: Record<string, number> = {
-                'PENDING_REVIEW': 1,
-                'SUSPENDED': 2,
-                'ARCHIVED': 2,
-                'REJECTED': 3,
-            };
-            rawItems.sort((a, b) => {
-                const priorityA = STATUS_PRIORITY[a.status] ?? 99;
-                const priorityB = STATUS_PRIORITY[b.status] ?? 99;
-                if (priorityA !== priorityB) {
-                    return priorityA - priorityB;
-                }
-                const dateA = new Date(a.createdAt || 0).getTime();
-                const dateB = new Date(b.createdAt || 0).getTime();
-                return dateB - dateA;
-            });
-            rawItems = rawItems.slice(0, limit);
-
-            const content = rawItems.map(toModerationAdvert);
-            const pageNumber = params.pageRequest.page ?? 0;
-            return {
-                content,
-                page: {
-                    size: limit,
-                    number: pageNumber,
-                    totalElements: totalCount ?? content.length,
-                    totalPages: totalCount ? Math.max(1, Math.ceil(totalCount / limit)) : (hasMore ? pageNumber + 2 : pageNumber + 1),
-                    hasMore,
-                    nextCursor,
-                    cursorMode: true,
-                },
-            };
-        }
 
         const items = await this.fetchAll(status);
+
+        // Pre-build a full bundle map across all fetched items
+        // so every bundle knows all of its member adverts regardless of filters/paging
+        const fullBundleMap = new Map<string, ModerationAdvertResponse[]>();
+        for (const item of items) {
+            const bId = getEkuriBundleId(item);
+            if (bId) {
+                const list = fullBundleMap.get(bId) || [];
+                list.push(item);
+                fullBundleMap.set(bId, list);
+            }
+        }
+
         const filtered = this.applyFilter(items, params.filter);
 
         const STATUS_PRIORITY: Record<string, number> = {
@@ -547,7 +498,47 @@ class AdvertService {
             return dateB - dateA;
         });
 
-        return this.toPagedResponse(filtered, params.pageRequest);
+        // Group eküri items into a single row representation
+        const grouped: ModerationAdvertResponse[] = [];
+        const seenBundles = new Set<string>();
+
+        for (const advert of filtered) {
+            const bId = getEkuriBundleId(advert);
+            if (bId) {
+                if (seenBundles.has(bId)) {
+                    continue; // Skip subsequent items of the same bundle
+                }
+                seenBundles.add(bId);
+                const bundleMembers = fullBundleMap.get(bId) || [advert];
+                grouped.push({
+                    ...advert,
+                    bundleAdverts: bundleMembers,
+                    bundleCount: bundleMembers.length,
+                });
+            } else {
+                grouped.push(advert);
+            }
+        }
+
+        return this.toPagedResponse(grouped, params.pageRequest);
+    }
+
+    async getBundleAdverts(bundleId: string): Promise<ModerationAdvertResponse[]> {
+        if (!bundleId) return [];
+        try {
+            const res = await apiRequest<{ items: OwnerAdvertItem[] }>('GET', `/v1/admin/adverts/bundle/${bundleId}`);
+            if (res?.items && Array.isArray(res.items) && res.items.length > 0) {
+                return res.items.map(toModerationAdvert);
+            }
+        } catch {
+            // fallback
+        }
+        try {
+            const all = await this.fetchAll();
+            const matched = all.filter((a) => getEkuriBundleId(a) === bundleId);
+            if (matched.length > 0) return matched;
+        } catch { }
+        return [];
     }
 
     async getDetail(advertId: string): Promise<ModerationAdvertDetail> {
@@ -617,10 +608,10 @@ class AdvertService {
                             reason: mock.status === 'REJECTED'
                                 ? (mockReason || 'İlan kriterlere uygun bulunmadı.')
                                 : mock.status === 'ARCHIVED'
-                                ? (mockReason || 'Kullanıcı kendi kaldırmıştır')
-                                : mock.status === 'SUSPENDED'
-                                ? (mockReason || 'Paket süresi bitmiştir')
-                                : 'İlan onaya gönderildi',
+                                    ? (mockReason || 'Kullanıcı kendi kaldırmıştır')
+                                    : mock.status === 'SUSPENDED'
+                                        ? (mockReason || 'Paket süresi bitmiştir')
+                                        : 'İlan onaya gönderildi',
                             isSystem: mock.status === 'SUSPENDED' && !mockReason,
                             createdAt: new Date().toISOString(),
                         },
@@ -908,6 +899,14 @@ class AdvertService {
             }
             if (clause.startsWith('mainCategory==')) {
                 const expected = clause.slice('mainCategory=='.length).trim().toLowerCase();
+                const bId = getEkuriBundleId(item);
+                const isEkuri = Boolean(bId);
+                if (expected === 'ekuri') {
+                    return isEkuri;
+                }
+                if (isEkuri) {
+                    return false;
+                }
                 const actual = getAdvertMainCategory(item.categoryId, undefined, (item as any).properties);
                 return actual === expected;
             }
@@ -965,8 +964,11 @@ class AdvertService {
                 return item.version;
             case 'categoryId':
                 return item.categoryId;
-            case 'mainCategory':
+            case 'mainCategory': {
+                const bId = getEkuriBundleId(item);
+                if (bId) return 'ekuri';
                 return getAdvertMainCategory(item.categoryId, undefined, (item as any).properties);
+            }
             case 'ownerUserId':
                 return item.ownerUserId;
             default:

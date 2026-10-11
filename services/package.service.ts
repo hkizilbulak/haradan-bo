@@ -16,6 +16,8 @@ export interface PackageResponse extends BaseResponse {
   showcaseEligible: boolean;
   searchPriority: number;
   broadcastOnPublish: boolean;
+  packageType?: 'INDIVIDUAL' | 'EKURI';
+  horseLimit?: number | null;
   isActive: boolean;
   sortOrder: number;
   version: number;
@@ -37,6 +39,8 @@ export interface PackageRequest {
   showcaseEligible: boolean;
   searchPriority: number;
   broadcastOnPublish: boolean;
+  packageType?: 'INDIVIDUAL' | 'EKURI';
+  horseLimit?: number | null;
   isActive: boolean;
 }
 
@@ -87,6 +91,8 @@ export class PackageService {
       showcaseEligible: request.showcaseEligible,
       searchPriority: Number(request.searchPriority ?? 0),
       broadcastOnPublish: request.broadcastOnPublish,
+      packageType: request.packageType || 'INDIVIDUAL',
+      horseLimit: request.packageType === 'EKURI' ? toNumber(request.horseLimit) : undefined,
       isActive: request.isActive,
     });
   };
@@ -111,6 +117,8 @@ export class PackageService {
       showcaseEligible: request.showcaseEligible,
       searchPriority: Number(request.searchPriority ?? 0),
       broadcastOnPublish: request.broadcastOnPublish,
+      packageType: request.packageType || 'INDIVIDUAL',
+      horseLimit: request.packageType === 'EKURI' ? toNumber(request.horseLimit) : null,
       isActive: request.isActive,
     });
   };

@@ -34,5 +34,11 @@ export interface ModerationAdvertResponse extends BaseResponse {
   location?: { districtId?: string; districtName?: string; provinceId?: string; provinceName?: string; name?: string } | null;
   sellerPhone?: string | null;
   videoUrl?: string | null;
+  ekuriBundleId?: string | null;
+  bundleAdverts?: ModerationAdvertResponse[];
+  bundleCount?: number;
+  cover?: any;
+  media?: any[];
+  imageUrl?: string | null;
 }
 

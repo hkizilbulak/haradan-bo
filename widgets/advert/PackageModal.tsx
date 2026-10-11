@@ -24,6 +24,7 @@ import { formatDateForText, formatDateTimeForText } from "@/helpers/DateUtils";
 
 import { formatMoney, getErrorMessage } from "@/helpers/HelperUtils";
 import ConfirmModal from "@/components/ConfirmModal";
+import StatusBadge from "@/components/StatusBadge";
 import { ModerationAdvertResponse } from "@/models";
 import {
   advertService,
@@ -275,6 +276,7 @@ interface PackageModalProps {
   onClose: () => void;
   onDone: () => void;
   initialTab?: "manage" | "edit" | "card" | "history" | "payments";
+  bundleAdverts?: ModerationAdvertResponse[];
 }
 
 export default function PackageModal({
@@ -282,8 +284,39 @@ export default function PackageModal({
   onClose,
   onDone,
   initialTab = "edit",
+  bundleAdverts,
 }: PackageModalProps) {
-  const advertId = advert.identifier ?? advert.id;
+  const [currentAdvert, setCurrentAdvert] = useState<ModerationAdvertResponse>(advert);
+  const [bundleList, setBundleList] = useState<ModerationAdvertResponse[]>(bundleAdverts ?? []);
+
+  useEffect(() => {
+    setCurrentAdvert(advert);
+  }, [advert]);
+
+  useEffect(() => {
+    if (bundleAdverts && bundleAdverts.length > 0) {
+      setBundleList(bundleAdverts);
+      return;
+    }
+
+    const bId = advert?.ekuriBundleId || (advert as any)?.properties?.ekuriBundleId;
+    if (bId) {
+      let isMounted = true;
+      advertService.getBundleAdverts(bId).then((items) => {
+        if (isMounted && items && items.length > 0) {
+          setBundleList(items);
+        }
+      }).catch(() => {});
+      return () => {
+        isMounted = false;
+      };
+    } else {
+      setBundleList([]);
+    }
+  }, [advert, bundleAdverts]);
+
+  const activeAdvert = currentAdvert ?? advert;
+  const advertId = activeAdvert.identifier ?? activeAdvert.id;
   const [tab, setTab] = useState<
     "manage" | "edit" | "card" | "history" | "payments"
   >(initialTab);
@@ -397,32 +430,41 @@ export default function PackageModal({
   // Category detection
   const categoryKind = useMemo(() => {
     return getAdvertCategoryKind(
-      advert?.categoryId || detail?.categoryId,
-      (advert as any)?.categoryName || (detail as any)?.categoryName,
-      (detail?.properties || advert?.properties) as any,
+      activeAdvert?.categoryId || detail?.categoryId,
+      (activeAdvert as any)?.categoryName || (detail as any)?.categoryName,
+      (detail?.properties || activeAdvert?.properties) as any,
     );
-  }, [advert, detail]);
+  }, [activeAdvert, detail]);
 
   const isRaceHorse = useMemo(() => {
     return isRaceHorseAdvert(
-      advert?.categoryId || detail?.categoryId,
-      (advert as any)?.categoryName || (detail as any)?.categoryName,
+      activeAdvert?.categoryId || detail?.categoryId,
+      (activeAdvert as any)?.categoryName || (detail as any)?.categoryName,
     );
-  }, [advert, detail]);
+  }, [activeAdvert, detail]);
 
   const isMare = useMemo(() => {
     return isMareAdvert(
-      advert?.categoryId || detail?.categoryId,
-      (advert as any)?.categoryName || (detail as any)?.categoryName,
+      activeAdvert?.categoryId || detail?.categoryId,
+      (activeAdvert as any)?.categoryName || (detail as any)?.categoryName,
     );
-  }, [advert, detail]);
+  }, [activeAdvert, detail]);
 
   const isStallion = useMemo(() => {
     return isStallionAdvert(
-      advert?.categoryId || detail?.categoryId,
-      (advert as any)?.categoryName || (detail as any)?.categoryName,
+      activeAdvert?.categoryId || detail?.categoryId,
+      (activeAdvert as any)?.categoryName || (detail as any)?.categoryName,
     );
-  }, [advert, detail]);
+  }, [activeAdvert, detail]);
+
+  // Sekme değiştirildiğinde veya farklı ilana geçildiğinde form durumunu sıfırla
+  useEffect(() => {
+    setIsEditInitialized(false);
+    setInitialEditSnapshot("");
+    setPendingUrgent(null);
+    setPendingVitrin(null);
+    setDetail(null);
+  }, [advertId]);
 
   useEffect(() => {
     if (!advertId) return;
@@ -676,10 +718,10 @@ export default function PackageModal({
   const unifiedHistory = React.useMemo<UnifiedHistoryRow[]>(() => {
     const rows: UnifiedHistoryRow[] = [];
     const statusHist = detail?.statusHistory || [];
-    const currentAdvStatus = detail?.status || advert?.status;
+    const currentAdvStatus = detail?.status || activeAdvert?.status;
     const activePkgCode =
       currentPackage?.packageCode ||
-      (advert as any)?.packageCode ||
+      (activeAdvert as any)?.packageCode ||
       (detail as any)?.packageCode ||
       packages[0]?.code ||
       "STANDART";
@@ -796,7 +838,7 @@ export default function PackageModal({
       let curVariant = "secondary";
       let curReason =
         (detail as any)?.rejectionReason ||
-        (advert as any)?.rejectionReason ||
+        (activeAdvert as any)?.rejectionReason ||
         "";
 
       switch (currentAdvStatus) {
@@ -841,12 +883,12 @@ export default function PackageModal({
         packageCode: activePkgCode,
         statusText: curText,
         statusVariant: curVariant,
-        date: advert?.updatedAt
-          ? formatDateForText(advert.updatedAt)
-          : advert?.publishedAt
-            ? formatDateForText(advert.publishedAt)
-            : advert?.createdAt
-              ? formatDateForText(advert.createdAt)
+        date: activeAdvert?.updatedAt
+          ? formatDateForText(activeAdvert.updatedAt)
+          : activeAdvert?.publishedAt
+            ? formatDateForText(activeAdvert.publishedAt)
+            : activeAdvert?.createdAt
+              ? formatDateForText(activeAdvert.createdAt)
               : "-",
         reason: curReason || "-",
         sortTime: Date.now() + 100000,
@@ -863,7 +905,7 @@ export default function PackageModal({
     }
 
     return rows;
-  }, [detail, advert, history, currentPackage, packages]);
+  }, [detail, activeAdvert, history, currentPackage, packages]);
 
   const isSamePackage = Boolean(
     currentPackage && selectedPackageCode === currentPackage.packageCode,
@@ -880,8 +922,8 @@ export default function PackageModal({
       ? buildMediaUrl(coverMedia.assetId, "DETAIL")
       : null) ||
     editMediaList[0]?.previewUrl ||
-    (advert as any)?.cover?.publicUrl ||
-    (advert as any)?.cover?.url ||
+    (activeAdvert as any)?.cover?.publicUrl ||
+    (activeAdvert as any)?.cover?.url ||
     null;
   const advertPrice = detail?.price?.amount
     ? formatMoney(detail.price.amount, detail.price.currency || "TRY")
@@ -1107,7 +1149,7 @@ export default function PackageModal({
       .replace(/ç/g, "c");
 
   const getProp = (keys: string[]): string => {
-    const props = (detail?.properties || advert?.properties || {}) as Record<
+    const props = (detail?.properties || activeAdvert?.properties || {}) as Record<
       string,
       any
     >;
@@ -1183,10 +1225,10 @@ export default function PackageModal({
           ? d.price.amount.toString()
           : getProp(["fiyat", "price", "ucret", "satisfiyati"]);
 
-    setEditTitle(d?.title || advert.title || "");
+    setEditTitle(d?.title || activeAdvert.title || "");
     setEditVideoUrl(
       d?.videoUrl ||
-        (advert as any)?.videoUrl ||
+        (activeAdvert as any)?.videoUrl ||
         getProp(["videourl", "video_url", "video"]) ||
         "",
     );
@@ -1195,11 +1237,11 @@ export default function PackageModal({
 
     const provId = (d?.provinceId ||
       (d?.location as any)?.provinceId ||
-      (advert as any).provinceId ||
+      (activeAdvert as any).provinceId ||
       "") as string;
     const distId = (d?.districtId ||
       (d?.location as any)?.districtId ||
-      (advert as any).districtId ||
+      (activeAdvert as any).districtId ||
       "") as string;
 
     setEditProvinceId(provId ? String(provId) : "");
@@ -1223,7 +1265,7 @@ export default function PackageModal({
         "stud_horse_name",
       ]) ||
         d?.title ||
-        advert.title ||
+        activeAdvert.title ||
         "",
     );
     setEditSire(
@@ -1358,7 +1400,7 @@ export default function PackageModal({
         "unvan",
       ]) ||
         d?.title ||
-        advert.title ||
+        activeAdvert.title ||
         "",
     );
     setEditBoxCount(
@@ -1466,7 +1508,7 @@ export default function PackageModal({
         "sirketadi",
       ]) ||
         d?.title ||
-        advert.title ||
+        activeAdvert.title ||
         "",
     );
     setEditVehicleType(
@@ -1532,7 +1574,7 @@ export default function PackageModal({
         "ustaadi",
       ]) ||
         d?.title ||
-        advert.title ||
+        activeAdvert.title ||
         "",
     );
     setEditHotShoeing(
@@ -1588,13 +1630,13 @@ export default function PackageModal({
     if (d?.media && Array.isArray(d.media) && d.media.length > 0) {
       list = d.media;
     } else if (
-      (advert as any).media &&
-      Array.isArray((advert as any).media) &&
-      (advert as any).media.length > 0
+      (activeAdvert as any).media &&
+      Array.isArray((activeAdvert as any).media) &&
+      (activeAdvert as any).media.length > 0
     ) {
-      list = (advert as any).media;
-    } else if ((d as any)?.cover || (advert as any).cover) {
-      const c = (d as any)?.cover || (advert as any).cover;
+      list = (activeAdvert as any).media;
+    } else if ((d as any)?.cover || (activeAdvert as any).cover) {
+      const c = (d as any)?.cover || (activeAdvert as any).cover;
       list = [
         {
           assetId: c.publicUrl || c.url || c.assetId,
@@ -1620,11 +1662,11 @@ export default function PackageModal({
     setEditMediaList(mediaMapped);
 
     const initialSnapshot = JSON.stringify({
-      title: (d?.title || advert.title || "").trim(),
+      title: (d?.title || activeAdvert.title || "").trim(),
       description: (d?.description || "").trim(),
       videoUrl: (
         d?.videoUrl ||
-        (advert as any)?.videoUrl ||
+        (activeAdvert as any)?.videoUrl ||
         getProp(["videourl", "video_url", "video"]) ||
         ""
       ).trim(),
@@ -1645,7 +1687,7 @@ export default function PackageModal({
           "stud_horse_name",
         ]) ||
         d?.title ||
-        advert.title ||
+        activeAdvert.title ||
         ""
       ).trim(),
       sire: (
@@ -1772,7 +1814,7 @@ export default function PackageModal({
           "unvan",
         ]) ||
         d?.title ||
-        advert.title ||
+        activeAdvert.title ||
         ""
       ).trim(),
       boxCount: (
@@ -1873,7 +1915,7 @@ export default function PackageModal({
           "sirketadi",
         ]) ||
         d?.title ||
-        advert.title ||
+        activeAdvert.title ||
         ""
       ).trim(),
       vehicleType: (
@@ -1934,7 +1976,7 @@ export default function PackageModal({
           "ustaadi",
         ]) ||
         d?.title ||
-        advert.title ||
+        activeAdvert.title ||
         ""
       ).trim(),
       hotShoeing: getBoolProp([
@@ -4107,13 +4149,72 @@ export default function PackageModal({
               <small className="text-muted">
                 İlan:{" "}
                 <span className="fw-semibold text-dark">
-                  {advert.title ?? advertId}
+                  {activeAdvert.title ?? advertId}
                 </span>{" "}
                 (#{advertId})
               </small>
             </div>
           </div>
         </Modal.Header>
+
+        {/* Eküri Bundle Sekmeleri (Birden fazla ilan varsa sekmelerle geçiş) */}
+        {bundleList.length > 1 && (
+          <div
+            className="border-bottom px-4 py-2 d-flex align-items-center gap-2 overflow-auto"
+            style={{ backgroundColor: "#f8fafc" }}
+          >
+            <div className="d-flex align-items-center gap-1 me-2 flex-shrink-0">
+              <span
+                className="badge d-inline-flex align-items-center gap-1 px-2.5 py-1.5 fw-bold text-white shadow-sm"
+                style={{
+                  backgroundColor: "#4f46e5",
+                  fontSize: "11px",
+                  letterSpacing: "0.3px",
+                  borderRadius: "6px",
+                }}
+              >
+                <i className="fe fe-layers" /> Eküri Paketi ({bundleList.length} İlan)
+              </span>
+            </div>
+            <div className="d-flex align-items-center gap-2 flex-nowrap">
+              {bundleList.map((bundleItem, idx) => {
+                const bId = bundleItem.identifier ?? bundleItem.id;
+                const isSelected = bId === (activeAdvert.identifier ?? activeAdvert.id);
+                return (
+                  <button
+                    key={bId || idx}
+                    type="button"
+                    onClick={() => {
+                      if (!isSelected) {
+                        setCurrentAdvert(bundleItem);
+                      }
+                    }}
+                    className={`btn btn-sm d-inline-flex align-items-center gap-2 rounded-3 px-3 py-1.5 text-nowrap transition-all ${
+                      isSelected
+                        ? "btn-primary text-white shadow-sm"
+                        : "btn-white text-secondary border bg-white"
+                    }`}
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: isSelected ? 600 : 500,
+                      borderColor: isSelected ? "#3b82f6" : "#cbd5e1",
+                    }}
+                  >
+                    <span
+                      className={`badge rounded-pill ${
+                        isSelected ? "bg-white text-primary" : "bg-light text-muted border"
+                      }`}
+                      style={{ fontSize: "11px" }}
+                    >
+                      {idx + 1}. İlan
+                    </span>
+                    <StatusBadge status={bundleItem.status} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Body */}
         <Modal.Body className="p-3 bg-light">

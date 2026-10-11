@@ -1,5 +1,5 @@
 "use client"
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Button, Badge, Row, Col, Card, Table, Spinner, Alert } from 'react-bootstrap';
 import StatusBadge from '@/components/StatusBadge';
 import { buildMediaUrl, buildAdvertDetailUrl } from '@/contants/urls';
@@ -12,26 +12,289 @@ import { ModerationAdvertResponse } from '@/models';
 import { advertService, ModerationAdvertDetail, AdvertPackageAssignment, DEFAULT_MOCK_MEDIA } from '@/services/advert.service';
 import { buildModerationAdvertSpecRows, resolveDisplayAdvertNo, SpecRow } from '@/helpers/advertCategoryHelper';
 import { parseVideoUrl, openVideoUrl } from '@/helpers/videoUrl';
+import { getGenericStatusText } from '@/helpers/EnumUtils';
 
 interface AdvertDetailModalProps {
   advert: ModerationAdvertResponse | null;
   onClose: () => void;
   categoryName?: string;
+  categoryMap?: Map<string, string>;
   onApprove?: (advert: ModerationAdvertResponse) => void;
   onReject?: (advert: ModerationAdvertResponse) => void;
   onSuspend?: (advert: ModerationAdvertResponse) => void;
+  bundleAdverts?: ModerationAdvertResponse[];
+  onApproveBundle?: (adverts: ModerationAdvertResponse[]) => void;
+  onRejectBundle?: (adverts: ModerationAdvertResponse[]) => void;
+}
+
+function formatItemPrice(item: ModerationAdvertResponse): string {
+  const priceObj = item?.price;
+  const currency = priceObj?.currency || 'TRY';
+
+  if (priceObj != null) {
+    if (typeof priceObj === 'number') {
+      return new Intl.NumberFormat('tr-TR', { style: 'currency', currency, maximumFractionDigits: 0 }).format(priceObj);
+    }
+    if (priceObj.amountMinor != null && !isNaN(Number(priceObj.amountMinor))) {
+      return formatMoney(Number(priceObj.amountMinor), currency);
+    }
+    if (priceObj.amount != null && !isNaN(Number(priceObj.amount))) {
+      const amt = Number(priceObj.amount);
+      return new Intl.NumberFormat('tr-TR', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amt);
+    }
+  }
+
+  const propPrice = (item as any)?.properties?.fiyat || (item as any)?.properties?.price;
+  if (propPrice) {
+    if (propPrice.includes('₺') || /tl/i.test(propPrice)) {
+      return propPrice;
+    }
+    const numOnly = propPrice.replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.');
+    const parsedNum = parseFloat(numOnly);
+    if (!isNaN(parsedNum) && parsedNum > 0) {
+      return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(parsedNum);
+    }
+    return `${propPrice} TL`;
+  }
+
+  return 'Fiyat Belirtilmemiş';
+}
+
+const FALLBACK_HORSE_IMAGES: string[] = [
+  'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1598974357801-cbca100e65d3?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1544967082-d9d25d867d66?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1493962853295-0fd70327578a?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1625047509168-a7026f36de04?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1615811361523-6bd03d7748e7?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1500485035595-cbe6f645feb1?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1731838618093-7ed3508d2fcd?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1463595373836-6e0b0a8ee322?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=600&q=80',
+];
+
+function getDeterministicFallbackImage(item?: any, idx = 0): string {
+  const seedStr = String(
+    item?.properties?.ekuriBundleCode ||
+    item?.properties?.ekuriCode ||
+    item?.ekuriBundleId ||
+    item?.identifier ||
+    item?.id ||
+    ''
+  );
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    hash = (hash * 31 + seedStr.charCodeAt(i)) & 0x7fffffff;
+  }
+  const baseOffset = hash % FALLBACK_HORSE_IMAGES.length;
+  const index = (baseOffset + idx) % FALLBACK_HORSE_IMAGES.length;
+  return FALLBACK_HORSE_IMAGES[index];
+}
+
+function getItemCoverImage(item?: ModerationAdvertResponse | null, idx = 0): string {
+  if (!item) return getDeterministicFallbackImage(null, idx);
+  const props = (item as any)?.properties;
+  let raw: string | null = null;
+  if (props?.coverImageUrl) raw = props.coverImageUrl;
+  else if (props?.coverImage) raw = props.coverImage;
+  else if (props?.imageUrl) raw = props.imageUrl;
+  else if (props?.image) raw = props.image;
+  else if ((item as any)?.imageUrl) raw = (item as any).imageUrl;
+  else if ((item as any)?.cover) {
+    const c = (item as any).cover;
+    raw = c?.publicUrl || c?.url || c?.assetId || null;
+  } else {
+    const mediaList = (item as any)?.media || props?.media;
+    if (Array.isArray(mediaList) && mediaList.length > 0) {
+      const cover = mediaList.find((m: any) => m.isCover) || mediaList[0];
+      raw = cover?.publicUrl || cover?.url || cover?.imageUrl || cover?.assetId || null;
+    }
+  }
+
+  const itemId = String(item.id ?? item.identifier ?? '').trim();
+  if (!raw && itemId && (DEFAULT_MOCK_MEDIA as any)[itemId]) {
+    const defaultM = (DEFAULT_MOCK_MEDIA as any)[itemId];
+    if (defaultM.length > 0) raw = defaultM[0].assetId;
+  }
+
+  if (raw && typeof raw === 'string' && raw.trim()) {
+    const trimmed = raw.trim();
+    if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('/')) {
+      return trimmed;
+    }
+    return buildMediaUrl(trimmed, 'THUMBNAIL');
+  }
+
+  return getDeterministicFallbackImage(item, idx);
+}
+
+function getItemCategory(item?: ModerationAdvertResponse | null, categoryMap?: Map<string, string>, defaultCategory?: string): string {
+  if (!item) return defaultCategory || 'Kategori Belirtilmemiş';
+  if (categoryMap && item.categoryId && categoryMap.has(item.categoryId)) {
+    return categoryMap.get(item.categoryId)!;
+  }
+  const propCat = (item as any)?.properties?.kategori || (item as any)?.properties?.categoryName;
+  if (propCat) return propCat;
+  return item.categoryId || defaultCategory || 'Kategori Belirtilmemiş';
+}
+
+function getItemLocation(item?: ModerationAdvertResponse | null): string {
+  if (!item) return 'Konum Belirtilmemiş';
+  const loc = item.location || (item as any)?.properties?.location;
+  if (loc?.city) {
+    return loc.district ? `${loc.city} / ${loc.district}` : loc.city;
+  }
+  const sehir = (item as any)?.properties?.sehir || (item as any)?.properties?.city || (item as any)?.properties?.il;
+  const ilce = (item as any)?.properties?.ilce || (item as any)?.properties?.district;
+  if (sehir) {
+    return ilce ? `${sehir} / ${ilce}` : sehir;
+  }
+  return 'Konum Belirtilmemiş';
+}
+
+function getAdvertTabStatusStyle(status?: string | null): { bg: string; text: string; label: string } {
+  const label = getGenericStatusText(status ?? undefined) || 'Durum Belirtilmemiş';
+  if (status === 'ACTIVE' || status === 'SUCCEEDED' || status === 'PUBLISHED') {
+    return { bg: '#10b981', text: '#ffffff', label };
+  }
+  if (status === 'DELETED' || status === 'FAILED' || status === 'CLOSED' || status === 'REJECTED') {
+    return { bg: '#ef4444', text: '#ffffff', label };
+  }
+  if (status === 'WAITING_APPROVAL' || status === 'PENDING_REVIEW' || status === 'QUEUED' || status === 'CHANGES_REQUESTED') {
+    return { bg: '#f59e0b', text: '#ffffff', label };
+  }
+  if (status === 'PASSIVE' || status === 'INACTIVE' || status === 'DISABLED' || status === 'ARCHIVED' || status === 'CANCELLED' || status === 'SUSPENDED') {
+    return { bg: '#64748b', text: '#ffffff', label };
+  }
+  if (status === 'SOLD' || status === 'RUNNING' || status === 'LEASED') {
+    return { bg: '#0ea5e9', text: '#ffffff', label };
+  }
+  return { bg: '#6366f1', text: '#ffffff', label };
 }
 
 export default function AdvertDetailModal({
   advert,
   onClose,
   categoryName,
+  categoryMap,
   onApprove,
   onReject,
   onSuspend,
+  bundleAdverts,
+  onApproveBundle,
+  onRejectBundle,
 }: AdvertDetailModalProps) {
-  const advertId = advert?.identifier ?? advert?.id;
+  const [selectedAdvert, setSelectedAdvert] = useState<ModerationAdvertResponse | null>(advert);
+  const [bundleList, setBundleList] = useState<ModerationAdvertResponse[]>(bundleAdverts ?? []);
   const [detail, setDetail] = useState<ModerationAdvertDetail | null>(null);
+
+  const resolveBundleId = (adv?: ModerationAdvertResponse | ModerationAdvertDetail | null): string | undefined => {
+    if (!adv) return undefined;
+    return (
+      (adv as any)?.ekuriBundleId ||
+      (adv as any)?.ekuri_bundle_id ||
+      (adv as any)?.bundleId ||
+      (adv as any)?.properties?.ekuriBundleId ||
+      (adv as any)?.properties?.ekuri_bundle_id ||
+      (adv as any)?.properties?.ekuriBundleCode ||
+      (adv as any)?.properties?.ekuriCode ||
+      (adv as any)?.properties?.bundleId
+    );
+  };
+
+  const initialAdvertId = advert ? String(advert.identifier ?? advert.id ?? '').trim() : '';
+  const prevAdvertIdRef = useRef<string>('');
+
+  const isBundle = Boolean(bundleAdverts && bundleAdverts.length > 1) || Boolean(resolveBundleId(advert));
+  const [activeTab, setActiveTab] = useState<'bundle' | string>(isBundle ? 'bundle' : initialAdvertId);
+
+  // Synchronize modal state ONLY when a new advert is opened from the table
+  useEffect(() => {
+    if (!advert) {
+      prevAdvertIdRef.current = '';
+      setSelectedAdvert(null);
+      setDetail(null);
+      setBundleList([]);
+      setActiveTab('');
+      return;
+    }
+
+    const curId = String(advert.identifier ?? advert.id ?? '').trim();
+    if (curId === prevAdvertIdRef.current) {
+      // Advert hasn't changed; do not reset active tab or selectedAdvert while navigating within modal
+      return;
+    }
+    prevAdvertIdRef.current = curId;
+
+    setSelectedAdvert(advert);
+    setDetail(null);
+
+    if (bundleAdverts && bundleAdverts.length > 1) {
+      setBundleList(bundleAdverts);
+      setActiveTab('bundle');
+      return;
+    }
+
+    const bId = resolveBundleId(advert);
+    if (bId) {
+      if (bundleAdverts && bundleAdverts.length === 1) {
+        setBundleList(bundleAdverts);
+      }
+      let isMounted = true;
+      advertService
+        .getBundleAdverts(bId)
+        .then((items) => {
+          if (isMounted && items && items.length > 0) {
+            setBundleList(items);
+            if (items.length > 1) {
+              setActiveTab((prev) => (prev === '' || prev === curId ? 'bundle' : prev));
+            } else {
+              setActiveTab(curId);
+            }
+          }
+        })
+        .catch(() => {});
+      return () => {
+        isMounted = false;
+      };
+    } else {
+      setBundleList(bundleAdverts ?? []);
+      setActiveTab(curId);
+    }
+  }, [advert, bundleAdverts]);
+
+  // If initial advert didn't have bundleId in summary, or bundleList has <= 1 item, but detail arrives with bundleId
+  useEffect(() => {
+    if (bundleList.length > 1) return;
+    if (!detail) return;
+    const bId = resolveBundleId(detail);
+    if (bId) {
+      let isMounted = true;
+      advertService
+        .getBundleAdverts(bId)
+        .then((items) => {
+          if (isMounted && items && items.length > 1) {
+            setBundleList(items);
+            setActiveTab((prev) => (prev === '' || prev === initialAdvertId ? 'bundle' : prev));
+          }
+        })
+        .catch(() => {});
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [detail, bundleList.length, initialAdvertId]);
+
+  const activeAdvert = selectedAdvert ?? advert;
+  const advertId = activeAdvert?.identifier ?? activeAdvert?.id;
+  const activeAdvertId = String(advertId ?? '').trim();
+  const detailMatchesActive = Boolean(detail && String(detail.id ?? '').trim() === activeAdvertId);
+
   const [packageAssignment, setPackageAssignment] = useState<AdvertPackageAssignment | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,14 +302,24 @@ export default function AdvertDetailModal({
   const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const fetchDetail = async () => {
-    if (!advertId) return;
+  const handleSelectTab = (bundleItem: ModerationAdvertResponse, idx: number) => {
+    const bId = bundleItem.identifier ?? bundleItem.id;
+    setSelectedAdvert(bundleItem);
+    setActiveTab(String(bId || idx));
+  };
+
+  const handleSelectBundleTab = () => {
+    setActiveTab('bundle');
+  };
+
+  const fetchDetail = async (idToFetch = advertId) => {
+    if (!idToFetch) return;
     setLoading(true);
     setError(null);
     try {
       const [res, pkg] = await Promise.all([
-        advertService.getDetail(advertId),
-        advertService.getPackage(advertId).catch(() => null),
+        advertService.getDetail(idToFetch),
+        advertService.getPackage(idToFetch).catch(() => null),
       ]);
       setDetail(res);
       setPackageAssignment(pkg);
@@ -62,10 +335,10 @@ export default function AdvertDetailModal({
   };
 
   useEffect(() => {
-    if (advert) {
+    if (activeAdvert) {
       setActiveMediaIndex(0);
       setIsVideoPlaying(false);
-      void fetchDetail();
+      void fetchDetail(activeAdvert.identifier ?? activeAdvert.id);
     } else {
       setDetail(null);
       setPackageAssignment(null);
@@ -74,20 +347,32 @@ export default function AdvertDetailModal({
     }
   }, [advertId]);
 
-  const currentStatus = detail?.status ?? advert?.status ?? 'PENDING_REVIEW';
+  const currentStatus = (detailMatchesActive && detail?.status) ? detail.status : (activeAdvert?.status ?? 'PENDING_REVIEW');
   const isRejected = currentStatus === 'REJECTED';
   const isSuspended = currentStatus === 'SUSPENDED' || currentStatus === 'ARCHIVED';
-  const isPublished = currentStatus === 'PUBLISHED' || advert?.status === 'PUBLISHED';
-  const canApprove = advert ? (canModerationAction(currentStatus, 'approve') || isSuspended) : false;
-  const canReject = advert ? canModerationAction(currentStatus, 'reject') : false;
-  const canSuspend = advert ? canModerationAction(currentStatus, 'suspend') : false;
+  const isPublished = currentStatus === 'PUBLISHED' || activeAdvert?.status === 'PUBLISHED';
+  const canApprove = activeAdvert ? (canModerationAction(currentStatus, 'approve') || isSuspended) : false;
+  const canReject = activeAdvert ? canModerationAction(currentStatus, 'reject') : false;
+  const canApproveBundle =
+    bundleList.length > 0
+      ? bundleList.some((it) => canModerationAction(it.status, 'approve') || it.status === 'SUSPENDED' || it.status === 'ARCHIVED')
+      : canApprove;
+  const canRejectBundle =
+    bundleList.length > 0
+      ? bundleList.some((it) => canModerationAction(it.status, 'reject'))
+      : canReject;
+  const canSuspend = activeAdvert ? canModerationAction(currentStatus, 'suspend') : false;
+
+  const activeTabIdx = bundleList.findIndex(
+    (item) => String(item.identifier ?? item.id ?? '').trim() === activeAdvertId
+  );
 
   const suspensionInfo = useMemo(() => {
-    if (!isSuspended && !(detail as any)?.suspensionReason && !(advert as any)?.suspensionReason) {
+    if (!isSuspended && !(detail as any)?.suspensionReason && !(activeAdvert as any)?.suspensionReason) {
       return null;
     }
 
-    let reason: string | null = (detail as any)?.suspensionReason || (advert as any)?.suspensionReason || (detail as any)?.reason || null;
+    let reason: string | null = (detail as any)?.suspensionReason || (activeAdvert as any)?.suspensionReason || (detail as any)?.reason || null;
     let createdAt: string | null = null;
     let isSystemSuspended = false;
     let isUserUnpublished = currentStatus === 'ARCHIVED';
@@ -111,8 +396,8 @@ export default function AdvertDetailModal({
           unpublishEntry.toStatus?.toUpperCase() === 'ARCHIVED' ||
           (!unpublishEntry.isSystem &&
             Boolean(unpublishEntry.actorUserId) &&
-            Boolean(detail?.ownerUserId || advert?.ownerUserId) &&
-            unpublishEntry.actorUserId?.toLowerCase() === (detail?.ownerUserId || advert?.ownerUserId)?.toLowerCase());
+            Boolean(detail?.ownerUserId || activeAdvert?.ownerUserId) &&
+            unpublishEntry.actorUserId?.toLowerCase() === (detail?.ownerUserId || activeAdvert?.ownerUserId)?.toLowerCase());
         if (isOwnerAction) {
           isUserUnpublished = true;
         }
@@ -130,9 +415,9 @@ export default function AdvertDetailModal({
       (packageAssignment?.endsAt ? new Date(packageAssignment.endsAt).getTime() <= Date.now() : false) ||
       Boolean(
         (detail as any)?.isExpired ||
-        (advert as any)?.isExpired ||
+        (activeAdvert as any)?.isExpired ||
         (detail as any)?.packageExpired ||
-        (advert as any)?.packageExpired
+        (activeAdvert as any)?.packageExpired
       );
 
     const normReason = (reason || '').trim().toLowerCase();
@@ -173,19 +458,27 @@ export default function AdvertDetailModal({
       isAutoExpired: reason?.trim() === 'Paket süresi bitmiştir',
       isUserUnpublished: reason?.trim() === 'Kullanıcı kendi kaldırmıştır',
     };
-  }, [detail, advert, isSuspended, currentStatus, packageAssignment]);
+  }, [detail, activeAdvert, isSuspended, currentStatus, packageAssignment]);
 
 
   const rejectionInfo = useMemo(() => {
-    if (!isRejected && !detail?.rejectionReason && !advert?.rejectionReason) {
+    const effectiveDetail = detailMatchesActive ? detail : null;
+    const directReason =
+      effectiveDetail?.rejectionReason ||
+      activeAdvert?.rejectionReason ||
+      (effectiveDetail as any)?.properties?.rejectionReason ||
+      (activeAdvert as any)?.properties?.rejectionReason ||
+      null;
+
+    if (!isRejected && !directReason) {
       return null;
     }
 
-    let reason: string | null = detail?.rejectionReason || advert?.rejectionReason || null;
+    let reason: string | null = directReason;
     let createdAt: string | null = null;
 
-    if (detail?.statusHistory && detail.statusHistory.length > 0) {
-      const historyReversed = [...detail.statusHistory].reverse();
+    if (effectiveDetail?.statusHistory && effectiveDetail.statusHistory.length > 0) {
+      const historyReversed = [...effectiveDetail.statusHistory].reverse();
       const rejectedEntry = historyReversed.find(
         (h) => h.toStatus?.toUpperCase() === 'REJECTED'
       );
@@ -207,19 +500,20 @@ export default function AdvertDetailModal({
       reason: reason?.trim() || 'Reddedilme gerekçesi belirtilmemiş.',
       createdAt: createdAt ? formatDateTimeForText(createdAt) : null,
     };
-  }, [detail, advert, isRejected]);
+  }, [detailMatchesActive, detail, activeAdvert, isRejected]);
 
   const mediaList = useMemo(() => {
+    const effectiveDetail = detailMatchesActive ? detail : null;
     // 1. Direct detail.media
-    if (detail?.media && Array.isArray(detail.media) && detail.media.length > 0) {
-      return detail.media;
+    if (effectiveDetail?.media && Array.isArray(effectiveDetail.media) && effectiveDetail.media.length > 0) {
+      return effectiveDetail.media;
     }
     // 2. advert.media
-    if ((advert as any)?.media && Array.isArray((advert as any).media) && (advert as any).media.length > 0) {
-      return (advert as any).media;
+    if ((activeAdvert as any)?.media && Array.isArray((activeAdvert as any).media) && (activeAdvert as any).media.length > 0) {
+      return (activeAdvert as any).media;
     }
     // 3. detail.cover or advert.cover
-    const coverObj = (detail as any)?.cover || (advert as any)?.cover;
+    const coverObj = (effectiveDetail as any)?.cover || (activeAdvert as any)?.cover;
     if (coverObj) {
       const coverUrl = coverObj.publicUrl || coverObj.url || coverObj.assetId;
       if (coverUrl && typeof coverUrl === 'string' && coverUrl.trim()) {
@@ -227,7 +521,7 @@ export default function AdvertDetailModal({
       }
     }
     // 4. properties.images or properties.imageUrl or properties.coverUrl
-    const props = ((detail?.properties || (advert as any)?.properties) || {}) as Record<string, any>;
+    const props = ((effectiveDetail?.properties || (activeAdvert as any)?.properties) || {}) as Record<string, any>;
     if (Array.isArray(props.images) && props.images.length > 0) {
       return props.images.map((img: any, idx: number) => ({
         assetId: typeof img === 'string' ? img : (img.url || img.publicUrl || img.assetId),
@@ -235,19 +529,26 @@ export default function AdvertDetailModal({
         isCover: idx === 0,
       }));
     }
-    const propImg = props.imageUrl || props.coverUrl || props.image || (advert as any)?.imageUrl;
+    const propImg = props.imageUrl || props.coverUrl || props.image || (activeAdvert as any)?.imageUrl;
     if (propImg && typeof propImg === 'string' && propImg.trim()) {
       return [{ assetId: propImg.trim(), displayOrder: 0, isCover: true }];
     }
     // 5. Default mock photos for known demo adverts
-    const targetId = String(advert?.id || advertId || '').trim();
+    const targetId = String(activeAdvert?.id || advertId || '').trim();
     if (targetId && DEFAULT_MOCK_MEDIA[targetId]) {
       return DEFAULT_MOCK_MEDIA[targetId];
     }
+    if (activeAdvert) {
+      return [{
+        assetId: getDeterministicFallbackImage(activeAdvert, 0),
+        displayOrder: 0,
+        isCover: true,
+      }];
+    }
     return [];
-  }, [detail, advert, advertId]);
+  }, [detail, activeAdvert, advertId, detailMatchesActive]);
 
-  const rawVideoUrl = detail?.videoUrl || advert?.videoUrl;
+  const rawVideoUrl = detail?.videoUrl || activeAdvert?.videoUrl;
   const parsedVideo = useMemo(() => parseVideoUrl(rawVideoUrl), [rawVideoUrl]);
   const hasVideo = parsedVideo.isValid;
   const photosCount = mediaList.length;
@@ -277,24 +578,38 @@ export default function AdvertDetailModal({
   };
 
   const resolveMediaSrc = (m: any): string => {
-    if (!m) return '';
-    if (typeof m === 'string') return buildMediaUrl(m, 'DETAIL');
+    if (!m) return getDeterministicFallbackImage(activeAdvert, 0);
+    if (typeof m === 'string') {
+      const trimmed = m.trim();
+      if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+        return trimmed;
+      }
+      return buildMediaUrl(trimmed, 'DETAIL');
+    }
     const url = m.publicUrl || m.url || m.imageUrl || m.src;
     if (url && typeof url === 'string' && url.trim()) {
-      return buildMediaUrl(url, 'DETAIL');
+      const trimmed = url.trim();
+      if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+        return trimmed;
+      }
+      return buildMediaUrl(trimmed, 'DETAIL');
     }
     if (m.assetId && typeof m.assetId === 'string' && m.assetId.trim()) {
-      return buildMediaUrl(m.assetId, 'DETAIL');
+      const trimmed = m.assetId.trim();
+      if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+        return trimmed;
+      }
+      return buildMediaUrl(trimmed, 'DETAIL');
     }
-    return '';
+    return getDeterministicFallbackImage(activeAdvert, 0);
   };
 
   const properties = useMemo(() => {
     return {
-      ...((advert as any)?.properties || {}),
-      ...((detail as any)?.properties || {}),
+      ...((activeAdvert as any)?.properties || {}),
+      ...(detailMatchesActive ? ((detail as any)?.properties || {}) : {}),
     } as Record<string, any>;
-  }, [detail, advert]);
+  }, [detail, activeAdvert, detailMatchesActive]);
 
   const normText = (s: string) =>
     (s || '')
@@ -328,10 +643,22 @@ export default function AdvertDetailModal({
     return '';
   };
 
-  const resolvedCategory = categoryName || detail?.categoryId || advert?.categoryId || 'Kategori Belirtilmemiş';
+  const resolvedCategory = useMemo(() => {
+    if (!activeAdvert && !advert) return categoryName || 'Kategori Belirtilmemiş';
+    const effectiveItem = (detailMatchesActive && detail) ? { ...activeAdvert, ...detail } : (activeAdvert || advert);
+    const isOriginalAdvert = Boolean(
+      activeAdvert &&
+      (activeAdvert.identifier ?? activeAdvert.id) === (advert?.identifier ?? advert?.id)
+    );
+    return getItemCategory(
+      effectiveItem as ModerationAdvertResponse,
+      categoryMap,
+      isOriginalAdvert ? categoryName : undefined
+    );
+  }, [detailMatchesActive, detail, activeAdvert, advert, categoryMap, categoryName]);
 
   const priceFormatted = useMemo(() => {
-    const priceObj = detail?.price || (advert as any)?.price;
+    const priceObj = detail?.price || (activeAdvert as any)?.price;
     const currency = priceObj?.currency || 'TRY';
 
     if (priceObj != null) {
@@ -373,23 +700,23 @@ export default function AdvertDetailModal({
     }
 
     return 'Fiyat Belirtilmemiş';
-  }, [detail, advert, properties]);
+  }, [detail, activeAdvert, properties]);
 
-  const resolvedLocation = useResolvedLocation(detail, advert);
+  const resolvedLocation = useResolvedLocation(detail, activeAdvert);
 
   // Seller & Contact info for bottom section
   const ownerName =
     (detail as any)?.ownerName ||
-    (advert as any)?.ownerName ||
+    (activeAdvert as any)?.ownerName ||
     getProp(['owner', 'sahip', 'ownerName', 'sellerName']) ||
     '-';
   const phone =
     (detail as any)?.sellerPhone ||
-    (advert as any)?.sellerPhone ||
+    (activeAdvert as any)?.sellerPhone ||
     (detail as any)?.phone ||
-    (advert as any)?.phone ||
+    (activeAdvert as any)?.phone ||
     (detail as any)?.userPhone ||
-    (advert as any)?.userPhone ||
+    (activeAdvert as any)?.userPhone ||
     (detail as any)?.contactPhone ||
     getProp(['sellerPhone', 'phone', 'telefon', 'iletisimTelefonu', 'saticiTelefonu', 'cepTelefonu', 'contactPhone']) ||
     '';
@@ -407,10 +734,10 @@ export default function AdvertDetailModal({
   };
 
   const displayAdvertNo = useMemo(() => {
-    const rawAdvertId = advert?.identifier ?? advert?.id ?? detail?.id;
-    const props = (detail?.properties || advert?.properties || {}) as Record<string, any>;
+    const rawAdvertId = activeAdvert?.identifier ?? activeAdvert?.id ?? detail?.id;
+    const props = (detail?.properties || activeAdvert?.properties || {}) as Record<string, any>;
     return resolveDisplayAdvertNo(rawAdvertId, props);
-  }, [advert, detail]);
+  }, [activeAdvert, detail]);
 
   const openWhatsAppChat = (phoneNumber?: string | null) => {
     const rawTarget = phoneNumber || phone;
@@ -426,8 +753,8 @@ export default function AdvertDetailModal({
         return;
       }
     }
-    const advertTitle = detail?.title || advert?.title || 'İlanınız';
-    const advertNo = displayAdvertNo || advert?.id || advertId || '';
+    const advertTitle = detail?.title || activeAdvert?.title || 'İlanınız';
+    const advertNo = displayAdvertNo || activeAdvert?.id || advertId || '';
     const text = encodeURIComponent(
       `Merhaba, Haradan.com'daki ${advertNo ? `#${advertNo} numaralı ` : ''}"${advertTitle}" başlıklı ilanınız ile ilgili yazıyorum.`
     );
@@ -436,8 +763,8 @@ export default function AdvertDetailModal({
 
   // Build BuyBox specifications list specific to each category (matches live advert layout)
   const specRows = useMemo(() => {
-    return buildModerationAdvertSpecRows(detail, advert, categoryName);
-  }, [detail, advert, categoryName]);
+    return buildModerationAdvertSpecRows(detailMatchesActive ? detail : null, activeAdvert, resolvedCategory);
+  }, [detailMatchesActive, detail, activeAdvert, resolvedCategory]);
 
   const copyToClipboard = (text: string, keyName: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -447,15 +774,67 @@ export default function AdvertDetailModal({
     }
   };
 
+  const totalBundlePriceText = useMemo(() => {
+    if (!bundleList || bundleList.length === 0) return null;
+    let totalMinor = 0;
+    let currency = 'TRY';
+    for (const it of bundleList) {
+      if (it.price?.amountMinor != null && !isNaN(Number(it.price.amountMinor))) {
+        totalMinor += Number(it.price.amountMinor);
+        if (it.price.currency) currency = it.price.currency;
+      } else if (it.price?.amount != null && !isNaN(Number(it.price.amount))) {
+        const amt = Number(it.price.amount);
+        totalMinor += (amt < 100000 ? Math.round(amt * 100) : Math.round(amt));
+        if (it.price.currency) currency = it.price.currency;
+      }
+    }
+    if (totalMinor > 0) {
+      return formatMoney(totalMinor, currency);
+    }
+    return null;
+  }, [bundleList]);
+
+  const resolvedEkuriCode = useMemo(() => {
+    // 1. Check properties of any item in bundleList, detail, activeAdvert, advert
+    const allItems = [detail, activeAdvert, advert, ...(bundleList || [])];
+    for (const it of allItems) {
+      if (!it) continue;
+      const props = (it as any)?.properties;
+      if (props) {
+        const c = props.ekuriCode || props.ekuri_code || props.ekuriBundleCode || props.ekuri_bundle_code;
+        if (c && typeof c === 'string' && c.trim()) return c.trim();
+      }
+      if ((it as any).ekuriCode && typeof (it as any).ekuriCode === 'string') {
+        return (it as any).ekuriCode.trim();
+      }
+    }
+    // 2. Deterministic fallback from ekuriBundleId
+    const bId =
+      advert?.ekuriBundleId ||
+      (advert as any)?.properties?.ekuriBundleId ||
+      (activeAdvert as any)?.ekuriBundleId ||
+      bundleList[0]?.ekuriBundleId ||
+      (detail as any)?.ekuriBundleId;
+    if (bId) {
+      const clean = String(bId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase();
+      return `EKR-${clean}`;
+    }
+    const advId = advert?.identifier || advert?.id;
+    if (advId) {
+      return `EKR-${String(advId).padStart(6, '0').slice(-6)}`;
+    }
+    return null;
+  }, [detail, activeAdvert, advert, bundleList]);
+
   const activeMedia = !isVideoActive ? (mediaList[activeMediaIndex] ?? mediaList[0]) : null;
   const activeMediaUrl = activeMedia ? resolveMediaSrc(activeMedia) : null;
 
-  if (!advert) return null;
+  if (!activeAdvert && !advert) return null;
 
   return (
     <>
       <Modal
-        show={Boolean(advert)}
+        show={Boolean(activeAdvert || advert)}
         onHide={onClose}
         size="xl"
         centered
@@ -470,41 +849,402 @@ export default function AdvertDetailModal({
               <div className="text-muted small mb-1 d-flex align-items-center gap-1">
                 <span>Ana Sayfa</span>
                 <span>›</span>
-                <span>{resolvedCategory}</span>
-                <span>›</span>
-                <span className="text-dark fw-semibold">{detail?.title || advert.title}</span>
+                {activeTab === 'bundle' && bundleList.length > 1 ? (
+                  <>
+                    <span>Eküri</span>
+                    <span>›</span>
+                    <span className="text-dark fw-semibold">Eküri Paketi</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{resolvedCategory}</span>
+                    <span>›</span>
+                    <span className="text-dark fw-semibold">{detail?.title || activeAdvert?.title}</span>
+                  </>
+                )}
               </div>
               <div className="d-flex align-items-center gap-2 flex-wrap">
-                <h4 className="modal-title mb-0 fw-bold text-dark">
-                  {detail?.title || advert.title || 'İlan'}
+                <h4 className="modal-title mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                  <span>
+                    {activeTab === 'bundle' && bundleList.length > 1
+                      ? `Eküri Paketi (${bundleList.length} İlan)`
+                      : (detailMatchesActive && detail?.title ? detail.title : activeAdvert?.title || 'İlan')}
+                  </span>
+                  {loading && activeTab !== 'bundle' && (
+                    <Spinner animation="border" size="sm" variant="primary" className="ms-1" />
+                  )}
                 </h4>
-                <StatusBadge status={currentStatus} />
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(displayAdvertNo, 'headerAdvertNo')}
-                  className="badge bg-light text-dark border fw-normal text-decoration-none d-inline-flex align-items-center gap-1 cursor-pointer py-1 px-2"
-                  style={{ cursor: 'pointer', border: '1px solid #dee2e6' }}
-                  title="İlan No Kopyala"
-                >
-                  <span>#{displayAdvertNo}</span>
-                  <i className={`fe ${copiedKey === 'headerAdvertNo' ? 'fe-check text-success' : 'fe-copy'} ms-1`} style={{ fontSize: '11px' }} />
-                  {copiedKey === 'headerAdvertNo' && <span className="small text-success ms-1">Kopyalandı</span>}
-                </button>
+                {activeTab === 'bundle' && bundleList.length > 1 ? (
+                  <>
+                    <span
+                      className="badge fw-semibold px-2.5 py-1 text-white shadow-sm"
+                      style={{ backgroundColor: '#4f46e5', fontSize: '12px' }}
+                    >
+                      Eküri Paketi
+                    </span>
+                    {resolvedEkuriCode && (
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(resolvedEkuriCode, 'headerEkuriCode')}
+                        className="badge bg-light text-primary border fw-semibold text-decoration-none d-inline-flex align-items-center gap-1 cursor-pointer py-1 px-2 shadow-sm"
+                        style={{ cursor: 'pointer', border: '1px solid #c7d2fe', backgroundColor: '#eef2ff' }}
+                        title="Eküri Kodunu Kopyala"
+                      >
+                        <i className="fe fe-hash" style={{ fontSize: '11px' }} />
+                        <span>Kod: {resolvedEkuriCode}</span>
+                        <i
+                          className={`fe ${copiedKey === 'headerEkuriCode' ? 'fe-check text-success' : 'fe-copy text-muted'} ms-0.5`}
+                          style={{ fontSize: '10px' }}
+                        />
+                        {copiedKey === 'headerEkuriCode' && <span className="small text-success ms-1">Kopyalandı</span>}
+                      </button>
+                    )}
+                    {totalBundlePriceText && (
+                      <span className="badge bg-light text-dark border px-2 py-1 fw-bold">
+                        Toplam {totalBundlePriceText}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <StatusBadge status={currentStatus} />
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(displayAdvertNo, 'headerAdvertNo')}
+                      className="badge bg-light text-dark border fw-normal text-decoration-none d-inline-flex align-items-center gap-1 cursor-pointer py-1 px-2"
+                      style={{ cursor: 'pointer', border: '1px solid #dee2e6' }}
+                      title="İlan No Kopyala"
+                    >
+                      <span>#{displayAdvertNo}</span>
+                      <i className={`fe ${copiedKey === 'headerAdvertNo' ? 'fe-check text-success' : 'fe-copy'} ms-1`} style={{ fontSize: '11px' }} />
+                      {copiedKey === 'headerAdvertNo' && <span className="small text-success ms-1">Kopyalandı</span>}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
         </Modal.Header>
 
-        {/* Modal Body with Haradan Advert Page Layout */}
+        {/* Eküri Bundle Sekmeleri (Birden fazla ilan varsa tek panelde sekmeli görünüm) */}
+        {bundleList.length > 1 && (
+          <div
+            className="border-bottom px-4 py-2 d-flex align-items-center gap-2 overflow-auto"
+            style={{ backgroundColor: '#f8fafc' }}
+          >
+            <div className="d-flex align-items-center gap-1 me-1 flex-shrink-0">
+              <button
+                type="button"
+                onClick={handleSelectBundleTab}
+                className={`btn btn-sm d-inline-flex align-items-center gap-1.5 rounded-3 px-3 py-1.5 text-nowrap transition-all shadow-sm ${
+                  activeTab === 'bundle'
+                    ? 'text-white'
+                    : 'text-dark border bg-white'
+                }`}
+                style={{
+                  backgroundColor: activeTab === 'bundle' ? '#4f46e5' : '#ffffff',
+                  borderColor: activeTab === 'bundle' ? '#4f46e5' : '#cbd5e1',
+                  fontWeight: activeTab === 'bundle' ? 700 : 500,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
+              >
+                <i className="fe fe-layers" style={{ fontSize: '12px' }} />
+                <span>Eküri Paketi ({bundleList.length})</span>
+              </button>
+            </div>
+            <div className="d-flex align-items-center gap-2 flex-nowrap">
+              {bundleList.map((bundleItem, idx) => {
+                const bId = String(bundleItem.identifier ?? bundleItem.id ?? '').trim();
+                const isSelected =
+                  activeTab !== 'bundle' &&
+                  ((bId && bId === activeAdvertId) || activeTab === bId || activeTab === String(idx));
+                const statusStyle = getAdvertTabStatusStyle(bundleItem.status);
+
+                return (
+                  <button
+                    key={bId || idx}
+                    type="button"
+                    onClick={() => handleSelectTab(bundleItem, idx)}
+                    title={`${idx + 1}. İlan (${statusStyle.label})`}
+                    className={`btn btn-sm d-inline-flex align-items-center gap-2 rounded-3 px-3 py-1.5 text-nowrap transition-all ${
+                      isSelected
+                        ? 'btn-primary text-white shadow-sm'
+                        : 'btn-white text-secondary border bg-white'
+                    }`}
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: isSelected ? 600 : 500,
+                      borderColor: isSelected ? '#3b82f6' : '#cbd5e1',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span
+                      className={`badge rounded-pill ${
+                        isSelected ? 'bg-white text-primary' : 'bg-light text-muted border'
+                      }`}
+                      style={{ fontSize: '11px' }}
+                    >
+                      {idx + 1}. İlan
+                    </span>
+                    <StatusBadge status={bundleItem.status} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Modal Body with Haradan Advert Page Layout or Bundle Overview */}
         <Modal.Body className="p-3 p-md-4" style={{ backgroundColor: '#f8fafc' }}>
-          {loading && (
+          {activeTab === 'bundle' && bundleList.length > 1 ? (
+            <div className="d-flex flex-column gap-3">
+              {/* Bundle Summary Top Card */}
+              <Card className="border-0 shadow-sm rounded-4 bg-white overflow-hidden">
+                <Card.Body className="p-4">
+                  <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 pb-3 border-bottom mb-3">
+                    <div className="d-flex align-items-center gap-3">
+                      <div
+                        className="d-flex align-items-center justify-content-center rounded-3 text-white shadow-sm flex-shrink-0"
+                        style={{ width: '46px', height: '46px', backgroundColor: '#4f46e5' }}
+                      >
+                        <i className="fe fe-layers fs-3" />
+                      </div>
+                      <div>
+                        <h5 className="mb-0.5 fw-bold text-dark">Eküri Paketi Genel Bakış</h5>
+                        <div className="text-muted small">
+                          Bu eküri paketinde toplam <strong>{bundleList.length} adet</strong> bağlantılı ilan bulunmaktadır.
+                        </div>
+                      </div>
+                    </div>
+                    {totalBundlePriceText && (
+                      <div className="text-end">
+                        <div className="text-muted small fw-semibold">Toplam Paket Tutarı</div>
+                        <div className="fs-4 fw-bold text-primary">{totalBundlePriceText}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Seller / Contact Info & Eküri Kodu */}
+                  <div className="row g-3">
+                    <div className="col-12 col-md-6 col-lg-3">
+                      <div className="p-3 rounded-3 bg-light border h-100">
+                        <div className="text-muted small mb-1 d-flex align-items-center justify-content-between">
+                          <span>
+                            <i className="fe fe-hash me-1 text-primary" /> Eküri Kodu
+                          </span>
+                          <span
+                            className="badge bg-primary-subtle text-primary border border-primary-subtle"
+                            style={{ fontSize: '10px' }}
+                          >
+                            Havale Açıklaması
+                          </span>
+                        </div>
+                        <div className="d-flex align-items-center justify-content-between mt-1">
+                          <span className="fw-bold fs-6 text-primary">{resolvedEkuriCode || '-'}</span>
+                          {resolvedEkuriCode && (
+                            <Button
+                              size="sm"
+                              variant="outline-primary"
+                              className="py-0 px-2 d-inline-flex align-items-center gap-1"
+                              style={{ fontSize: '11px' }}
+                              onClick={() => copyToClipboard(resolvedEkuriCode, 'cardEkuriCode')}
+                            >
+                              <i
+                                className={`fe ${copiedKey === 'cardEkuriCode' ? 'fe-check text-success' : 'fe-copy'}`}
+                              />
+                              <span>{copiedKey === 'cardEkuriCode' ? 'Kopyalandı' : 'Kopyala'}</span>
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="col-12 col-md-6 col-lg-3">
+                      <div className="p-3 rounded-3 bg-light border h-100">
+                        <div className="text-muted small mb-1">
+                          <i className="fe fe-user me-1 text-primary" /> İlan Sahibi
+                        </div>
+                        <div className="fw-bold text-dark">{ownerName}</div>
+                      </div>
+                    </div>
+                    <div className="col-12 col-md-6 col-lg-3">
+                      <div className="p-3 rounded-3 bg-light border h-100">
+                        <div className="text-muted small mb-1">
+                          <i className="fe fe-phone me-1 text-success" /> İletişim Numarası
+                        </div>
+                        <div className="d-flex align-items-center justify-content-between">
+                          <span className="fw-bold text-dark">{phone || '-'}</span>
+                          {phone && (
+                            <Button
+                              size="sm"
+                              variant="success"
+                              className="py-0 px-2 d-inline-flex align-items-center gap-1"
+                              style={{ fontSize: '11px' }}
+                              onClick={() => openWhatsAppChat(phone)}
+                            >
+                              <i className="fe fe-message-circle" /> WP
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="col-12 col-md-6 col-lg-3">
+                      <div className="p-3 rounded-3 bg-light border h-100">
+                        <div className="text-muted small mb-1">
+                          <i className="fe fe-map-pin me-1 text-danger" /> Konum / Bölge
+                        </div>
+                        <div className="fw-bold text-dark">{resolvedLocation || 'Türkiye'}</div>
+                      </div>
+                    </div>
+                  </div>
+                </Card.Body>
+              </Card>
+
+              {/* Advert Rows List */}
+              <div className="d-flex flex-column gap-2.5">
+                <div className="d-flex align-items-center justify-content-between px-1">
+                  <span className="fw-bold text-secondary small text-uppercase" style={{ letterSpacing: '0.5px' }}>
+                    Paketteki İlanlar ({bundleList.length})
+                  </span>
+                  <span className="text-muted small">
+                    Her ilanın üzerine tıklayarak detaylı önizleme ekranına geçiş yapabilirsiniz.
+                  </span>
+                </div>
+
+                {bundleList.map((item, idx) => {
+                  const bId = item.identifier ?? item.id;
+                  const itemProps = (item as any)?.properties || {};
+                  const itemNo = resolveDisplayAdvertNo(bId, itemProps);
+                  const coverSrc = getItemCoverImage(item, idx);
+                  const itemCategory = getItemCategory(item, categoryMap, categoryName);
+                  const itemLocation = getItemLocation(item);
+                  const itemPrice = formatItemPrice(item);
+                  const horseTitle =
+                    itemProps.atadi ||
+                    itemProps.at_adi ||
+                    itemProps.horsename ||
+                    itemProps.horse_name ||
+                    item.title ||
+                    `${idx + 1}. İlan`;
+
+                  return (
+                    <Card
+                      key={bId || idx}
+                      className="border shadow-sm rounded-3 bg-white overflow-hidden"
+                      style={{ cursor: 'pointer', transition: 'all 0.15s ease-in-out' }}
+                      onClick={() => handleSelectTab(item, idx)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.12)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = '#e2e8f0';
+                        e.currentTarget.style.boxShadow = '';
+                      }}
+                    >
+                      <Card.Body className="p-3">
+                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                          {/* Left: Index + Thumbnail + Title/Details */}
+                          <div className="d-flex align-items-center gap-3" style={{ minWidth: '300px', flex: '1 1 340px' }}>
+                            {/* Index Badge */}
+                            <div
+                              className="d-flex flex-column align-items-center justify-content-center rounded-3 px-2 py-1 flex-shrink-0"
+                              style={{ backgroundColor: '#eef2ff', color: '#4f46e5', minWidth: '42px', height: '42px' }}
+                            >
+                              <span className="fw-bold fs-6">#{idx + 1}</span>
+                            </div>
+
+                            {/* Thumbnail: Haradan Advert Card Aspect Ratio (694.6 / 440) */}
+                            <div
+                              className="rounded-3 overflow-hidden bg-light border d-flex align-items-center justify-content-center flex-shrink-0 position-relative shadow-2xs"
+                              style={{
+                                width: '106px',
+                                height: '68px',
+                                aspectRatio: '694.6 / 440',
+                                backgroundColor: '#f8fafc',
+                              }}
+                            >
+                              <img
+                                src={coverSrc}
+                                alt={horseTitle}
+                                className="w-100 h-100"
+                                style={{ objectFit: 'cover', display: 'block' }}
+                                onError={(e) => {
+                                  const img = e.currentTarget;
+                                  const fallback = getDeterministicFallbackImage(item, idx);
+                                  if (img.src !== fallback) {
+                                    img.src = fallback;
+                                  } else if (!img.src.includes('placeholder')) {
+                                    img.src = '/images/placeholder/4by3.jpg';
+                                  }
+                                }}
+                              />
+                            </div>
+
+                            {/* Title & Meta */}
+                            <div className="d-flex flex-column">
+                              <div className="d-flex align-items-center gap-2 flex-wrap">
+                                <span className="fw-bold text-dark fs-6">{horseTitle}</span>
+                                {itemNo && (
+                                  <span className="badge bg-light text-secondary border px-1.5 py-0.5" style={{ fontSize: '11px' }}>
+                                    #{itemNo}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-muted small d-flex align-items-center gap-2 flex-wrap mt-0.5">
+                                <span className="d-inline-flex align-items-center gap-1">
+                                  <i className="fe fe-tag text-muted" style={{ fontSize: '11px' }} />
+                                  {itemCategory}
+                                </span>
+                                <span>•</span>
+                                <span className="d-inline-flex align-items-center gap-1">
+                                  <i className="fe fe-map-pin text-muted" style={{ fontSize: '11px' }} />
+                                  {itemLocation}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Price + Status + Action Button */}
+                          <div className="d-flex align-items-center gap-4 flex-wrap justify-content-end">
+                            {/* Price */}
+                            <div className="text-end" style={{ minWidth: '120px' }}>
+                              <div className="text-muted small" style={{ fontSize: '11px' }}>Fiyat</div>
+                              <div className="fw-bold fs-6 text-dark">{itemPrice}</div>
+                            </div>
+
+                            {/* Status */}
+                            <div style={{ minWidth: '110px' }} className="text-center">
+                              <StatusBadge status={item.status} />
+                            </div>
+
+                            {/* Inspect Button */}
+                            <Button
+                              variant="outline-primary"
+                              size="sm"
+                              className="d-flex align-items-center gap-1.5 rounded-3 px-3 py-1.5 fw-semibold shadow-sm text-nowrap"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectTab(item, idx);
+                              }}
+                            >
+                              <i className="fe fe-eye" />
+                              <span>Detayları İncele</span>
+                            </Button>
+                          </div>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          ) : loading && !activeAdvert && !detail ? (
             <div className="text-center py-5 bg-white rounded-3 shadow-sm my-3">
               <Spinner animation="border" variant="primary" role="status" />
               <div className="mt-3 text-muted fw-semibold">İlan sayfası hazırlanıyor...</div>
             </div>
-          )}
-
-          {!loading && error && (
+          ) : !activeAdvert && !detail && error ? (
             <Alert variant="danger" className="d-flex align-items-center justify-content-between shadow-sm">
               <div>
                 <i className="fe fe-alert-circle me-2 fs-5 align-middle" />
@@ -514,10 +1254,20 @@ export default function AdvertDetailModal({
                 <i className="fe fe-refresh-cw me-1" /> Tekrar Dene
               </Button>
             </Alert>
-          )}
-
-          {!loading && !error && (
-            <Row className="g-4">
+          ) : (
+            <>
+              {error && (
+                    <Alert variant="danger" className="mb-3 d-flex align-items-center justify-content-between shadow-sm">
+                      <div>
+                        <i className="fe fe-alert-circle me-2 fs-5 align-middle" />
+                        {error}
+                      </div>
+                      <Button size="sm" variant="outline-danger" onClick={() => void fetchDetail()}>
+                        <i className="fe fe-refresh-cw me-1" /> Tekrar Dene
+                      </Button>
+                    </Alert>
+                  )}
+                  <Row className="g-4">
                   {/* SOL KOLON: GALERİ VİTRİNİ & AÇIKLAMA */}
                   <Col lg={7}>
                     {/* Main Gallery Showcase */}
@@ -688,7 +1438,10 @@ export default function AdvertDetailModal({
                                 className="w-100 h-100 object-fit-contain"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
-                                  if (!target.src.includes('placeholder-img.jpg')) {
+                                  const fallback = getDeterministicFallbackImage(activeAdvert, activeMediaIndex);
+                                  if (target.src !== fallback) {
+                                    target.src = fallback;
+                                  } else if (!target.src.includes('placeholder-img.jpg')) {
                                     target.src = '/images/placeholder/placeholder-img.jpg';
                                   }
                                 }}
@@ -780,7 +1533,10 @@ export default function AdvertDetailModal({
                                   className="w-100 h-100 object-fit-contain bg-white"
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement;
-                                    if (!target.src.includes('placeholder-img.jpg')) {
+                                    const fallback = getDeterministicFallbackImage(activeAdvert, idx);
+                                    if (target.src !== fallback) {
+                                      target.src = fallback;
+                                    } else if (!target.src.includes('placeholder-img.jpg')) {
                                       target.src = '/images/placeholder/placeholder-img.jpg';
                                     }
                                   }}
@@ -1069,70 +1825,124 @@ export default function AdvertDetailModal({
                     </Card>
                   </Col>
                 </Row>
-          )}
+              </>
+            )}
         </Modal.Body>
 
         {/* Modal Footer with Moderator Action Buttons */}
         <Modal.Footer className="d-flex justify-content-between align-items-center bg-white border-top px-4 py-3">
-          <div className="d-flex gap-2 flex-wrap align-items-center">
-            {canApprove && onApprove && (
-              <Button
-                size="sm"
-                variant="success"
-                className="d-flex align-items-center gap-1 shadow-sm px-3 fw-semibold"
-                onClick={() => {
-                  onClose();
-                  onApprove(advert);
-                }}
-              >
-                <i className="fe fe-check" /> {isSuspended ? 'Yayınla' : 'İlanı Onayla'}
-              </Button>
-            )}
-            {canReject && onReject && (
-              <Button
-                size="sm"
-                variant="danger"
-                className="d-flex align-items-center gap-1 shadow-sm px-3 fw-semibold"
-                onClick={() => {
-                  onClose();
-                  onReject(advert);
-                }}
-              >
-                <i className="fe fe-x" /> İlanı Reddet
-              </Button>
-            )}
-            {canSuspend && onSuspend && (
-              <Button
-                size="sm"
-                variant="secondary"
-                className="d-flex align-items-center gap-1 shadow-sm px-3 fw-semibold text-white"
-                onClick={() => {
-                  onClose();
-                  onSuspend(advert);
-                }}
-              >
-                <i className="fe fe-slash" /> Yayından Kaldır
-              </Button>
-            )}
-          </div>
-          <div className="d-flex gap-2 align-items-center">
-            {isPublished && (displayAdvertNo || advertId) && (
-              <Button
-                as="a"
-                href={buildAdvertDetailUrl(displayAdvertNo || advertId || '')}
-                target="_blank"
-                rel="noopener noreferrer"
-                variant="primary"
-                size="sm"
-                className="d-flex align-items-center gap-1 px-3 fw-semibold shadow-sm text-decoration-none"
-              >
-                <i className="fe fe-external-link" /> Gerçek İlana Git
-              </Button>
-            )}
-            <Button variant="outline-secondary" size="sm" className="px-4" onClick={onClose}>
-              Kapat
-            </Button>
-          </div>
+          {activeTab === 'bundle' && bundleList.length > 1 ? (
+            <>
+              <div className="d-flex gap-2 flex-wrap align-items-center">
+                {canApproveBundle && onApproveBundle && (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="d-flex align-items-center gap-1.5 shadow-sm px-3 fw-semibold text-white"
+                    style={{ backgroundColor: '#4f46e5', borderColor: '#4f46e5' }}
+                    onClick={() => {
+                      onClose();
+                      onApproveBundle(bundleList);
+                    }}
+                  >
+                    <i className="fe fe-check-circle" /> Tüm Eküriyi Onayla ({bundleList.length} İlan)
+                  </Button>
+                )}
+                {canRejectBundle && (onRejectBundle || onReject) && (
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    className="d-flex align-items-center gap-1.5 shadow-sm px-3 fw-semibold"
+                    onClick={() => {
+                      onClose();
+                      if (onRejectBundle && bundleList.length > 1) {
+                        onRejectBundle(bundleList);
+                      } else if (onReject && activeAdvert) {
+                        onReject(activeAdvert);
+                      }
+                    }}
+                  >
+                    <i className="fe fe-x" /> Tüm Eküriyi Reddet
+                  </Button>
+                )}
+              </div>
+              <div className="d-flex gap-2 align-items-center">
+                <Button variant="outline-secondary" size="sm" className="px-4" onClick={onClose}>
+                  Kapat
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="d-flex gap-2 flex-wrap align-items-center">
+                {canApprove && onApprove && (
+                  <Button
+                    size="sm"
+                    variant="success"
+                    className="d-flex align-items-center gap-1 shadow-sm px-3 fw-semibold"
+                    onClick={() => {
+                      onClose();
+                      if (activeAdvert) onApprove(activeAdvert);
+                    }}
+                  >
+                    <i className="fe fe-check" />{' '}
+                    {isSuspended
+                      ? 'Yayınla'
+                      : bundleList.length > 1
+                      ? `${activeTabIdx >= 0 ? activeTabIdx + 1 : 1}. İlanı Onayla`
+                      : 'İlanı Onayla'}
+                  </Button>
+                )}
+                {canReject && onReject && (
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    className="d-flex align-items-center gap-1 shadow-sm px-3 fw-semibold"
+                    onClick={() => {
+                      onClose();
+                      if (activeAdvert) onReject(activeAdvert);
+                    }}
+                  >
+                    <i className="fe fe-x" />{' '}
+                    {bundleList.length > 1
+                      ? `${activeTabIdx >= 0 ? activeTabIdx + 1 : 1}. İlanı Reddet`
+                      : 'İlanı Reddet'}
+                  </Button>
+                )}
+                {canSuspend && onSuspend && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="d-flex align-items-center gap-1 shadow-sm px-3 fw-semibold text-white"
+                    onClick={() => {
+                      onClose();
+                      if (activeAdvert) onSuspend(activeAdvert);
+                    }}
+                  >
+                    <i className="fe fe-slash" /> Yayından Kaldır
+                  </Button>
+                )}
+              </div>
+              <div className="d-flex gap-2 align-items-center">
+                {isPublished && (displayAdvertNo || advertId) && (
+                  <Button
+                    as="a"
+                    href={buildAdvertDetailUrl(displayAdvertNo || advertId || '')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    variant="primary"
+                    size="sm"
+                    className="d-flex align-items-center gap-1 px-3 fw-semibold shadow-sm text-decoration-none"
+                  >
+                    <i className="fe fe-external-link" /> Gerçek İlana Git
+                  </Button>
+                )}
+                <Button variant="outline-secondary" size="sm" className="px-4" onClick={onClose}>
+                  Kapat
+                </Button>
+              </div>
+            </>
+          )}
         </Modal.Footer>
       </Modal>
     </>
