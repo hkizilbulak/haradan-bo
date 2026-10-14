@@ -516,4 +516,29 @@
     box-shadow: 0 8px 24px rgba(225, 29, 72, 0.15) !important;
     border-color: #f472b6 !important;
   }
-}
+}
+
+// 13. Eküri Tabs Navigation (No vertical scroll, clean horizontal scroll)
+.ekuri-tabs-nav {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  -webkit-overflow-scrolling: touch;
+
+  &::-webkit-scrollbar {
+    height: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 9999px;
+
+    &:hover {
+      background-color: #94a3b8;
+    }
+  }
+}
+

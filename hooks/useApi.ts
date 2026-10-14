@@ -55,21 +55,32 @@ const useApi = <T>({ service, params = initialParameters as SearchParams<T> }: I
     }
 
     useEffect(() => {
+        let isCurrent = true;
         const fetchData = async () => {
             setIsError(false);
             setIsLoading(true);
 
             try {
                 const response = await service.search(parameters);
-                setData(response)
+                if (isCurrent) {
+                    setData(response);
+                }
             } catch (error) {
-                setIsError(true);
+                if (isCurrent) {
+                    setIsError(true);
+                }
+            } finally {
+                if (isCurrent) {
+                    setIsLoading(false);
+                }
             }
-
-            setIsLoading(false);
         };
 
         fetchData();
+
+        return () => {
+            isCurrent = false;
+        };
     }, [parameters, isRefetch]);
 
     return [{ data, parameters, isLoading, isError, handleFilter, handlePageChange, setParameters, refetch }];

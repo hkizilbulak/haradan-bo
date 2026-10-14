@@ -459,7 +459,8 @@ class AdvertService {
     async search(params: SearchParams<ModerationAdvertResponse>) {
         const status = parseStatusFilter(params.filter);
 
-        const items = await this.fetchAll(status);
+        // Fetch all adverts so we can resolve complete Eküri bundles across all statuses
+        const items = await this.fetchAll();
 
         // Pre-build a full bundle map across all fetched items
         // so every bundle knows all of its member adverts regardless of filters/paging
@@ -473,7 +474,7 @@ class AdvertService {
             }
         }
 
-        const filtered = this.applyFilter(items, params.filter);
+        const filtered = this.applyFilter(items, params.filter, fullBundleMap);
 
         const STATUS_PRIORITY: Record<string, number> = {
             'PENDING_REVIEW': 1,
@@ -510,8 +511,32 @@ class AdvertService {
                 }
                 seenBundles.add(bId);
                 const bundleMembers = fullBundleMap.get(bId) || [advert];
+
+                let repAdvert = advert;
+                if (status === 'PUBLISHED') {
+                    const pub = bundleMembers.find((m) => m.status === 'PUBLISHED');
+                    if (pub) repAdvert = pub;
+                } else if (status === 'UNPUBLISHED' || !status) {
+                    const unpub = bundleMembers.find((m) => m.status === 'PENDING_REVIEW')
+                        || bundleMembers.find((m) => m.status === 'CHANGES_REQUESTED')
+                        || bundleMembers.find((m) => m.status === 'REJECTED')
+                        || bundleMembers.find((m) => m.status === 'SUSPENDED')
+                        || bundleMembers.find((m) => m.status === 'ARCHIVED');
+                    if (unpub) {
+                        repAdvert = unpub;
+                    } else if (status === 'UNPUBLISHED') {
+                        continue;
+                    }
+                } else if (status === 'SUSPENDED') {
+                    const susp = bundleMembers.find((m) => m.status === 'SUSPENDED' || m.status === 'ARCHIVED');
+                    if (susp) repAdvert = susp;
+                } else if (status) {
+                    const match = bundleMembers.find((m) => m.status === status);
+                    if (match) repAdvert = match;
+                }
+
                 grouped.push({
-                    ...advert,
+                    ...repAdvert,
                     bundleAdverts: bundleMembers,
                     bundleCount: bundleMembers.length,
                 });
@@ -526,7 +551,7 @@ class AdvertService {
     async getBundleAdverts(bundleId: string): Promise<ModerationAdvertResponse[]> {
         if (!bundleId) return [];
         try {
-            const res = await apiRequest<{ items: OwnerAdvertItem[] }>('GET', `/v1/admin/adverts/bundle/${bundleId}`);
+            const res = await apiRequest<{ items: OwnerAdvertItem[] }>('GET', `${moderationRootUrl}/bundle/${bundleId}`);
             if (res?.items && Array.isArray(res.items) && res.items.length > 0) {
                 return res.items.map(toModerationAdvert);
             }
@@ -535,7 +560,10 @@ class AdvertService {
         }
         try {
             const all = await this.fetchAll();
-            const matched = all.filter((a) => getEkuriBundleId(a) === bundleId);
+            const matched = all.filter((a) => {
+                const b = getEkuriBundleId(a);
+                return b === bundleId || (a as any).properties?.ekuriCode === bundleId || (a as any).properties?.ekuriBundleCode === bundleId;
+            });
             if (matched.length > 0) return matched;
         } catch { }
         return [];
@@ -789,6 +817,7 @@ class AdvertService {
         const items: OwnerAdvertItem[] = [];
         let cursor: string | undefined;
         let hasMore = true;
+        let fetchFailed = false;
 
         while (hasMore) {
             try {
@@ -806,6 +835,7 @@ class AdvertService {
             } catch (err) {
                 console.error('Moderation API fetch error:', err);
                 hasMore = false;
+                fetchFailed = true;
             }
         }
 
@@ -817,14 +847,15 @@ class AdvertService {
                 filteredBackendItems = items.filter((item) => item.status === status);
             }
         } else if (status === 'UNPUBLISHED') {
-            filteredBackendItems = items.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED' || item.status === 'ARCHIVED');
+            filteredBackendItems = items.filter((item) => item.status === 'PENDING_REVIEW' || item.status === 'CHANGES_REQUESTED' || item.status === 'REJECTED' || item.status === 'SUSPENDED' || item.status === 'ARCHIVED');
         }
 
-        if (filteredBackendItems.length === 0) {
+        // Only fallback to mock adverts if the network request actually failed and returned no items
+        if (fetchFailed && filteredBackendItems.length === 0) {
             const localAdverts = getLocalMockAdverts().filter((a) => {
                 if (!status) return true;
                 if (status === 'SUSPENDED') return a.status === 'SUSPENDED' || a.status === 'ARCHIVED';
-                if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'REJECTED' || a.status === 'SUSPENDED' || a.status === 'ARCHIVED';
+                if (status === 'UNPUBLISHED') return a.status === 'PENDING_REVIEW' || a.status === 'CHANGES_REQUESTED' || a.status === 'REJECTED' || a.status === 'SUSPENDED' || a.status === 'ARCHIVED';
                 return a.status === status;
             });
             filteredBackendItems.push(...localAdverts);
@@ -876,7 +907,7 @@ class AdvertService {
         return items.map(toModerationAdvert);
     }
 
-    private applyFilter(items: ModerationAdvertResponse[], filter?: string) {
+    private applyFilter(items: ModerationAdvertResponse[], filter?: string, fullBundleMap?: Map<string, ModerationAdvertResponse[]>) {
         if (!filter) {
             return items;
         }
@@ -889,8 +920,22 @@ class AdvertService {
         return items.filter((item) => clauses.every((clause) => {
             if (clause.startsWith('status==')) {
                 const statusVal = clause.slice('status=='.length).trim();
+                const bId = getEkuriBundleId(item);
+                if (bId && fullBundleMap) {
+                    const members = fullBundleMap.get(bId) || [item];
+                    if (statusVal === 'PUBLISHED') {
+                        return members.some((m) => m.status === 'PUBLISHED');
+                    }
+                    if (statusVal === 'UNPUBLISHED') {
+                        return members.some((m) => m.status === 'PENDING_REVIEW' || m.status === 'CHANGES_REQUESTED' || m.status === 'REJECTED' || m.status === 'SUSPENDED' || m.status === 'ARCHIVED');
+                    }
+                    if (statusVal === 'SUSPENDED') {
+                        return members.some((m) => m.status === 'SUSPENDED' || m.status === 'ARCHIVED');
+                    }
+                    return members.some((m) => m.status === statusVal);
+                }
                 if (statusVal === 'UNPUBLISHED') {
-                    return item.status === 'PENDING_REVIEW' || item.status === 'REJECTED' || item.status === 'SUSPENDED' || item.status === 'ARCHIVED';
+                    return item.status === 'PENDING_REVIEW' || item.status === 'CHANGES_REQUESTED' || item.status === 'REJECTED' || item.status === 'SUSPENDED' || item.status === 'ARCHIVED';
                 }
                 if (statusVal === 'SUSPENDED') {
                     return item.status === 'SUSPENDED' || item.status === 'ARCHIVED';

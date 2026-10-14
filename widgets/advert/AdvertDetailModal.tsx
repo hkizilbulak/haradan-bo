@@ -234,27 +234,27 @@ export default function AdvertDetailModal({
     setSelectedAdvert(advert);
     setDetail(null);
 
-    if (bundleAdverts && bundleAdverts.length > 1) {
+    const bId = resolveBundleId(advert);
+    if (bundleAdverts && bundleAdverts.length > 0) {
       setBundleList(bundleAdverts);
-      setActiveTab('bundle');
-      return;
+      if (bundleAdverts.length > 1) {
+        setActiveTab('bundle');
+      } else {
+        setActiveTab(curId);
+      }
+    } else {
+      setActiveTab(curId);
     }
 
-    const bId = resolveBundleId(advert);
     if (bId) {
-      if (bundleAdverts && bundleAdverts.length === 1) {
-        setBundleList(bundleAdverts);
-      }
       let isMounted = true;
       advertService
         .getBundleAdverts(bId)
         .then((items) => {
           if (isMounted && items && items.length > 0) {
-            setBundleList(items);
+            setBundleList((prev) => (items.length >= prev.length ? items : prev));
             if (items.length > 1) {
               setActiveTab((prev) => (prev === '' || prev === curId ? 'bundle' : prev));
-            } else {
-              setActiveTab(curId);
             }
           }
         })
@@ -262,9 +262,8 @@ export default function AdvertDetailModal({
       return () => {
         isMounted = false;
       };
-    } else {
-      setBundleList(bundleAdverts ?? []);
-      setActiveTab(curId);
+    } else if (!bundleAdverts || bundleAdverts.length === 0) {
+      setBundleList([]);
     }
   }, [advert, bundleAdverts]);
 
@@ -929,8 +928,15 @@ export default function AdvertDetailModal({
         {/* Eküri Bundle Sekmeleri (Birden fazla ilan varsa tek panelde sekmeli görünüm) */}
         {bundleList.length > 1 && (
           <div
-            className="border-bottom px-4 py-2 d-flex align-items-center gap-2 overflow-auto"
-            style={{ backgroundColor: '#f8fafc' }}
+            className="border-bottom px-4 ekuri-tabs-nav d-flex align-items-center gap-2"
+            style={{
+              backgroundColor: '#f8fafc',
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              minHeight: '56px',
+              paddingTop: '10px',
+              paddingBottom: '10px',
+            }}
           >
             <div className="d-flex align-items-center gap-1 me-1 flex-shrink-0">
               <button
@@ -953,7 +959,7 @@ export default function AdvertDetailModal({
                 <span>Eküri Paketi ({bundleList.length})</span>
               </button>
             </div>
-            <div className="d-flex align-items-center gap-2 flex-nowrap">
+            <div className="d-flex align-items-center gap-2 flex-nowrap flex-shrink-0">
               {bundleList.map((bundleItem, idx) => {
                 const bId = String(bundleItem.identifier ?? bundleItem.id ?? '').trim();
                 const isSelected =

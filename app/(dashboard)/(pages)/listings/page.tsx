@@ -81,12 +81,23 @@ function AdvertsContent() {
     }
   }, [tabParam, tab]);
 
+  const handleTabChange = useCallback((newTab: 'published' | 'unpublished') => {
+    setTab(newTab);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', newTab);
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
+
+  const initialParams = useMemo(() => ({
+    filter: initialTab === 'published' ? 'status==PUBLISHED' : 'status==UNPUBLISHED',
+    pageRequest: { page: 0, size: 10, sort: [{ direction: 'DESC', property: 'createdDate' }] },
+  }), [initialTab]);
+
   const [{ data, parameters, isLoading, isError, handleFilter, handlePageChange, setParameters, refetch }] = useApi<ModerationAdvertResponse>({
     service: advertService,
-    params: {
-      filter: initialTab === 'published' ? 'status==PUBLISHED' : 'status==UNPUBLISHED',
-      pageRequest: { page: 0, size: 10, sort: [{ direction: 'DESC', property: 'createdDate' }] },
-    } as any,
+    params: initialParams as any,
   });
 
   // Effect to resolve missing owner details for currently displayed adverts
@@ -390,11 +401,34 @@ function AdvertsContent() {
           continue; // Aynı eküri paketindeki mükerrer satırları engelle
         }
         seenBundles.add(bId);
+
+        // Paket durumunu aktif sekmeye göre denetle
+        const bundleMembers = advert.bundleAdverts || bundleMap.get(bId) || [advert];
+        if (tab === 'unpublished') {
+          const hasUnpublished = bundleMembers.some((m) =>
+            m.status === 'PENDING_REVIEW' ||
+            m.status === 'CHANGES_REQUESTED' ||
+            m.status === 'REJECTED' ||
+            m.status === 'SUSPENDED' ||
+            m.status === 'ARCHIVED'
+          );
+          if (!hasUnpublished) continue;
+        } else if (tab === 'published') {
+          const hasPublished = bundleMembers.some((m) => m.status === 'PUBLISHED');
+          if (!hasPublished) continue;
+        }
+      } else {
+        if (tab === 'unpublished' && advert.status === 'PUBLISHED') {
+          continue;
+        }
+        if (tab === 'published' && advert.status !== 'PUBLISHED') {
+          continue;
+        }
       }
       list.push(advert);
     }
     return list;
-  }, [data?.content]);
+  }, [data?.content, bundleMap, tab]);
 
   const content = displayItems.map((advert) => {
     const advertId = advert.identifier ?? advert.id ?? '';
@@ -423,6 +457,28 @@ function AdvertsContent() {
 
     // Yayın Tarihi (publishedAt) - saatsiz gösterim
     const publishedDateText = advert.publishedAt ? formatDateForText(advert.publishedAt) : '-';
+
+    // Sekmeye göre durum rozeti belirleme
+    const displayStatus = (() => {
+      if (tab === 'unpublished') {
+        if (advert.status === 'PUBLISHED') {
+          const unpub = bundleItems?.find((m) => m.status === 'PENDING_REVIEW')
+            || bundleItems?.find((m) => m.status === 'CHANGES_REQUESTED')
+            || bundleItems?.find((m) => m.status === 'REJECTED')
+            || bundleItems?.find((m) => m.status === 'SUSPENDED')
+            || bundleItems?.find((m) => m.status === 'ARCHIVED');
+          if (unpub) return unpub.status;
+          return 'REJECTED';
+        }
+      } else if (tab === 'published') {
+        if (advert.status !== 'PUBLISHED') {
+          const pub = bundleItems?.find((m) => m.status === 'PUBLISHED');
+          if (pub) return pub.status;
+          return 'PUBLISHED';
+        }
+      }
+      return advert.status;
+    })();
 
     return (
       <tr key={advertId}>
@@ -464,7 +520,7 @@ function AdvertsContent() {
           </div>
         </td>
         <td className="text-nowrap">
-          <StatusBadge status={advert.status} />
+          <StatusBadge status={displayStatus} />
         </td>
         <td className="text-center text-nowrap">
           <div className="d-flex gap-1 align-items-center justify-content-center">
@@ -515,7 +571,7 @@ function AdvertsContent() {
           <Nav.Item className="flex-fill">
             <Nav.Link
               active={tab === 'unpublished'}
-              onClick={() => setTab('unpublished')}
+              onClick={() => handleTabChange('unpublished')}
               className={`px-2 px-sm-3 py-2 fw-semibold d-flex align-items-center justify-content-center gap-1 gap-sm-2 rounded-2 text-center text-nowrap ${tab === 'unpublished' ? 'active shadow-sm text-white' : 'text-muted'
                 }`}
               style={{ cursor: 'pointer', fontSize: '13px' }}
@@ -530,7 +586,7 @@ function AdvertsContent() {
           <Nav.Item className="flex-fill">
             <Nav.Link
               active={tab === 'published'}
-              onClick={() => setTab('published')}
+              onClick={() => handleTabChange('published')}
               className={`px-2 px-sm-3 py-2 fw-semibold d-flex align-items-center justify-content-center gap-1 gap-sm-2 rounded-2 text-center text-nowrap ${tab === 'published' ? 'active shadow-sm text-white' : 'text-muted'
                 }`}
               style={{ cursor: 'pointer', fontSize: '13px' }}

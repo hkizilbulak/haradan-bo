@@ -294,23 +294,22 @@ export default function PackageModal({
   }, [advert]);
 
   useEffect(() => {
+    const bId = advert?.ekuriBundleId || (advert as any)?.properties?.ekuriBundleId;
     if (bundleAdverts && bundleAdverts.length > 0) {
       setBundleList(bundleAdverts);
-      return;
     }
 
-    const bId = advert?.ekuriBundleId || (advert as any)?.properties?.ekuriBundleId;
     if (bId) {
       let isMounted = true;
       advertService.getBundleAdverts(bId).then((items) => {
         if (isMounted && items && items.length > 0) {
-          setBundleList(items);
+          setBundleList((prev) => (items.length >= prev.length ? items : prev));
         }
       }).catch(() => {});
       return () => {
         isMounted = false;
       };
-    } else {
+    } else if (!bundleAdverts || bundleAdverts.length === 0) {
       setBundleList([]);
     }
   }, [advert, bundleAdverts]);
@@ -4160,8 +4159,15 @@ export default function PackageModal({
         {/* Eküri Bundle Sekmeleri (Birden fazla ilan varsa sekmelerle geçiş) */}
         {bundleList.length > 1 && (
           <div
-            className="border-bottom px-4 py-2 d-flex align-items-center gap-2 overflow-auto"
-            style={{ backgroundColor: "#f8fafc" }}
+            className="border-bottom px-4 ekuri-tabs-nav d-flex align-items-center gap-2"
+            style={{
+              backgroundColor: "#f8fafc",
+              overflowX: "auto",
+              overflowY: "hidden",
+              minHeight: "56px",
+              paddingTop: "10px",
+              paddingBottom: "10px",
+            }}
           >
             <div className="d-flex align-items-center gap-1 me-2 flex-shrink-0">
               <span
@@ -4176,7 +4182,7 @@ export default function PackageModal({
                 <i className="fe fe-layers" /> Eküri Paketi ({bundleList.length} İlan)
               </span>
             </div>
-            <div className="d-flex align-items-center gap-2 flex-nowrap">
+            <div className="d-flex align-items-center gap-2 flex-nowrap flex-shrink-0">
               {bundleList.map((bundleItem, idx) => {
                 const bId = bundleItem.identifier ?? bundleItem.id;
                 const isSelected = bId === (activeAdvert.identifier ?? activeAdvert.id);
