@@ -466,7 +466,8 @@ class AdvertService {
         // so adverts with matching ekuriCode always resolve to the exact same bundle key!
         const codeToBundleId = new Map<string, string>();
         for (const item of items) {
-            const uuid = item.ekuriBundleId || item.ekuri_bundle_id || item.bundleId || item.properties?.ekuriBundleId || item.properties?.ekuri_bundle_id;
+            const anyItem = item as any;
+            const uuid = item.ekuriBundleId || anyItem.ekuri_bundle_id || anyItem.bundleId || item.properties?.ekuriBundleId || item.properties?.ekuri_bundle_id;
             const code = item.properties?.ekuriCode || item.properties?.ekuriBundleCode;
             if (uuid && code) {
                 codeToBundleId.set(String(code).trim(), String(uuid).trim());

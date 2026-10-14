@@ -35,6 +35,8 @@ export interface ModerationAdvertResponse extends BaseResponse {
   sellerPhone?: string | null;
   videoUrl?: string | null;
   ekuriBundleId?: string | null;
+  ekuri_bundle_id?: string | null;
+  bundleId?: string | null;
   bundleAdverts?: ModerationAdvertResponse[];
   bundleCount?: number;
   cover?: any;
