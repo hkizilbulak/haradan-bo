@@ -6,7 +6,7 @@ import StatusBadge from '@/components/StatusBadge';
 import { useAuth } from "@/context/AuthContext";
 import { formatDateForText, formatDateTimeForText } from '@/helpers/DateUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
-import { ModerationAdvertResponse } from '@/models';
+import { ModerationAdvertResponse, ModerationAdvertStatus } from '@/models';
 import { advertService, jobService, packageService, userService, bannerService, campaignService, categoryService, commentService, AdvertComment, ModerationReasonRequest } from '@/services';
 import { toast } from 'react-toastify';
 import { Skeleton, TableSkeleton } from '@/components/Skeleton';
@@ -31,6 +31,7 @@ export default function Home() {
     const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
     const [userMap, setUserMap] = useState<Map<string, { name?: string; email?: string }>>(new Map());
     const [detailAdvert, setDetailAdvert] = useState<ModerationAdvertResponse | null>(null);
+    const [lastUpdatedAdvert, setLastUpdatedAdvert] = useState<{ id: string; status: ModerationAdvertStatus } | null>(null);
     const [packageAdvert, setPackageAdvert] = useState<ModerationAdvertResponse | null>(null);
     const [pendingAction, setPendingAction] = useState<{
         advert: ModerationAdvertResponse;
@@ -262,10 +263,12 @@ export default function Home() {
     };
 
     const handleApprove = async (advert: ModerationAdvertResponse) => {
-        if (!advert.identifier || !advert.version) return;
+        const id = advert.identifier ?? advert.id;
+        if (!id || !advert.version) return;
         try {
-            await advertService.approve(advert.identifier, advert.version);
+            await advertService.approve(id, advert.version);
             toast.success('İlan onaylandı');
+            setLastUpdatedAdvert({ id, status: 'PUBLISHED' });
             void loadDashboardData();
         } catch (error) {
             toast.error(getErrorMessage(error));
@@ -344,6 +347,7 @@ export default function Home() {
                     reason: trimmedReason,
                 };
 
+                const targetStatus: ModerationAdvertStatus = pendingAction.action === 'reject' ? 'REJECTED' : 'SUSPENDED';
                 if (pendingAction.action === 'reject') {
                     await advertService.reject(advertId, payload);
                     toast.success('İlan reddedildi');
@@ -351,6 +355,7 @@ export default function Home() {
                     await advertService.suspend(advertId, payload);
                     toast.success('İlan yayından kaldırıldı');
                 }
+                setLastUpdatedAdvert({ id: advertId, status: targetStatus });
             }
 
             closeActionModal();
@@ -918,16 +923,31 @@ export default function Home() {
                             : undefined
                     }
                     categoryMap={categoryMap}
-                    onClose={() => setDetailAdvert(null)}
-                    onApprove={async (adv) => {
+                    lastUpdatedAdvert={lastUpdatedAdvert}
+                    onClose={() => {
                         setDetailAdvert(null);
+                        setLastUpdatedAdvert(null);
+                    }}
+                    onApprove={async (adv) => {
+                        const isEkuri = Boolean((adv as any)?.ekuriBundleId || (adv as any)?.properties?.ekuriBundleId);
+                        if (!isEkuri) {
+                            setDetailAdvert(null);
+                        }
                         await handleApprove(adv);
                     }}
                     onApproveBundle={async (adverts) => {
                         setDetailAdvert(null);
+                        const advertsToApprove = adverts.filter((adv) => {
+                            const s = adv.status ? adv.status.toUpperCase() : '';
+                            return s === 'PENDING_REVIEW' || s === 'WAITING_APPROVAL';
+                        });
+                        if (advertsToApprove.length === 0) {
+                            toast.error('Onaylanacak inceleme bekleyen ilan bulunamadı.');
+                            return;
+                        }
                         try {
                             const results = await Promise.allSettled(
-                                adverts.map((adv) => {
+                                advertsToApprove.map((adv) => {
                                     const id = adv.identifier ?? adv.id;
                                     if (id && adv.version) {
                                         return advertService.approve(id, adv.version);
@@ -943,7 +963,10 @@ export default function Home() {
                         }
                     }}
                     onReject={(adv) => {
-                        setDetailAdvert(null);
+                        const isEkuri = Boolean((adv as any)?.ekuriBundleId || (adv as any)?.properties?.ekuriBundleId);
+                        if (!isEkuri) {
+                            setDetailAdvert(null);
+                        }
                         openActionModal(adv, 'reject');
                     }}
                     onRejectBundle={(adverts) => {
@@ -951,14 +974,17 @@ export default function Home() {
                         openActionModalBundle(adverts, 'reject');
                     }}
                     onSuspend={(adv) => {
-                        setDetailAdvert(null);
+                        const isEkuri = Boolean((adv as any)?.ekuriBundleId || (adv as any)?.properties?.ekuriBundleId);
+                        if (!isEkuri) {
+                            setDetailAdvert(null);
+                        }
                         openActionModal(adv, 'suspend');
                     }}
                 />
             )}
 
             {/* Moderasyon İşlemi Açılan Penceresi (Modal) */}
-            <Modal show={pendingAction !== null} onHide={closeActionModal} centered backdrop="static">
+            <Modal show={pendingAction !== null} onHide={closeActionModal} centered backdrop="static" className="modal-higher-level" backdropClassName="modal-backdrop-higher">
                 <Modal.Header closeButton={!actionBusy} className="border-bottom-0 pb-1">
                     <div className="d-flex align-items-center gap-3">
                         <div

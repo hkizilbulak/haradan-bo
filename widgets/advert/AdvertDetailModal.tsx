@@ -8,7 +8,7 @@ import { formatMoney, getErrorMessage } from '@/helpers/HelperUtils';
 import { looksLikeHtml, sanitizeRichHtml } from '@/helpers/sanitizeHtml';
 import { canModerationAction } from '@/helpers/moderationActions';
 import { useResolvedLocation } from '@/helpers/location';
-import { ModerationAdvertResponse } from '@/models';
+import { ModerationAdvertResponse, ModerationAdvertStatus } from '@/models';
 import { advertService, ModerationAdvertDetail, AdvertPackageAssignment, DEFAULT_MOCK_MEDIA } from '@/services/advert.service';
 import { buildModerationAdvertSpecRows, resolveDisplayAdvertNo, SpecRow } from '@/helpers/advertCategoryHelper';
 import { parseVideoUrl, openVideoUrl } from '@/helpers/videoUrl';
@@ -25,6 +25,7 @@ interface AdvertDetailModalProps {
   bundleAdverts?: ModerationAdvertResponse[];
   onApproveBundle?: (adverts: ModerationAdvertResponse[]) => void;
   onRejectBundle?: (adverts: ModerationAdvertResponse[]) => void;
+  lastUpdatedAdvert?: { id: string; status: ModerationAdvertStatus; version?: number } | null;
 }
 
 function formatItemPrice(item: ModerationAdvertResponse): string {
@@ -190,6 +191,7 @@ export default function AdvertDetailModal({
   bundleAdverts,
   onApproveBundle,
   onRejectBundle,
+  lastUpdatedAdvert,
 }: AdvertDetailModalProps) {
   const [selectedAdvert, setSelectedAdvert] = useState<ModerationAdvertResponse | null>(advert);
   const [bundleList, setBundleList] = useState<ModerationAdvertResponse[]>(bundleAdverts ?? []);
@@ -291,6 +293,46 @@ export default function AdvertDetailModal({
     }
   }, [detail, bundleList.length, initialAdvertId]);
 
+  // Synchronize state when an advert inside the bundle is approved/rejected/suspended
+  useEffect(() => {
+    if (!lastUpdatedAdvert) return;
+    const { id, status } = lastUpdatedAdvert;
+    const cleanId = String(id).trim();
+
+    setBundleList((prev) =>
+      prev.map((item) => {
+        const itemId = String(item.identifier ?? item.id ?? '').trim();
+        if (itemId === cleanId) {
+          return { ...item, status, version: (item.version ?? 1) + 1 };
+        }
+        return item;
+      })
+    );
+
+    setSelectedAdvert((prev) => {
+      if (!prev) return prev;
+      const prevId = String(prev.identifier ?? prev.id ?? '').trim();
+      if (prevId === cleanId) {
+        return { ...prev, status, version: (prev.version ?? 1) + 1 };
+      }
+      return prev;
+    });
+
+    setDetail((prev) => {
+      if (!prev) return prev;
+      const prevId = String(prev.id ?? '').trim();
+      if (prevId === cleanId) {
+        return { ...prev, status, version: (prev.version ?? 1) + 1 };
+      }
+      return prev;
+    });
+
+    const activeId = String(activeAdvert?.identifier ?? activeAdvert?.id ?? '').trim();
+    if (activeId === cleanId) {
+      void fetchDetail(cleanId);
+    }
+  }, [lastUpdatedAdvert]);
+
   const activeAdvert = selectedAdvert ?? advert;
   const advertId = activeAdvert?.identifier ?? activeAdvert?.id;
   const activeAdvertId = String(advertId ?? '').trim();
@@ -354,14 +396,23 @@ export default function AdvertDetailModal({
   const isPublished = currentStatus === 'PUBLISHED' || activeAdvert?.status === 'PUBLISHED';
   const canApprove = activeAdvert ? (canModerationAction(currentStatus, 'approve') || isSuspended) : false;
   const canReject = activeAdvert ? canModerationAction(currentStatus, 'reject') : false;
-  const canApproveBundle =
-    bundleList.length > 0
-      ? bundleList.some((it) => canModerationAction(it.status, 'approve') || it.status === 'SUSPENDED' || it.status === 'ARCHIVED')
-      : canApprove;
-  const canRejectBundle =
-    bundleList.length > 0
-      ? bundleList.some((it) => canModerationAction(it.status, 'reject'))
-      : canReject;
+  const isPendingReviewStatus = (status?: string | null): boolean => {
+    if (!status) return false;
+    const s = status.toUpperCase();
+    return s === 'PENDING_REVIEW' || s === 'WAITING_APPROVAL';
+  };
+
+  const pendingReviewBundleAdverts = useMemo(() => {
+    return bundleList.filter((adv) => isPendingReviewStatus(adv.status));
+  }, [bundleList]);
+
+  const canApproveBundle = pendingReviewBundleAdverts.length > 0;
+
+  const rejectableBundleAdverts = useMemo(() => {
+    return bundleList.filter((adv) => isPendingReviewStatus(adv.status));
+  }, [bundleList]);
+
+  const canRejectBundle = rejectableBundleAdverts.length > 0;
   const canSuspend = activeAdvert ? canModerationAction(currentStatus, 'suspend') : false;
 
   const activeTabIdx = bundleList.findIndex(
@@ -1850,10 +1901,10 @@ export default function AdvertDetailModal({
                     style={{ backgroundColor: '#4f46e5', borderColor: '#4f46e5' }}
                     onClick={() => {
                       onClose();
-                      onApproveBundle(bundleList);
+                      onApproveBundle(pendingReviewBundleAdverts);
                     }}
                   >
-                    <i className="fe fe-check-circle" /> Tüm Eküriyi Onayla ({bundleList.length} İlan)
+                    <i className="fe fe-check-circle" /> Tümünü Onayla ({pendingReviewBundleAdverts.length} İlan)
                   </Button>
                 )}
                 {canRejectBundle && (onRejectBundle || onReject) && (
@@ -1864,7 +1915,7 @@ export default function AdvertDetailModal({
                     onClick={() => {
                       onClose();
                       if (onRejectBundle && bundleList.length > 1) {
-                        onRejectBundle(bundleList);
+                        onRejectBundle(rejectableBundleAdverts);
                       } else if (onReject && activeAdvert) {
                         onReject(activeAdvert);
                       }
@@ -1889,7 +1940,9 @@ export default function AdvertDetailModal({
                     variant="success"
                     className="d-flex align-items-center gap-1 shadow-sm px-3 fw-semibold"
                     onClick={() => {
-                      onClose();
+                      if (!isBundle && bundleList.length <= 1) {
+                        onClose();
+                      }
                       if (activeAdvert) onApprove(activeAdvert);
                     }}
                   >
@@ -1907,7 +1960,9 @@ export default function AdvertDetailModal({
                     variant="danger"
                     className="d-flex align-items-center gap-1 shadow-sm px-3 fw-semibold"
                     onClick={() => {
-                      onClose();
+                      if (!isBundle && bundleList.length <= 1) {
+                        onClose();
+                      }
                       if (activeAdvert) onReject(activeAdvert);
                     }}
                   >
@@ -1923,7 +1978,9 @@ export default function AdvertDetailModal({
                     variant="secondary"
                     className="d-flex align-items-center gap-1 shadow-sm px-3 fw-semibold text-white"
                     onClick={() => {
-                      onClose();
+                      if (!isBundle && bundleList.length <= 1) {
+                        onClose();
+                      }
                       if (activeAdvert) onSuspend(activeAdvert);
                     }}
                   >

@@ -9,7 +9,7 @@ import StatusBadge from '@/components/StatusBadge';
 import { formatDateForText, formatDateTimeForText } from '@/helpers/DateUtils';
 import { getErrorMessage } from '@/helpers/HelperUtils';
 import useApi from '@/hooks/useApi';
-import { ModerationAdvertResponse } from '@/models';
+import { ModerationAdvertResponse, ModerationAdvertStatus } from '@/models';
 import {
   advertService,
   categoryService,
@@ -42,6 +42,7 @@ function AdvertsContent() {
   const [packageAdvert, setPackageAdvert] = useState<ModerationAdvertResponse | null>(null);
   const [packageInitialTab, setPackageInitialTab] = useState<'manage' | 'edit' | 'card' | 'history' | 'payments'>('edit');
   const [detailAdvert, setDetailAdvert] = useState<ModerationAdvertResponse | null>(null);
+  const [lastUpdatedAdvert, setLastUpdatedAdvert] = useState<{ id: string; status: ModerationAdvertStatus } | null>(null);
   const [reason, setReason] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
   const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
@@ -229,6 +230,7 @@ function AdvertsContent() {
       await advertService.approve(advertId, advert.version);
       toast.success(advert.status === 'SUSPENDED' || advert.status === 'ARCHIVED' ? 'İlan yayınlandı' : 'İlan onaylandı');
       setPendingApprove(null);
+      setLastUpdatedAdvert({ id: advertId, status: 'PUBLISHED' });
       refetch();
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -239,10 +241,23 @@ function AdvertsContent() {
 
   const handleConfirmApproveBundle = async () => {
     if (!pendingApproveBundle || pendingApproveBundle.length === 0 || actionBusy) return;
+
+    // Strict filter: ONLY pending review adverts (rejects, suspended, published remain untouched)
+    const advertsToApprove = pendingApproveBundle.filter((adv) => {
+      const s = adv.status ? adv.status.toUpperCase() : '';
+      return s === 'PENDING_REVIEW' || s === 'WAITING_APPROVAL';
+    });
+
+    if (advertsToApprove.length === 0) {
+      toast.error('Onaylanacak inceleme bekleyen ilan bulunamadı.');
+      setPendingApproveBundle(null);
+      return;
+    }
+
     setActionBusy(true);
     try {
       const results = await Promise.allSettled(
-        pendingApproveBundle.map((adv) => {
+        advertsToApprove.map((adv) => {
           const id = adv.identifier ?? adv.id;
           if (id && adv.version) {
             return advertService.approve(id, adv.version);
@@ -252,6 +267,12 @@ function AdvertsContent() {
       );
       const successful = results.filter((r) => r.status === 'fulfilled').length;
       toast.success(`Eküri paketindeki ${successful} ilan onaylandı ve yayına alındı.`);
+      advertsToApprove.forEach((adv) => {
+        const id = adv.identifier ?? adv.id;
+        if (id) {
+          setLastUpdatedAdvert({ id, status: 'PUBLISHED' });
+        }
+      });
       setPendingApproveBundle(null);
       refetch();
     } catch (error) {
@@ -320,6 +341,13 @@ function AdvertsContent() {
           reason: trimmedReason,
         };
 
+        const targetStatus: ModerationAdvertStatus =
+          pendingAction.action === 'reject'
+            ? 'REJECTED'
+            : pendingAction.action === 'requestChanges'
+              ? 'CHANGES_REQUESTED'
+              : 'SUSPENDED';
+
         if (pendingAction.action === 'reject') {
           await advertService.reject(advertId, payload);
         } else if (pendingAction.action === 'requestChanges') {
@@ -329,6 +357,7 @@ function AdvertsContent() {
         }
 
         toast.success('Moderasyon işlemi tamamlandı');
+        setLastUpdatedAdvert({ id: advertId, status: targetStatus });
       }
 
       closeActionModal();
@@ -607,7 +636,7 @@ function AdvertsContent() {
       </div>
 
       {/* Moderasyon İşlemi Açılan Penceresi (Modal) */}
-      <Modal show={pendingAction !== null} onHide={closeActionModal} centered backdrop="static">
+      <Modal show={pendingAction !== null} onHide={closeActionModal} centered backdrop="static" className="modal-higher-level" backdropClassName="modal-backdrop-higher">
         <Modal.Header closeButton className="border-bottom-0 pb-1">
           <div className="d-flex align-items-center gap-3">
             <div
@@ -727,7 +756,7 @@ function AdvertsContent() {
       </Modal>
 
       {/* Yayınlama / Onaylama Onay Penceresi (Modal) */}
-      <Modal show={pendingApprove !== null} onHide={() => !actionBusy && setPendingApprove(null)} centered backdrop="static">
+      <Modal show={pendingApprove !== null} onHide={() => !actionBusy && setPendingApprove(null)} centered backdrop="static" className="modal-higher-level" backdropClassName="modal-backdrop-higher">
         <Modal.Header closeButton={!actionBusy} className="border-bottom-0 pb-1">
           <div className="d-flex align-items-center gap-3">
             <div
@@ -794,7 +823,7 @@ function AdvertsContent() {
       </Modal>
 
       {/* Eküri Paketi Toplu Onaylama Onay Penceresi (Modal) */}
-      <Modal show={pendingApproveBundle !== null} onHide={() => !actionBusy && setPendingApproveBundle(null)} centered backdrop="static">
+      <Modal show={pendingApproveBundle !== null} onHide={() => !actionBusy && setPendingApproveBundle(null)} centered backdrop="static" className="modal-higher-level" backdropClassName="modal-backdrop-higher">
         <Modal.Header closeButton={!actionBusy} className="border-bottom-0 pb-1">
           <div className="d-flex align-items-center gap-3">
             <div
@@ -806,7 +835,7 @@ function AdvertsContent() {
             <div>
               <Modal.Title className="h5 mb-0 fw-bold">Eküri Paketini Onayla</Modal.Title>
               <small className="text-muted">
-                Eküri paketindeki tüm ilanları onaylayıp yayına almak üzeresiniz.
+                Eküri paketinde inceleme bekleyen ilanları onaylayıp yayına almak üzeresiniz.
               </small>
             </div>
           </div>
@@ -838,7 +867,7 @@ function AdvertsContent() {
             </div>
           )}
           <p className="text-muted mb-0" style={{ fontSize: '14.5px', lineHeight: '1.5' }}>
-            Bu eküri paketine ait {pendingApproveBundle?.length ?? 0} ilan eş zamanlı olarak onaylanıp yayına alınacaktır. Devam etmek istiyor musunuz?
+            Bu eküri paketine ait {pendingApproveBundle?.length ?? 0} inceleme bekleyen ilan eş zamanlı olarak onaylanıp yayına alınacaktır. Devam etmek istiyor musunuz?
           </p>
         </Modal.Body>
         <Modal.Footer className="border-top-0 pt-1">
@@ -905,7 +934,11 @@ function AdvertsContent() {
             : undefined
         }
         categoryMap={categoryMap}
-        onClose={() => setDetailAdvert(null)}
+        lastUpdatedAdvert={lastUpdatedAdvert}
+        onClose={() => {
+          setDetailAdvert(null);
+          setLastUpdatedAdvert(null);
+        }}
         onApprove={(adv) => setPendingApprove(adv)}
         onApproveBundle={(adverts) => setPendingApproveBundle(adverts)}
         onReject={(adv) => openActionModal(adv, 'reject')}

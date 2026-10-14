@@ -2,7 +2,7 @@
 import { Alert, Badge, Button, Card, Col, Container, Form, Nav, Offcanvas, Row } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import { Trash2 } from 'react-feather';
+import { Trash2, User, Layers } from 'react-feather';
 import Loading from '@/components/Loading';
 import RichTextEditor from '@/components/RichTextEditor';
 import SafeRichText from '@/components/SafeRichText';
@@ -20,7 +20,7 @@ import { PageHeading } from '@/widgets';
 import { toast } from 'react-toastify';
 
 const headItemsIndividual = ['Ad', 'Fiyat', 'Durum', 'Oluşturulma', 'İşlemler'];
-const headItemsEkuri = ['Ad', 'At Kapasitesi', 'Fiyat', 'Durum', 'Oluşturulma', 'İşlemler'];
+const headItemsEkuri = ['Ad', 'İlan Kapasitesi', 'Fiyat', 'Durum', 'Oluşturulma', 'İşlemler'];
 
 const initialValues: PackageRequest = {
   displayName: '',
@@ -51,7 +51,7 @@ function PackagePreview({ value }: { value: PackageRequest }) {
       <Card.Header className="small text-muted d-flex justify-content-between align-items-center">
         <span>Canlı Önizleme</span>
         {value.packageType === 'EKURI' ? (
-          <Badge bg="info">Eküri Paketi ({value.horseLimit ? `${value.horseLimit} At` : 'Kapasite girilmedi'})</Badge>
+          <Badge bg="info">Eküri Paketi ({value.horseLimit ? `${value.horseLimit} İlan` : 'Kapasite girilmedi'})</Badge>
         ) : (
           <Badge bg="secondary">Bireysel Paket</Badge>
         )}
@@ -127,7 +127,7 @@ function PackageModal({
     packageType: Yup.string().oneOf(['INDIVIDUAL', 'EKURI']).required(),
     horseLimit: Yup.number().nullable().when('packageType', {
       is: 'EKURI',
-      then: (s) => s.required('Eküri paketi için at kapasitesi zorunludur').min(2, 'En az 2 at olmalıdır').max(50, 'En fazla 50 at olabilir'),
+      then: (s) => s.required('Eküri paketi için ilan kapasitesi zorunludur').min(2, 'En az 2 ilan olmalıdır').max(50, 'En fazla 50 ilan olabilir'),
       otherwise: (s) => s.nullable(),
     }),
     benefits: Yup.array().of(Yup.string()).test('benefits', 'En az bir fayda yazın', (items) =>
@@ -140,7 +140,11 @@ function PackageModal({
   return (
     <Offcanvas show={true} onHide={onClose} scroll placement="end" style={{ width: 'min(900px, 100vw)' }}>
       <Offcanvas.Header closeButton>
-        <Offcanvas.Title>{isNew ? 'Yeni Paket' : 'Paket Düzenle'}</Offcanvas.Title>
+        <Offcanvas.Title>
+          {isNew
+            ? (defaultPackageType === 'EKURI' ? 'Yeni Eküri Paketi' : 'Yeni Bireysel Paket')
+            : (selectedPackage?.packageType === 'EKURI' ? 'Eküri Paketini Düzenle' : 'Bireysel Paketi Düzenle')}
+        </Offcanvas.Title>
       </Offcanvas.Header>
       <Offcanvas.Body>
         <Formik
@@ -162,38 +166,9 @@ function PackageModal({
             const isFormChanged = isNew ? true : (dirty || priceInput !== formatMoneyInput(selectedPackage?.displayPrice?.amountMinor));
             return (
               <Form noValidate onSubmit={handleSubmit}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Paket Türü</Form.Label>
-                  <div className="d-flex gap-3">
-                    <Form.Check
-                      type="radio"
-                      id="package-type-individual"
-                      label="Bireysel Paket"
-                      name="packageType"
-                      value="INDIVIDUAL"
-                      checked={values.packageType !== 'EKURI'}
-                      onChange={() => {
-                        void setFieldValue('packageType', 'INDIVIDUAL');
-                        void setFieldValue('horseLimit', null);
-                      }}
-                    />
-                    <Form.Check
-                      type="radio"
-                      id="package-type-ekuri"
-                      label="Eküri Paketi (Toplu İlan)"
-                      name="packageType"
-                      value="EKURI"
-                      checked={values.packageType === 'EKURI'}
-                      onChange={() => {
-                        void setFieldValue('packageType', 'EKURI');
-                        if (!values.horseLimit) void setFieldValue('horseLimit', 5);
-                      }}
-                    />
-                  </div>
-                </Form.Group>
                 {values.packageType === 'EKURI' && (
                   <Form.Group className="mb-3">
-                    <Form.Label>At Kapasitesi (İlan Sayısı)</Form.Label>
+                    <Form.Label>İlan Kapasitesi</Form.Label>
                     <Form.Control
                       type="number"
                       min={2}
@@ -204,7 +179,7 @@ function PackageModal({
                       isInvalid={touched.horseLimit && !!errors.horseLimit}
                       placeholder="Örn. 5 veya 10"
                     />
-                    <Form.Text muted>Bu eküri paketinin kapsadığı sabit at / ilan kapasitesi.</Form.Text>
+                    <Form.Text muted>Bu eküri paketinin kapsadığı toplam ilan kapasitesi.</Form.Text>
                     <Form.Control.Feedback type="invalid">{errors.horseLimit as string}</Form.Control.Feedback>
                   </Form.Group>
                 )}
@@ -450,35 +425,58 @@ export default function PackagesPage() {
     }
   };
 
+  const isCapacityBadge = (badge?: string | null) => {
+    if (!badge) return false;
+    return /\d+/.test(badge);
+  };
+
   const headItems = activeTab === 'EKURI' ? headItemsEkuri : headItemsIndividual;
 
-  const content = filteredPackages.map((pkg, index) => (
-    <tr key={pkg.code}>
-      <td>
-        <span className="fw-semibold">{pkg.displayName}</span>
-        {pkg.badgeText && <Badge bg="primary" className="ms-2">{pkg.badgeText}</Badge>}
-      </td>
-      {activeTab === 'EKURI' && (
+  const content = filteredPackages.map((pkg, index) => {
+    const showAdBadge = pkg.badgeText && (activeTab !== 'EKURI' || !isCapacityBadge(pkg.badgeText));
+    const capacityText = pkg.horseLimit ? `${pkg.horseLimit} İlan` : (pkg.badgeText || 'Belirtilmedi');
+
+    const isLast = index === filteredPackages.length - 1;
+    const isSingle = filteredPackages.length <= 1;
+
+    return (
+      <tr key={pkg.code}>
         <td>
-          <Badge bg="info" className="fs-6 px-2 py-1">
-            {pkg.horseLimit ? `${pkg.horseLimit} At` : 'Belirtilmedi'}
-          </Badge>
+          <span className="fw-semibold">{pkg.displayName}</span>
+          {showAdBadge && <Badge bg="primary" className="ms-2">{pkg.badgeText}</Badge>}
         </td>
-      )}
-      <td>{formatMoney(pkg.displayPrice?.amountMinor, pkg.displayPrice?.currency ?? pkg.currencyCode)}</td>
-      <td><StatusBadge status={pkg.isActive ? 'ACTIVE' : 'INACTIVE'} /></td>
-      <td>{formatDateTimeForText(pkg.createdAt)}</td>
-      <td className="text-center text-nowrap">
-        <div className="d-flex flex-wrap gap-1 justify-content-center align-items-center">
-          <Button size="sm" variant="outline-secondary" disabled={reorderBusy || index === 0} onClick={() => void movePackage(index, -1)}>↑</Button>
-          <Button size="sm" variant="outline-secondary" disabled={reorderBusy || index === filteredPackages.length - 1} onClick={() => void movePackage(index, 1)}>↓</Button>
-          <Button size="sm" variant="outline-primary" onClick={() => openPackageModal(pkg)}>
-            <i className="fe fe-edit"></i>
-          </Button>
-        </div>
-      </td>
-    </tr>
-  ));
+        {activeTab === 'EKURI' && (
+          <td>
+            <Badge bg="primary" className="fs-6 px-2.5 py-1">
+              {capacityText}
+            </Badge>
+          </td>
+        )}
+        <td>{formatMoney(pkg.displayPrice?.amountMinor, pkg.displayPrice?.currency ?? pkg.currencyCode)}</td>
+        <td><StatusBadge status={pkg.isActive ? 'ACTIVE' : 'INACTIVE'} /></td>
+        <td>{formatDateTimeForText(pkg.createdAt)}</td>
+        <td className="text-center text-nowrap">
+          <div className="d-flex flex-wrap gap-1 justify-content-center align-items-center">
+            <Button
+              size="sm"
+              variant="outline-secondary"
+              disabled={reorderBusy || isSingle}
+              onClick={() => void movePackage(index, isLast ? -1 : 1)}
+              title={isLast ? 'Yukarı Taşı' : 'Aşağı Taşı'}
+            >
+              {isLast ? '↑' : '↓'}
+            </Button>
+            <Button size="sm" variant="outline-primary" onClick={() => openPackageModal(pkg)}>
+              <i className="fe fe-edit"></i>
+            </Button>
+          </div>
+        </td>
+      </tr>
+    );
+  });
+
+  const individualCount = data?.content?.filter((p) => p.packageType !== 'EKURI').length ?? 0;
+  const ekuriCount = data?.content?.filter((p) => p.packageType === 'EKURI').length ?? 0;
 
   return (
     <Container fluid className="p-3 lg:p-6">
@@ -492,18 +490,64 @@ export default function PackagesPage() {
         </Col>
       </Row>
 
-      <Nav variant="tabs" className="mb-4" activeKey={activeTab} onSelect={(k) => setActiveTab((k as 'INDIVIDUAL' | 'EKURI') || 'INDIVIDUAL')}>
-        <Nav.Item>
-          <Nav.Link eventKey="INDIVIDUAL" className="fw-medium">
-            Bireysel Paketler ({data?.content?.filter((p) => p.packageType !== 'EKURI').length ?? 0})
-          </Nav.Link>
-        </Nav.Item>
-        <Nav.Item>
-          <Nav.Link eventKey="EKURI" className="fw-medium">
-            Eküri Paketleri ({data?.content?.filter((p) => p.packageType === 'EKURI').length ?? 0})
-          </Nav.Link>
-        </Nav.Item>
-      </Nav>
+      <div className="mb-4">
+        <Nav
+          variant="pills"
+          className="bg-white p-1 rounded-3 border shadow-sm d-inline-flex flex-row align-items-center gap-1"
+          activeKey={activeTab}
+        >
+          <Nav.Item>
+            <Nav.Link
+              active={activeTab === 'INDIVIDUAL'}
+              onClick={() => setActiveTab('INDIVIDUAL')}
+              className={`px-3 py-2 rounded-2 fw-semibold d-flex align-items-center gap-2 border-0 text-nowrap ${
+                activeTab === 'INDIVIDUAL'
+                  ? 'active shadow-sm text-white'
+                  : 'text-secondary'
+              }`}
+              style={{ cursor: 'pointer', transition: 'all 0.15s ease-in-out' }}
+            >
+              <User size={16} />
+              <span>Bireysel Paketler</span>
+              <span
+                className={`badge rounded-pill ms-1 px-2 py-0.5 fw-bold ${
+                  activeTab === 'INDIVIDUAL'
+                    ? 'bg-white text-primary'
+                    : 'bg-light text-secondary border'
+                }`}
+                style={{ fontSize: '11px' }}
+              >
+                {individualCount}
+              </span>
+            </Nav.Link>
+          </Nav.Item>
+          <Nav.Item>
+            <Nav.Link
+              active={activeTab === 'EKURI'}
+              onClick={() => setActiveTab('EKURI')}
+              className={`px-3 py-2 rounded-2 fw-semibold d-flex align-items-center gap-2 border-0 text-nowrap ${
+                activeTab === 'EKURI'
+                  ? 'active shadow-sm text-white'
+                  : 'text-secondary'
+              }`}
+              style={{ cursor: 'pointer', transition: 'all 0.15s ease-in-out' }}
+            >
+              <Layers size={16} />
+              <span>Eküri Paketleri</span>
+              <span
+                className={`badge rounded-pill ms-1 px-2 py-0.5 fw-bold ${
+                  activeTab === 'EKURI'
+                    ? 'bg-white text-primary'
+                    : 'bg-light text-secondary border'
+                }`}
+                style={{ fontSize: '11px' }}
+              >
+                {ekuriCount}
+              </span>
+            </Nav.Link>
+          </Nav.Item>
+        </Nav>
+      </div>
 
       {isModalOpen && modalContent}
       {isLoading && <Loading />}

@@ -63,3 +63,11 @@
 .cp {
     cursor: pointer;
 }
+
+.modal-higher-level {
+    z-index: 1070 !important;
+}
+
+.modal-backdrop-higher {
+    z-index: 1065 !important;
+}
