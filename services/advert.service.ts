@@ -462,11 +462,35 @@ class AdvertService {
         // Fetch all adverts so we can resolve complete Eküri bundles across all statuses
         const items = await this.fetchAll();
 
+        // Pre-build an alias map between ekuriCode / ekuriBundleCode and ekuriBundleId
+        // so adverts with matching ekuriCode always resolve to the exact same bundle key!
+        const codeToBundleId = new Map<string, string>();
+        for (const item of items) {
+            const uuid = item.ekuriBundleId || item.ekuri_bundle_id || item.bundleId || item.properties?.ekuriBundleId || item.properties?.ekuri_bundle_id;
+            const code = item.properties?.ekuriCode || item.properties?.ekuriBundleCode;
+            if (uuid && code) {
+                codeToBundleId.set(String(code).trim(), String(uuid).trim());
+            }
+        }
+
+        const resolveBundleId = (item: any): string | undefined => {
+            const raw = getEkuriBundleId(item);
+            if (!raw) return undefined;
+            const code = item?.properties?.ekuriCode || item?.properties?.ekuriBundleCode;
+            if (code && codeToBundleId.has(String(code).trim())) {
+                return codeToBundleId.get(String(code).trim())!;
+            }
+            if (codeToBundleId.has(raw)) {
+                return codeToBundleId.get(raw)!;
+            }
+            return raw;
+        };
+
         // Pre-build a full bundle map across all fetched items
         // so every bundle knows all of its member adverts regardless of filters/paging
         const fullBundleMap = new Map<string, ModerationAdvertResponse[]>();
         for (const item of items) {
-            const bId = getEkuriBundleId(item);
+            const bId = resolveBundleId(item);
             if (bId) {
                 const list = fullBundleMap.get(bId) || [];
                 list.push(item);
@@ -474,7 +498,7 @@ class AdvertService {
             }
         }
 
-        const filtered = this.applyFilter(items, params.filter, fullBundleMap);
+        const filtered = this.applyFilter(items, params.filter, fullBundleMap, resolveBundleId);
 
         const STATUS_PRIORITY: Record<string, number> = {
             'PENDING_REVIEW': 1,
@@ -504,7 +528,7 @@ class AdvertService {
         const seenBundles = new Set<string>();
 
         for (const advert of filtered) {
-            const bId = getEkuriBundleId(advert);
+            const bId = resolveBundleId(advert);
             if (bId) {
                 if (seenBundles.has(bId)) {
                     continue; // Skip subsequent items of the same bundle
@@ -562,7 +586,9 @@ class AdvertService {
             const all = await this.fetchAll();
             const matched = all.filter((a) => {
                 const b = getEkuriBundleId(a);
-                return b === bundleId || (a as any).properties?.ekuriCode === bundleId || (a as any).properties?.ekuriBundleCode === bundleId;
+                const uuid = (a as any).ekuriBundleId || (a as any).ekuri_bundle_id || (a as any).properties?.ekuriBundleId;
+                const code = (a as any).properties?.ekuriCode || (a as any).properties?.ekuriBundleCode;
+                return b === bundleId || uuid === bundleId || code === bundleId;
             });
             if (matched.length > 0) return matched;
         } catch { }
@@ -907,7 +933,12 @@ class AdvertService {
         return items.map(toModerationAdvert);
     }
 
-    private applyFilter(items: ModerationAdvertResponse[], filter?: string, fullBundleMap?: Map<string, ModerationAdvertResponse[]>) {
+    private applyFilter(
+        items: ModerationAdvertResponse[],
+        filter?: string,
+        fullBundleMap?: Map<string, ModerationAdvertResponse[]>,
+        resolveBundleIdFn: (item: any) => string | undefined = getEkuriBundleId,
+    ) {
         if (!filter) {
             return items;
         }
@@ -920,7 +951,7 @@ class AdvertService {
         return items.filter((item) => clauses.every((clause) => {
             if (clause.startsWith('status==')) {
                 const statusVal = clause.slice('status=='.length).trim();
-                const bId = getEkuriBundleId(item);
+                const bId = resolveBundleIdFn(item);
                 if (bId && fullBundleMap) {
                     const members = fullBundleMap.get(bId) || [item];
                     if (statusVal === 'PUBLISHED') {
@@ -944,7 +975,7 @@ class AdvertService {
             }
             if (clause.startsWith('mainCategory==')) {
                 const expected = clause.slice('mainCategory=='.length).trim().toLowerCase();
-                const bId = getEkuriBundleId(item);
+                const bId = resolveBundleIdFn(item);
                 const isEkuri = Boolean(bId);
                 if (expected === 'ekuri') {
                     return isEkuri;

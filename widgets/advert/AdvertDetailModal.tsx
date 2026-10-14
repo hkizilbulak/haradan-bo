@@ -64,9 +64,9 @@ const FALLBACK_HORSE_IMAGES: string[] = [
   'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&w=600&q=80',
   'https://images.unsplash.com/photo-1598974357801-cbca100e65d3?auto=format&fit=crop&w=600&q=80',
   'https://images.unsplash.com/photo-1544967082-d9d25d867d66?auto=format&fit=crop&w=600&q=80',
-  'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=600&q=80',
   'https://images.unsplash.com/photo-1493962853295-0fd70327578a?auto=format&fit=crop&w=600&q=80',
-  'https://images.unsplash.com/photo-1625047509168-a7026f36de04?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1551884170-09fb70a3a2ed?auto=format&fit=crop&w=600&q=80',
   'https://images.unsplash.com/photo-1615811361523-6bd03d7748e7?auto=format&fit=crop&w=600&q=80',
   'https://images.unsplash.com/photo-1500485035595-cbe6f645feb1?auto=format&fit=crop&w=600&q=80',
   'https://images.unsplash.com/photo-1731838618093-7ed3508d2fcd?auto=format&fit=crop&w=600&q=80',
@@ -108,7 +108,9 @@ function getItemCoverImage(item?: ModerationAdvertResponse | null, idx = 0): str
   } else {
     const mediaList = (item as any)?.media || props?.media;
     if (Array.isArray(mediaList) && mediaList.length > 0) {
-      const cover = mediaList.find((m: any) => m.isCover) || mediaList[0];
+      const readyMedia = mediaList.filter((m: any) => m.lifecycleStatus !== 'VALIDATION_FAILED');
+      const candidateList = readyMedia.length > 0 ? readyMedia : mediaList;
+      const cover = candidateList.find((m: any) => m.isCover) || candidateList[0];
       raw = cover?.publicUrl || cover?.url || cover?.imageUrl || cover?.assetId || null;
     }
   }
@@ -127,7 +129,7 @@ function getItemCoverImage(item?: ModerationAdvertResponse | null, idx = 0): str
     if (trimmed.startsWith('/')) {
       return trimmed;
     }
-    return buildMediaUrl(trimmed, 'THUMBNAIL');
+    return buildMediaUrl(trimmed, 'DETAIL');
   }
 
   return getDeterministicFallbackImage(item, idx);
